@@ -48,10 +48,7 @@ from backend.ai.lineage_agent import (
     _get_history,
     clear_history,
 )
-from backend.design.design import (
-    generate_design, edit_design, generate_image_fill,
-    design_to_html, render_hosted_page, generate_slug,
-)
+
 
 # ==========================================================================
 # CONSTANTS & PATHS
@@ -2830,21 +2827,10 @@ async def publish_to_github(request: Request, project_id: str):
 # Design Routes
 # ==========================================================================
 
-# ==========================================================================
-# GORILLA DESIGN ROUTES v2
-# ==========================================================================
-# Add these imports near the top of app.py:
-#
-#   from backend.design.design import (
-#       generate_design, edit_design, generate_image_fill,
-#       design_to_html, render_hosted_page, generate_slug,
-#   )
-#
-# Then paste everything below into app.py before the startup wiring block.
-# ==========================================================================
-
-
-# ── DASHBOARD ────────────────────────────────────────────────────────────
+from backend.design.design import (
+    generate_design, edit_design,
+    design_to_html, get_hosted_html, generate_slug, to_figma_clipboard,
+)
 
 @app.get("/design", response_class=HTMLResponse)
 async def design_dashboard(request: Request):
@@ -2982,32 +2968,48 @@ async def generate_design_endpoint(request: Request, design_id: str, background_
     }).eq("id", design_id).eq("owner_id", user["id"]).execute()
 
     async def _generate_bg(design_id: str, brief: str, user_id: str):
+        import asyncio
+        def _save(data: dict):
+            supabase.table("designs").update(data).eq("id", design_id).eq("owner_id", user_id).execute()
+        def _charge():
+            add_monthly_tokens(user_id, 3000)
         try:
-            figma_json = await generate_design(brief)
-            tokens = figma_json.get("_gorilla_tokens", {})
-            name = figma_json.get("name") or brief[:40].split(".")[0].strip().title() or "Untitled"
-            supabase.table("designs").update({
+            result = await generate_design(brief)
+            figma_json = result["figma_json"]
+            tokens = result["tokens"]
+            html = result["html"]
+            name = result["name"] or brief[:40].strip().title() or "Untitled"
+            figma_json["_raw_html"] = html
+            # Run sync Supabase call in thread to avoid blocking event loop
+            await asyncio.to_thread(_save, {
                 "figma_json": figma_json,
                 "tokens": tokens,
                 "name": name,
+                "hosted_html": html,
                 "chat_history": [
                     {"role": "user", "content": brief},
                     {"role": "assistant", "content": f'Generated "{name}"'},
                 ],
                 "updated_at": "now()",
-            }).eq("id", design_id).eq("owner_id", user_id).execute()
-            add_monthly_tokens(user_id, 3000)
+            })
+            await asyncio.to_thread(_charge)
         except Exception as e:
             import traceback; traceback.print_exc()
-            supabase.table("designs").update({
-                "chat_history": [
-                    {"role": "user", "content": brief},
-                    {"role": "assistant", "content": f"Error: {str(e)[:200]}"},
-                ],
-                "updated_at": "now()",
-            }).eq("id", design_id).eq("owner_id", user_id).execute()
+            try:
+                await asyncio.to_thread(_save, {
+                    "chat_history": [
+                        {"role": "user", "content": brief},
+                        {"role": "assistant", "content": f"Error: {str(e)[:200]}"},
+                    ],
+                    "updated_at": "now()",
+                })
+            except Exception:
+                pass
 
-    background_tasks.add_task(_generate_bg, design_id, brief, user["id"])
+    # Use asyncio.create_task for true concurrency — multiple designs
+    # can generate simultaneously without blocking each other or other requests
+    import asyncio
+    asyncio.create_task(_generate_bg(design_id, brief, user["id"]))
     return JSONResponse({"status": "generating", "design_id": design_id})
 
 
@@ -3075,9 +3077,16 @@ async def edit_design_endpoint(request: Request, design_id: str):
         raise HTTPException(400, "No design to edit yet. Generate one first.")
 
     try:
-        updated_tree, narration = await edit_design(tree, instruction)
+        existing_html = tree.get("_raw_html", "")
+        result = await edit_design(existing_html or "", instruction)
 
-        tokens = updated_tree.get("_gorilla_tokens", design.get("tokens") or {})
+        updated_tree = result["figma_json"]
+        tokens = result["tokens"]
+        html = result["html"]
+        narration = result["narration"]
+
+        # Store raw HTML back
+        updated_tree["_raw_html"] = html
 
         # Append to chat history
         try:
@@ -3093,6 +3102,7 @@ async def edit_design_endpoint(request: Request, design_id: str):
         supabase.table("designs").update({
             "figma_json": updated_tree,
             "tokens": tokens,
+            "hosted_html": html,
             "chat_history": history,
             "updated_at": "now()",
         }).eq("id", design_id).eq("owner_id", user["id"]).execute()
@@ -3103,6 +3113,7 @@ async def edit_design_endpoint(request: Request, design_id: str):
             "figma_json": updated_tree,
             "tokens": tokens,
             "narration": narration,
+            "html": html,
         })
 
     except Exception as e:
@@ -3196,7 +3207,12 @@ async def export_host(request: Request, design_id: str):
     slug = design.get("hosted_slug") or generate_slug(name)
     site_url = os.getenv("SITE_URL", "")
 
-    html = render_hosted_page(tree, design_id=design_id, site_url=site_url)
+    # Use stored HTML if available (new HTML-first format)
+    raw_html = tree.get("_raw_html") or design.get("hosted_html") or ""
+    if raw_html:
+        html = get_hosted_html(raw_html, design_id=design_id, site_url=site_url)
+    else:
+        html = get_hosted_html(design_to_html(tree), design_id=design_id, site_url=site_url)
 
     supabase.table("designs").update({
         "hosted_slug": slug,
@@ -3206,6 +3222,23 @@ async def export_host(request: Request, design_id: str):
 
     return JSONResponse({"url": f"{site_url}/design/hosted/{slug}", "slug": slug})
 
+
+
+
+# ── EXPORT: Figma clipboard (paste directly into Figma) ───────────────────
+
+@app.post("/api/design/{design_id}/export/figma-clipboard")
+async def export_figma_clipboard(request: Request, design_id: str):
+    user = get_current_user(request)
+    try:
+        res = supabase.table("designs").select("figma_json, name").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        design = res.data
+    except Exception:
+        raise HTTPException(404, "Design not found")
+    tree = design.get("figma_json") or {}
+    # Returns the HTML string that Figma reads from clipboard
+    clipboard_html = to_figma_clipboard(tree)
+    return Response(content=clipboard_html, media_type="text/plain")
 
 # ── DELETE ────────────────────────────────────────────────────────────────
 
@@ -3217,6 +3250,7 @@ async def delete_design(request: Request, design_id: str):
         return JSONResponse({"ok": True})
     except Exception as e:
         raise HTTPException(500, detail=str(e))
+
 # ==========================================================================
 # FILE API ROUTES
 # ==========================================================================
