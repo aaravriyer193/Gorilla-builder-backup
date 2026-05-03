@@ -762,7 +762,7 @@
       if (!resp.ok) { let d; try{d=await resp.json();}catch{} throw new Error(d?.detail||'Failed'); }
       let attempts = 0;
       while (attempts < 40) {
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 10000));
         attempts++;
         const poll = await fetch(`/api/design/${DESIGN_ID}/status`);
         const data = await poll.json();

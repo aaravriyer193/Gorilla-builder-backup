@@ -30,7 +30,7 @@ from html.parser import HTMLParser
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DESIGN_MODEL = os.getenv("DESIGN_MODEL", "deepseek/deepseek-v4-pro")
-IMAGE_MODEL = os.getenv("IMAGE_MODEL", "black-forest-labs/flux.2-klein-4b")
+IMAGE_MODEL = os.getenv("IMAGE_MODEL", "black-forest-labs/flux.2-pro")
 SITE_URL = os.getenv("SITE_URL", "https://gorillabuilder.dev")
 
 
@@ -38,7 +38,7 @@ SITE_URL = os.getenv("SITE_URL", "https://gorillabuilder.dev")
 # LLM
 # ---------------------------------------------------------------------------
 
-async def _llm(system: str, user: str, max_tokens: int = 80000) -> str:
+async def _llm(system: str, user: str, max_tokens: int = 8000) -> str:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
@@ -78,19 +78,24 @@ Start your response with <!DOCTYPE html> and end with </html>.
 
 MANDATORY STRUCTURE — you MUST include ALL of these sections:
 1. Navbar (height: 80px)
-2. Hero section with large headline and CTA (height: 700px)
-3. Features or Products section with 3+ cards (height: 500px)
-4. About or Story section (height: 400px)
-5. Testimonials or Stats section (height: 350px)
-6. Footer (height: 200px)
+2. Hero section with large headline and CTA
+3. Features or Products section with 3+ cards
+4. About or Story section
+5. Testimonials or Stats section
+6. Footer
+PLEASE ADD MORE, Make EACH DESIGN UNIQUE AND TASTEFUL
 TOTAL HEIGHT: at least 2230px. More sections = better design.
 
-POSITIONING RULES:
-- Every element: position:absolute with exact left/top/width/height in px
-- Body has position:relative, min-height matches total content height
-- Sections stack vertically — each section's top = previous section's top + height
-- Section divs: position:absolute; left:0; width:1440px; height:Npx; top:Npx
-- Child elements inside sections: position:absolute relative to their parent section
+POSITIONING — FOLLOW THIS EXACTLY:
+
+The body is the page. Sections sit inside body. Elements sit inside sections.
+
+KEY RULES:
+- Section tops = cumulative sum of all sections above it
+- Child tops = distance from the TOP OF THEIR PARENT SECTION (always starts at 0)
+- NEVER add the section's page offset to child positions
+- Every element needs explicit width — text will overflow without it
+- Elements must stay within parent bounds (no negative tops, no left+width > parent width)
 
 STYLE RULES:
 - Inline all CSS in <style> tag — use @import for Google Fonts at the very top
@@ -100,10 +105,14 @@ STYLE RULES:
 
 IMAGE RULES — IMPORTANT:
 - For ANY photo, illustration, or background image use EXACTLY:
-  <img data-generate="your detailed prompt" style="position:absolute;left:0px;top:0px;width:1440px;height:700px;object-fit:cover;">
+  <img data-generate="your detailed prompt" style="width:100%;height:700px;display:block;">
 - Use data-generate for: hero backgrounds, product photos, portraits, team photos
-- NEVER use picsum, unsplash, placeholder.com or any external image URLs
+- Don't always use picsum, unsplash, placeholder.com or any external image URLs
 - AI images will be auto-generated and embedded
+- CRITICAL: Keep prompts generic and descriptive — NO brand names, NO logos, NO celebrity names,
+  NO trademarked products. Instead of "Coca-Cola bottle" write "dark glass soda bottle with red label,
+  condensation, dramatic lighting". Instead of "Nike shoe" write "premium running shoe, black and white".
+  Brand-specific prompts get moderated and fail.
 
 OTHER RULES:
 - Add data-node-id to every section: data-node-id="navbar", "hero", "features", "footer" etc
@@ -128,7 +137,7 @@ async def generate_design(brief: str) -> Dict[str, Any]:
     Generate a complete design from a brief.
     Returns dict with html, figma_json, tokens, name.
     """
-    raw_html = await _llm(GENERATE_SYSTEM, f"Design brief: {brief}", max_tokens=80000)
+    raw_html = await _llm(GENERATE_SYSTEM, f"Design brief: {brief}", max_tokens=12000)
 
     # Clean up any accidental markdown fences
     raw_html = re.sub(r'^```(?:html)?\n?', '', raw_html.strip())
@@ -169,7 +178,7 @@ async def edit_design(html: str, instruction: str) -> Dict[str, Any]:
     Returns dict with html, figma_json, tokens, narration.
     """
     user_msg = f"Current HTML:\n{html[:6000]}\n\nInstruction: {instruction}"
-    raw_html = await _llm(EDIT_SYSTEM, user_msg, max_tokens=80000)
+    raw_html = await _llm(EDIT_SYSTEM, user_msg, max_tokens=12000)
 
     raw_html = re.sub(r'^```(?:html)?\n?', '', raw_html.strip())
     raw_html = re.sub(r'\n?```$', '', raw_html.strip())
@@ -811,11 +820,11 @@ def get_hosted_html(html: str, design_id: str = "", site_url: str = "") -> str:
     """Return the HTML with an optional edit badge."""
     if not design_id:
         return html
-    badge = f"""<a href="{site_url}/design/editor/{design_id}"
+    badge = f"""<a href="{site_url}/design"
 style="position:fixed;bottom:20px;right:20px;background:#0066ff;color:#fff;
-padding:8px 16px;border-radius:8px;font-family:DM Sans,sans-serif;font-size:13px;
+padding:8px 16px;border-radius:8px;font-family:DM Sans,Google Sans, sans-serif;font-size:13px;
 text-decoration:none;font-weight:500;box-shadow:0 4px 16px rgba(0,102,255,0.4);z-index:9999;">
-✦ Edit in Gorilla Design</a>"""
+✦ Made with Gorilla Design</a>"""
     return html.replace('</body>', f'{badge}\n</body>')
 
 

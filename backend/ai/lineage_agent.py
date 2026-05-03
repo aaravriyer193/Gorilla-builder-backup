@@ -53,8 +53,8 @@ import httpx
 # Configdeepseek/deepseek-v4-flash
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = os.getenv("LINEAGE_MODEL", "kwaipilot/kat-coder-pro-v2")
-SMART_MODEL = os.getenv("SMART_MODEL","kwaipilot/kat-coder-pro-v2")   # hard turns
+MODEL = os.getenv("LINEAGE_MODEL", "minimax/minimax-m2.7")
+SMART_MODEL = os.getenv("SMART_MODEL","minimax/minimax-m2.7")   # hard turns
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "xiaomi/mimo-v2.5")
 VISION_MODEL = os.getenv("VISION_MODEL", "xiaomi/mimo-v2.5")
 OPENROUTER_URL = os.getenv(
@@ -64,7 +64,7 @@ OPENROUTER_URL = os.getenv(
 SITE_URL = os.getenv("SITE_URL", "https://gorillabuilder.dev").strip()
 SITE_NAME = os.getenv("SITE_NAME", "Gorilla Builder")
 
-MAX_CONTEXT_TOKENS = 1_000_000
+MAX_CONTEXT_TOKENS = 190_000
 CHARS_PER_TOKEN = 4
 
 if not OPENROUTER_API_KEY:
@@ -398,10 +398,12 @@ Critical reminders:
 - API keys live in app/.env — do not look elsewhere
 - Never wrap App.tsx routes in a second BrowserRouter inside main.tsx
 - React errors may be silent — always check /tmp/dev.log and the console error tunnel
+- Never Expect tools like supabase to be active unless specified later.
+- Try not mess around witht the config files too much, as that will bring trouble.
 """
 
 SUPABASE_ADDON = r"""
-## Supabase (active)
+Supabase is active
 Client:
 ```ts
 import { createClient } from '@supabase/supabase-js';
@@ -796,7 +798,7 @@ async def _call_llm(
         "temperature": temperature,
         "max_tokens": 16000,
         "provider": {
-            "order": ["atlas-cloud/fp8", "xiaomi", "xai"],
+            "order": ["fireworks", "xiaomi", "xai"],
             "allow_fallbacks": False,
         },
     }
@@ -821,7 +823,7 @@ async def _call_llm(
     elif is_mimo:
         weight = p * 0.5 + c * 2
     else:
-        weight = p * 0.2 + c * 0.3
+        weight = p * 0.3 + c * 1.2
     return content, int(weight)
 
 

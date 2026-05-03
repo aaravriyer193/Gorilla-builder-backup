@@ -483,12 +483,6 @@
 
     <div class="right-actions">
       <span class="badge" id="sandboxStatus">Sandbox Offline</span>
-      {% if user and user.tokens %}
-      <span class="badge" title="Tokens used">
-        <i class="ph ph-lightning" style="font-size:11px;"></i>
-        <span id="tokenDisplay">{{ "{:,}".format(user.tokens.used) }}</span>
-      </span>
-      {% endif %}
       <span class="badge" id="saveStatus">Saved</span>
 
       <a class="pill-btn" href="/dashboard" title="Dashboard"><i class="ph ph-squares-four"></i></a>
