@@ -601,8 +601,14 @@ window.addEventListener('resize', scaleFrame);
 
 
 def _render_node(nodes: list, parts: List[str], parent_x: float, parent_y: float) -> None:
+    """
+    Render nodes as HTML. absoluteBoundingBox coords are absolute from frame origin.
+    Since each node is a child div inside its parent div, we subtract the parent's
+    absolute position to get the correct relative position within the parent.
+    """
     for node in nodes:
         bb = node.get("absoluteBoundingBox", {})
+        # Position relative to parent div
         x = bb.get("x", 0) - parent_x
         y = bb.get("y", 0) - parent_y
         w = bb.get("width", 0)
@@ -610,32 +616,35 @@ def _render_node(nodes: list, parts: List[str], parent_x: float, parent_y: float
 
         style = f"left:{x:.1f}px;top:{y:.1f}px;width:{w:.1f}px;height:{h:.1f}px;"
 
-        # Fill
+        node_type = node.get("type", "")
         fills = node.get("fills", [])
-        fill = next((f for f in fills if f.get("visible", True) and f.get("type") in ("SOLID","IMAGE")), None)
-        if fill:
-            if fill.get("type") == "SOLID":
-                c = fill.get("color", {})
-                r = int(c.get("r", 0) * 255)
-                g = int(c.get("g", 0) * 255)
-                b = int(c.get("b", 0) * 255)
-                a = fill.get("opacity", c.get("a", 1))
-                style += f"background:rgba({r},{g},{b},{a:.2f});"
-            elif fill.get("type") == "IMAGE" and fill.get("imageRef", "").startswith("data:"):
-                style += f"background-image:url({fill['imageRef']});background-size:cover;background-position:center;"
+
+        # Only apply background fills to non-TEXT nodes
+        if node_type != "TEXT":
+            fill = next((f for f in fills if f.get("visible", True) and f.get("type") in ("SOLID", "IMAGE")), None)
+            if fill:
+                if fill.get("type") == "SOLID":
+                    c = fill.get("color", {})
+                    r = int(c.get("r", 0) * 255)
+                    g = int(c.get("g", 0) * 255)
+                    b = int(c.get("b", 0) * 255)
+                    a = fill.get("opacity", c.get("a", 1))
+                    style += f"background:rgba({r},{g},{b},{a:.2f});"
+                elif fill.get("type") == "IMAGE" and fill.get("imageRef", "").startswith("data:"):
+                    style += f"background-image:url({fill['imageRef']});background-size:cover;background-position:center;"
+
+            strokes = node.get("strokes", [])
+            sw = node.get("strokeWeight", 0)
+            if strokes and sw:
+                sc = _fill_color(strokes[0])
+                style += f"border:{sw}px solid {sc};"
 
         if node.get("cornerRadius"):
             style += f"border-radius:{node['cornerRadius']}px;"
         if node.get("opacity") is not None and node["opacity"] < 1:
             style += f"opacity:{node['opacity']};"
 
-        strokes = node.get("strokes", [])
-        sw = node.get("strokeWeight", 0)
-        if strokes and sw:
-            sc = _fill_color(strokes[0])
-            style += f"border:{sw}px solid {sc};"
-
-        if node.get("type") == "TEXT":
+        if node_type == "TEXT":
             ts = node.get("style", {})
             fs = ts.get("fontSize", 16)
             fw = ts.get("fontWeight", 400)
@@ -643,17 +652,22 @@ def _render_node(nodes: list, parts: List[str], parent_x: float, parent_y: float
             ls = ts.get("letterSpacing", 0)
             lh = ts.get("lineHeightPx", fs * 1.4)
             ta = ts.get("textAlignHorizontal", "LEFT").lower()
-            # Text color from fills, fallback to white for dark designs
+            # Text color comes from fills — never apply as background
             text_color = _fill_color(fills[0]) if fills else "rgba(250,250,250,1)"
             style += (
                 f"font-size:{fs}px;font-weight:{fw};font-family:'{ff}',sans-serif;"
                 f"letter-spacing:{ls}px;line-height:{lh:.0f}px;text-align:{ta};"
                 f"color:{text_color};overflow:hidden;white-space:pre-wrap;"
+                f"background:transparent;"
             )
             text = node.get("characters", "")
+            # Skip image placeholder text
+            if text.startswith("<image") or text.startswith("_image"):
+                text = ""
             parts.append(f'<div class="gd-node" style="{style}">{text}</div>')
         else:
             parts.append(f'<div class="gd-node" style="{style}">')
+            # Children use THIS node's absolute position as their parent origin
             _render_node(node.get("children", []), parts, bb.get("x", 0), bb.get("y", 0))
             parts.append("</div>")
 

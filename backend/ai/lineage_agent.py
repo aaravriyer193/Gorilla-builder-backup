@@ -50,11 +50,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 # ---------------------------------------------------------------------------
-# Config
+# Configdeepseek/deepseek-v4-flash
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = os.getenv("LINEAGE_MODEL", "deepseek/deepseek-v4-flash")
-SMART_MODEL = os.getenv("SMART_MODEL","deepseek/deepseek-v4-pro")   # hard turns
+MODEL = os.getenv("LINEAGE_MODEL", "kwaipilot/kat-coder-pro-v2")
+SMART_MODEL = os.getenv("SMART_MODEL","kwaipilot/kat-coder-pro-v2")   # hard turns
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "xiaomi/mimo-v2.5")
 VISION_MODEL = os.getenv("VISION_MODEL", "xiaomi/mimo-v2.5")
 OPENROUTER_URL = os.getenv(
@@ -796,7 +796,7 @@ async def _call_llm(
         "temperature": temperature,
         "max_tokens": 16000,
         "provider": {
-            "order": ["deepseek", "xiaomi", "xai"],
+            "order": ["atlas-cloud/fp8", "xiaomi", "xai"],
             "allow_fallbacks": False,
         },
     }

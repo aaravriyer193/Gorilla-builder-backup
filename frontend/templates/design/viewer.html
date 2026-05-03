@@ -249,12 +249,15 @@
       renderNodes(designData.children || [], frame, 0);
     }
 
-    function renderNodes(nodes, container, depth) {
+    function renderNodes(nodes, container, depth, parentAbsX, parentAbsY) {
+      // parentAbsX/Y = absoluteBoundingBox of the parent node
+      // Children are positioned relative to their parent div
+      const pX = parentAbsX !== undefined ? parentAbsX : _viewerFrameOriginX;
+      const pY = parentAbsY !== undefined ? parentAbsY : _viewerFrameOriginY;
       nodes.forEach((node, i) => {
         const bb = node.absoluteBoundingBox || {};
-        // All coords absolute from frame origin — same formula at every depth
-        const x = (bb.x || 0) - _viewerFrameOriginX;
-        const y = (bb.y || 0) - _viewerFrameOriginY;
+        const x = (bb.x || 0) - pX;
+        const y = (bb.y || 0) - pY;
         const w = bb.width || 100;
         const h = bb.height || 40;
 
@@ -266,32 +269,42 @@
         applyNodeStyle(el, node);
 
         if (node.type === 'TEXT') {
-          const style = node.style || {};
-          el.textContent = node.characters || '';
-          el.style.fontSize = (style.fontSize || 16) + 'px';
-          el.style.fontWeight = style.fontWeight || 400;
-          el.style.color = fillsToColor(node.fills) || 'rgba(250,250,250,1)';
-          el.style.textAlign = (style.textAlignHorizontal || 'LEFT').toLowerCase();
-          el.style.lineHeight = style.lineHeightPx ? style.lineHeightPx + 'px' : '1.4';
-          el.style.fontFamily = (style.fontFamily || 'DM Sans') + ', sans-serif';
-          el.style.letterSpacing = (style.letterSpacing || 0) + 'px';
-          el.style.overflow = 'hidden';
-          el.style.whiteSpace = 'pre-wrap';
+          const chars = node.characters || '';
+          // Skip image placeholders
+          if (chars.startsWith('<image') || chars.startsWith('_image')) {
+            el.style.display = 'none';
+          } else {
+            const style = node.style || {};
+            el.textContent = chars;
+            el.style.fontSize = (style.fontSize || 16) + 'px';
+            el.style.fontWeight = style.fontWeight || 400;
+            el.style.color = fillsToColor(node.fills) || 'rgba(250,250,250,1)';
+            el.style.textAlign = (style.textAlignHorizontal || 'LEFT').toLowerCase();
+            el.style.lineHeight = style.lineHeightPx ? style.lineHeightPx + 'px' : '1.4';
+            el.style.fontFamily = (style.fontFamily || 'DM Sans') + ', sans-serif';
+            el.style.letterSpacing = (style.letterSpacing || 0) + 'px';
+            el.style.overflow = 'hidden';
+            el.style.whiteSpace = 'pre-wrap';
+            el.style.background = 'transparent';
+          }
         }
 
         container.appendChild(el);
         nodeElements[node.id] = el;
 
-        // Recurse — children also use _viewerFrameOriginX/Y (never changes)
+        // Children positioned relative to this node's absolute position
         if (node.children?.length) {
-          renderNodes(node.children, el, depth + 1);
+          renderNodes(node.children, el, depth + 1, bb.x || 0, bb.y || 0);
         }
       });
     }
 
     function applyNodeStyle(el, node) {
-      // TEXT nodes: color handled separately, don't apply background fills
-      if (node.type !== 'TEXT') {
+      // TEXT nodes: only color, never background
+      if (node.type === 'TEXT') {
+        el.style.background = 'transparent';
+        el.style.border = 'none';
+      } else {
         const fill = node.fills?.find(f => f.visible !== false);
         if (fill?.type === 'SOLID') {
           const c = fill.color || {};
