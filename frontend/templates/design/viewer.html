@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ design.name if design else 'Design' }} — Gorilla Design</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    :root {
+      --bg: #000000;
+      --panel-bg: rgba(4,4,12,0.98);
+      --border: rgba(0,120,255,0.07);
+      --accent: #0066ff;
+      --text: #d0d8f0;
+      --text-muted: #2a3050;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'DM Sans', sans-serif; }
+
+    body {
+      background: var(--bg); color: var(--text);
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      height: 48px; background: rgba(3,3,10,0.98);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; gap: 16px;
+      flex-shrink: 0; z-index: 10;
+    }
+    .topbar-logo { font-size: 14px; font-weight: 350; color: var(--text); text-decoration: none; letter-spacing: -0.3px; }
+    .topbar-sep { width: 1px; height: 16px; background: var(--border); }
+    .topbar-name { font-size: 13px; color: var(--text-muted); font-weight: 300; flex: 1; }
+    .topbar-name span { color: var(--text); }
+
+    .btn-edit {
+      height: 30px; padding: 0 14px; border-radius: 6px;
+      background: var(--accent); border: none; color: #fff;
+      font-size: 12px; font-weight: 500; cursor: pointer;
+      text-decoration: none; display: flex; align-items: center; gap: 6px;
+      transition: all 0.15s var(--ease-out);
+      box-shadow: 0 2px 8px rgba(0,102,255,0.3);
+      font-family: 'DM Sans', sans-serif;
+    }
+    .btn-edit:hover { background: #0055ee; transform: translateY(-1px); }
+
+    /* ── VIEWER ── */
+    .viewer-wrap {
+      flex: 1; overflow: auto; position: relative;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 40px;
+    }
+    .viewer-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+    .viewer-wrap::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.1); border-radius: 2px; }
+
+    .design-frame {
+      position: relative; flex-shrink: 0;
+      box-shadow: 0 20px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,102,255,0.08);
+      border-radius: 4px; overflow: hidden;
+    }
+
+    /* Node animations */
+    .gorilla-node {
+      position: absolute;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: nodeIn 0.5s var(--ease-out) forwards;
+    }
+
+    @keyframes nodeIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+
+
+    /* Property change transition */
+    .gorilla-node.transitioning {
+      transition: all 0.4s var(--ease-out);
+    }
+
+    /* Agent thinking breathe */
+    .gorilla-node.agent-focus {
+      animation: breathe 1.5s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(0,102,255,0.3); }
+      50% { box-shadow: 0 0 0 6px rgba(0,102,255,0.15), 0 0 20px rgba(0,102,255,0.1); }
+    }
+
+    /* Search/replace pulse */
+    @keyframes matchPulse {
+      0% { box-shadow: 0 0 0 0 rgba(0,102,255,0.6); }
+      50% { box-shadow: 0 0 0 8px rgba(0,102,255,0.1); }
+      100% { box-shadow: 0 0 0 0 rgba(0,102,255,0); }
+    }
+    .gorilla-node.match-pulse {
+      animation: matchPulse 0.6s ease-out forwards;
+    }
+
+    /* ── BOTTOM TOOLBAR ── */
+    .viewer-toolbar {
+      height: 44px; background: rgba(3,3,10,0.98);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .toolbar-btn {
+      height: 28px; padding: 0 12px; border-radius: 5px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 11px; font-weight: 400;
+      cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .toolbar-btn:hover { border-color: rgba(0,102,255,0.3); color: var(--text); background: rgba(0,102,255,0.06); }
+    .toolbar-btn i { font-size: 13px; color: var(--accent); opacity: 0.6; }
+
+    .toolbar-spacer { flex: 1; }
+
+    .zoom-controls { display: flex; align-items: center; gap: 4px; }
+    .zoom-val { font-size: 11px; color: var(--text-muted); padding: 0 8px; min-width: 40px; text-align: center; }
+
+    /* ── SEARCH/REPLACE ── */
+    .search-bar {
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      background: var(--panel-bg); border: 1px solid rgba(0,102,255,0.2);
+      border-radius: 10px; padding: 12px 16px; display: flex; gap: 10px;
+      align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+      z-index: 100; display: none; min-width: 360px;
+    }
+    .search-bar.open { display: flex; animation: slideDown 0.2s var(--ease-out); }
+    @keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+    .search-input {
+      flex: 1; background: transparent; border: none; color: var(--text);
+      font-size: 12px; font-family: 'DM Sans', sans-serif;
+    }
+    .search-input::placeholder { color: rgba(208,216,240,0.25); }
+    .search-sep { width: 1px; height: 16px; background: var(--border); }
+    .search-count { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 60px; left: 50%;
+      transform: translateX(-50%) translateY(40px);
+      background: var(--panel-bg); border: 1px solid var(--border);
+      padding: 9px 18px; border-radius: 8px; font-size: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.9);
+      transition: all 0.3s var(--ease-out); opacity: 0; z-index: 9999;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.success { border-color: rgba(62,207,142,0.3); color: #3ECF8E; }
+  </style>
+</head>
+
+<body>
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <a href="/design" class="topbar-logo">Gorilla Design</a>
+    <div class="topbar-sep"></div>
+    <div class="topbar-name"><span>{{ design.name if design else 'Untitled' }}</span></div>
+    {% if user %}
+    <a href="/design/editor/{{ design.id if design else '' }}" class="btn-edit">
+      <i class="ph ph-pencil-simple"></i> Edit
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- VIEWER -->
+  <div class="viewer-wrap" id="viewer-wrap">
+    <div class="design-frame" id="design-frame">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <!-- SEARCH BAR -->
+  <div class="search-bar" id="search-bar">
+    <i class="ph ph-magnifying-glass" style="color:var(--accent);font-size:14px;opacity:0.7;"></i>
+    <input class="search-input" id="search-input" placeholder="Find text..." oninput="handleSearch(this.value)">
+    <div class="search-sep"></div>
+    <input class="search-input" id="replace-input" placeholder="Replace with..." style="max-width:120px;">
+    <div class="search-count" id="search-count"></div>
+    <button class="toolbar-btn" onclick="replaceAll()" style="padding:0 10px;height:24px;">Replace all</button>
+    <button class="toolbar-btn" onclick="closeSearch()" style="padding:0 8px;height:24px;border:none;">✕</button>
+  </div>
+
+  <!-- BOTTOM TOOLBAR -->
+  <div class="viewer-toolbar">
+    <button class="toolbar-btn" onclick="openSearch()"><i class="ph ph-magnifying-glass"></i>Find</button>
+    <button class="toolbar-btn" onclick="copyLink()"><i class="ph ph-link"></i>Copy link</button>
+    <div class="toolbar-spacer"></div>
+    <div class="zoom-controls">
+      <button class="toolbar-btn" style="padding:0 8px;" onclick="changeZoom(-0.1)"><i class="ph ph-minus"></i></button>
+      <span class="zoom-val" id="zoom-val">100%</span>
+      <button class="toolbar-btn" style="padding:0 8px;" onclick="changeZoom(0.1)"><i class="ph ph-plus"></i></button>
+      <button class="toolbar-btn" style="padding:0 10px;" onclick="fitZoom()">Fit</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const designData = {{ design.figma_json | tojson if design and design.figma_json else 'null' }};
+    const tokensData = {{ design.tokens | tojson if design and design.tokens else 'null' }};
+    let zoom = 1;
+    let nodeElements = {};  // nodeId → DOM element
+
+    // ── Render ───────────────────────────────────────────────────────────
+    // All absoluteBoundingBox coords are absolute from the frame origin (0,0)
+    // Same formula for every node: x = node.bb.x - frameOriginX, y = node.bb.y - frameOriginY
+    let _viewerFrameOriginX = 0;
+    let _viewerFrameOriginY = 0;
+
+    function renderDesign() {
+      if (!designData) return;
+      const frame = document.getElementById('design-frame');
+      const w = designData.width || 1440;
+      const h = designData.height || 900;
+      frame.style.width = w + 'px';
+      frame.style.height = h + 'px';
+
+      // Frame background from fills or tokens
+      const frameFill = designData.fills?.find(f => f.visible !== false && f.type === 'SOLID');
+      if (frameFill) {
+        const c = frameFill.color || {};
+        frame.style.background = `rgba(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)},${frameFill.opacity ?? c.a ?? 1})`;
+      } else {
+        frame.style.background = tokensData?.colors?.background || '#0D0D14';
+      }
+
+      const wrap = document.getElementById('viewer-wrap');
+      const availW = wrap.clientWidth - 80;
+      const availH = wrap.clientHeight - 80;
+      zoom = Math.min(availW / w, availH / h, 1);
+      applyZoom();
+
+      // Frame origin from absoluteBoundingBox (usually 0,0 for LLM-generated)
+      const frameBB = designData.absoluteBoundingBox || {};
+      _viewerFrameOriginX = frameBB.x || 0;
+      _viewerFrameOriginY = frameBB.y || 0;
+
+      frame.innerHTML = '';
+      nodeElements = {};
+      renderNodes(designData.children || [], frame, 0);
+    }
+
+    function renderNodes(nodes, container, depth) {
+      nodes.forEach((node, i) => {
+        const bb = node.absoluteBoundingBox || {};
+        // All coords absolute from frame origin — same formula at every depth
+        const x = (bb.x || 0) - _viewerFrameOriginX;
+        const y = (bb.y || 0) - _viewerFrameOriginY;
+        const w = bb.width || 100;
+        const h = bb.height || 40;
+
+        const el = document.createElement('div');
+        el.className = 'gorilla-node';
+        el.dataset.nodeId = node.id;
+        el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;animation-delay:${(depth * 3 + i) * 40}ms;`;
+
+        applyNodeStyle(el, node);
+
+        if (node.type === 'TEXT') {
+          const style = node.style || {};
+          el.textContent = node.characters || '';
+          el.style.fontSize = (style.fontSize || 16) + 'px';
+          el.style.fontWeight = style.fontWeight || 400;
+          el.style.color = fillsToColor(node.fills) || 'rgba(250,250,250,1)';
+          el.style.textAlign = (style.textAlignHorizontal || 'LEFT').toLowerCase();
+          el.style.lineHeight = style.lineHeightPx ? style.lineHeightPx + 'px' : '1.4';
+          el.style.fontFamily = (style.fontFamily || 'DM Sans') + ', sans-serif';
+          el.style.letterSpacing = (style.letterSpacing || 0) + 'px';
+          el.style.overflow = 'hidden';
+          el.style.whiteSpace = 'pre-wrap';
+        }
+
+        container.appendChild(el);
+        nodeElements[node.id] = el;
+
+        // Recurse — children also use _viewerFrameOriginX/Y (never changes)
+        if (node.children?.length) {
+          renderNodes(node.children, el, depth + 1);
+        }
+      });
+    }
+
+    function applyNodeStyle(el, node) {
+      // TEXT nodes: color handled separately, don't apply background fills
+      if (node.type !== 'TEXT') {
+        const fill = node.fills?.find(f => f.visible !== false);
+        if (fill?.type === 'SOLID') {
+          const c = fill.color || {};
+          el.style.background = `rgba(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)},${fill.opacity ?? c.a ?? 1})`;
+        } else if (fill?.type === 'IMAGE' && fill.imageRef?.startsWith('data:')) {
+          el.style.backgroundImage = `url(${fill.imageRef})`;
+          el.style.backgroundSize = 'cover';
+          el.style.backgroundPosition = 'center';
+        }
+        if (node.strokes?.length && node.strokeWeight) {
+          el.style.border = `${node.strokeWeight}px solid ${fillsToColor(node.strokes)}`;
+        }
+      }
+      if (node.cornerRadius) el.style.borderRadius = node.cornerRadius + 'px';
+      if (node.opacity != null && node.opacity < 1) el.style.opacity = node.opacity;
+    }
+
+    function fillsToColor(fills) {
+      if (!fills?.length) return 'transparent';
+      const fill = fills.find(f => f.visible !== false && f.type === 'SOLID');
+      if (!fill) return 'transparent';
+      const c = fill.color || {};
+      return `rgba(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)},${fill.opacity ?? c.a ?? 1})`;
+    }
+
+    // ── Zoom ─────────────────────────────────────────────────────────────
+    function changeZoom(delta) {
+      zoom = Math.max(0.1, Math.min(3, zoom + delta));
+      applyZoom();
+    }
+    function fitZoom() {
+      if (!designData) return;
+      const wrap = document.getElementById('viewer-wrap');
+      zoom = Math.min((wrap.clientWidth - 80) / (designData.width || 1440), (wrap.clientHeight - 80) / (designData.height || 900), 1);
+      applyZoom();
+    }
+    function applyZoom() {
+      const frame = document.getElementById('design-frame');
+      frame.style.transform = `scale(${zoom})`;
+      frame.style.transformOrigin = 'top center';
+      document.getElementById('zoom-val').textContent = Math.round(zoom * 100) + '%';
+    }
+
+    // ── Search ───────────────────────────────────────────────────────────
+    let matchedNodes = [];
+    let currentMatch = 0;
+
+    function openSearch() {
+      document.getElementById('search-bar').classList.add('open');
+      document.getElementById('search-input').focus();
+    }
+    function closeSearch() {
+      document.getElementById('search-bar').classList.remove('open');
+      clearHighlights();
+    }
+
+    function handleSearch(query) {
+      clearHighlights();
+      if (!query.trim()) { document.getElementById('search-count').textContent = ''; return; }
+      matchedNodes = [];
+      document.querySelectorAll('.gorilla-node').forEach((el, i) => {
+        const text = el.textContent?.toLowerCase() || '';
+        if (text.includes(query.toLowerCase())) {
+          matchedNodes.push(el);
+          el.style.outline = '2px solid rgba(0,102,255,0.6)';
+          // Staggered pulse
+          setTimeout(() => {
+            el.classList.add('match-pulse');
+            setTimeout(() => el.classList.remove('match-pulse'), 700);
+          }, i * 60);
+        }
+      });
+      document.getElementById('search-count').textContent = `${matchedNodes.length} match${matchedNodes.length !== 1 ? 'es' : ''}`;
+    }
+
+    function replaceAll() {
+      const query = document.getElementById('search-input').value.trim();
+      const replacement = document.getElementById('replace-input').value;
+      if (!query) return;
+      let count = 0;
+      document.querySelectorAll('.gorilla-node').forEach(el => {
+        if (el.textContent?.includes(query)) {
+          el.classList.add('transitioning');
+          el.textContent = el.textContent.replace(new RegExp(query, 'g'), replacement);
+          count++;
+          setTimeout(() => el.classList.remove('transitioning'), 500);
+        }
+      });
+      clearHighlights();
+      showToast(`Replaced ${count} occurrence${count !== 1 ? 's' : ''}`, 'success');
+    }
+
+    function clearHighlights() {
+      document.querySelectorAll('.gorilla-node').forEach(el => {
+        el.style.outline = '';
+      });
+      matchedNodes = [];
+    }
+
+    // ── Utils ─────────────────────────────────────────────────────────────
+    function copyLink() {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => showToast('Link copied', 'success'))
+        .catch(() => showToast('Copy failed', ''));
+    }
+
+    function showToast(msg, type = '') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast show ${type}`;
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', renderDesign);
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); openSearch(); }
+      if (e.key === 'Escape') closeSearch();
+    });
+  </script>
+</body>
+</html>

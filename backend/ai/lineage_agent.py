@@ -30,7 +30,7 @@ All v10 improvements retained:
   #10 Reviewer (sandbox_manager)
 
 Speed fixes retained:
-  - Expander + planner run concurrently via asyncio.gather
+  - Expander → planner sequential (planner gets full expanded spec)
   - Token estimation cached by message count
   - Reviewer gated on turn count + request type (sandbox_manager)
   - File tree cached on session with 30s TTL (sandbox_manager)
@@ -54,7 +54,7 @@ import httpx
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL = os.getenv("LINEAGE_MODEL", "deepseek/deepseek-v4-flash")
-SMART_MODEL = os.getenv("SMART_MODEL","deepseek/deepseek-v4-flash")   # hard turns
+SMART_MODEL = os.getenv("SMART_MODEL","deepseek/deepseek-v4-pro")   # hard turns
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "xiaomi/mimo-v2.5")
 VISION_MODEL = os.getenv("VISION_MODEL", "xiaomi/mimo-v2.5")
 OPENROUTER_URL = os.getenv(
@@ -333,7 +333,7 @@ Layout: src/ (React), src/components/ui/ (shadcn), src/utils/auth.ts (DO NOT TOU
 
 ## File batching rules  ← KEY FOR SPEED
 
-You MUST batch file writes aggressively to minimise turns:
+You MUST batch file writes to minimise turns:
 
 BATCH these together (up to 3 files per bash block):
   - New files that don't yet import each other
@@ -730,7 +730,6 @@ def _parse_response(raw: str) -> Dict[str, Any]:
         message = parts[1].strip() if len(parts) > 1 else ""
         blocks = re.findall(r"```(?:bash|sh|shell)?\n(.*?)```", body, re.DOTALL)
         bash_blocks = [b.strip() for b in blocks if b.strip()]
-        # thought = everything before first bash block
         first_block_pos = body.find("```")
         thought = body[:first_block_pos].strip() if first_block_pos > 0 else body.strip()
         if not message and thought:
@@ -820,9 +819,9 @@ async def _call_llm(
     if is_frontier:
         weight = p * 0.6 + c * 2.4
     elif is_mimo:
-        weight = p * 0.3 + c * 0.6   # mimo sits between deepseek and frontier
+        weight = p * 0.5 + c * 2
     else:
-        weight = p * 0.2 + c * 0.3   # deepseek flash
+        weight = p * 0.2 + c * 0.3
     return content, int(weight)
 
 
@@ -847,8 +846,6 @@ def _build_skills_block(agent_skills: Optional[Dict[str, Any]]) -> str:
 #  #14 — Smart model routing
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Signals in observation text that mean the previous attempt failed and we
-# need smarter reasoning to recover.
 _HARD_OBSERVATION_SIGNALS = frozenset([
     "error ts",
     "syntaxerror",
@@ -869,8 +866,6 @@ _HARD_OBSERVATION_SIGNALS = frozenset([
     "referenceerror",
 ])
 
-# Signals in the user request or observation that indicate complex domain work
-# where Mimo's stronger reasoning genuinely helps.
 _HARD_DOMAIN_SIGNALS = frozenset([
     "auth", "supabase", "migration", "rls", "policy",
     "realtime", "subscription", "webhook", "oauth",
@@ -886,46 +881,20 @@ def _pick_model(
     user_request: str,
     is_debug: bool,
 ) -> str:
-    """
-    Route each agent turn to the cheapest model that can handle it.
-
-    Mimo v2.5  — architecture turn (0), error recovery, debug spirals,
-                  complex domain work (auth, DB, async patterns).
-                  Smarter reasoning, slightly slower, still very cheap.
-
-    Deepseek V4 Flash — everything else: file writes, reads, boilerplate,
-                         wiring, verification. ~80% of all turns.
-
-    The split is intentional: most turns are mechanical and don't benefit
-    from extra intelligence. Saving Mimo for the turns that actually need
-    it keeps latency low while closing the quality gap on hard problems.
-    """
     obs = (previous_output or "").lower()
     req = (user_request or "").lower()
 
-    # Turn 0 always gets Mimo — it sets the whole architecture
     if turn == 0:
         return SMART_MODEL
-
-    # Any observation containing error signals → Mimo to recover smartly
     if any(sig in obs for sig in _HARD_OBSERVATION_SIGNALS):
         return SMART_MODEL
-
-    # Deep debug spiral — Mimo takes over after 3 consecutive failures
-    # (heuristic: if we're past turn 12 and still seeing errors)
     if turn > 12 and any(sig in obs for sig in _HARD_OBSERVATION_SIGNALS):
         return SMART_MODEL
-
-    # Complex domain in the original request → Mimo for relevant turns
-    # Only apply for first 4 turns when the domain context is fresh
     if turn <= 4 and any(sig in req for sig in _HARD_DOMAIN_SIGNALS):
         return SMART_MODEL
-
-    # Debug mode with an error context → Mimo (surgical fix needed)
     if is_debug and previous_output:
         return SMART_MODEL
 
-    # Everything else: boilerplate writes, reads, wiring, verification
     return MODEL
 
 
@@ -949,7 +918,7 @@ class LineageAgent:
       - Visual-first ordering: index.css + design tokens written before components
 
     v10 speed fixes retained:
-      - Expander + planner run concurrently via asyncio.gather
+      - Expander → planner sequential (planner gets full expanded spec)
       - Token estimation cached by message count
     """
 
@@ -1041,48 +1010,32 @@ class LineageAgent:
             effective_request = user_request
             plan_text = ""
 
-            # Concurrent expander + planner (saves ~2-3s vs sequential)
+            # Sequential: expand first, then feed expanded prompt to planner.
+            # Planner needs the full expanded spec to produce good batching groups.
             if not is_debug and user_request:
                 needs_expand = not self._prompt_expanded
                 needs_plan = not self._plan_injected and bool(file_tree)
 
-                if needs_expand and needs_plan:
-                    log_agent("agent", "Running expander + planner concurrently", self.project_id)
-                    expanded_result, plan_result = await asyncio.gather(
-                        expand_prompt(user_request, has_supabase=has_supabase, image_b64=prompt_image_b64),
-                        generate_plan(user_request, tree_str, has_supabase=has_supabase, image_b64=prompt_image_b64),
-                        return_exceptions=True,
-                    )
-                    if isinstance(expanded_result, str):
-                        effective_request = expanded_result
-                    elif isinstance(expanded_result, Exception):
-                        log_agent("agent", f"Expander error: {expanded_result}", self.project_id)
-                    self._prompt_expanded = True
-
-                    if isinstance(plan_result, str) and "- [ ]" in plan_result:
-                        plan_text = (
-                            "\n\nHere is your plan — follow it step by step. "
-                            "Respect the batching groups (files listed together on one line "
-                            "must be written in a single bash block):\n" + plan_result
-                        )
-                        self._plan_injected = True
-                    elif isinstance(plan_result, Exception):
-                        log_agent("agent", f"Planner error: {plan_result}", self.project_id)
-
-                elif needs_expand:
+                if needs_expand:
                     effective_request = await expand_prompt(
-                        user_request, has_supabase=has_supabase, image_b64=prompt_image_b64
+                        user_request,
+                        has_supabase=has_supabase,
+                        image_b64=prompt_image_b64,
                     )
                     self._prompt_expanded = True
 
-                elif needs_plan:
+                if needs_plan:
                     plan = await generate_plan(
-                        effective_request, tree_str, has_supabase=has_supabase, image_b64=prompt_image_b64
+                        effective_request,  # expanded spec, not raw prompt
+                        tree_str,
+                        has_supabase=has_supabase,
+                        image_b64=prompt_image_b64,
                     )
                     if plan:
                         plan_text = (
                             "\n\nHere is your plan — follow it step by step. "
-                            "Respect the batching groups:\n" + plan
+                            "Respect the batching groups (files listed together on one line "
+                            "must be written in a single bash block):\n" + plan
                         )
                         self._plan_injected = True
 
@@ -1123,11 +1076,9 @@ class LineageAgent:
         first_turn_has_image = bool(
             (image_b64 or prompt_image_b64) and not previous_command_output
         )
-        # Vision turns always use the vision-capable model
         if first_turn_has_image:
             model = VISION_MODEL
         else:
-            # Smart routing: Mimo for hard turns, Deepseek for mechanical ones
             turn_index = max(0, len(self.messages) // 2 - 1)
             model = _pick_model(
                 turn=turn_index,

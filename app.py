@@ -36,6 +36,7 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 
 
+
 # Load Environment Variables
 load_dotenv()
 
@@ -46,6 +47,10 @@ from backend.ai.lineage_agent import (
     _append_history,
     _get_history,
     clear_history,
+)
+from backend.design.design import (
+    generate_design, edit_design, generate_image_fill,
+    design_to_html, render_hosted_page, generate_slug,
 )
 
 # ==========================================================================
@@ -89,7 +94,7 @@ DEFAULT_TOKEN_LIMIT = int(os.getenv("MONTHLY_TOKEN_LIMIT", "500000"))
 # 4. Google Auth Keys
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://cuddly-space-memory-g4975q7q7g7ph945p-8000.app.github.dev/auth/google/callback")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://slaw-carefully-cried.ngrok-free.dev/auth/google/callback")
 
 # ==========================================================================
 # CONFIGURATION: RESEND & SUPABASE (CRITICAL FIX)
@@ -2822,6 +2827,397 @@ async def publish_to_github(request: Request, project_id: str):
         return JSONResponse({"detail": str(e)}, status_code=500)
 
 # ==========================================================================
+# Design Routes
+# ==========================================================================
+
+# ==========================================================================
+# GORILLA DESIGN ROUTES v2
+# ==========================================================================
+# Add these imports near the top of app.py:
+#
+#   from backend.design.design import (
+#       generate_design, edit_design, generate_image_fill,
+#       design_to_html, render_hosted_page, generate_slug,
+#   )
+#
+# Then paste everything below into app.py before the startup wiring block.
+# ==========================================================================
+
+
+# ── DASHBOARD ────────────────────────────────────────────────────────────
+
+@app.get("/design", response_class=HTMLResponse)
+async def design_dashboard(request: Request):
+    user = get_current_user(request)
+    used, limit = get_token_usage_and_limit(user["id"])
+    user["tokens"] = {"used": used, "limit": limit, "remaining": max(0, limit - used)}
+
+    try:
+        res = supabase.table("designs").select("*").eq("owner_id", user["id"]).order("updated_at", desc=True).execute()
+        designs = res.data if res and res.data else []
+    except Exception:
+        designs = []
+
+    return templates.TemplateResponse("design/dashboard.html", {
+        "request": request,
+        "user": user,
+        "designs": designs,
+    })
+
+
+# ── CREATE ───────────────────────────────────────────────────────────────
+
+@app.post("/api/design/create")
+async def create_design(request: Request):
+    user = get_current_user(request)
+    payload = await request.json()
+    name = payload.get("name", "Untitled Design")
+    try:
+        res = supabase.table("designs").insert({
+            "owner_id": user["id"],
+            "name": name,
+            "figma_json": None,
+            "tokens": None,
+        }).execute()
+        return JSONResponse({"id": res.data[0]["id"]})
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+
+# ── EDITOR ───────────────────────────────────────────────────────────────
+
+@app.get("/design/editor/{design_id}", response_class=HTMLResponse)
+async def design_editor(request: Request, design_id: str):
+    user = get_current_user(request)
+    try:
+        res = supabase.table("designs").select("*").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        design = res.data
+    except Exception:
+        raise HTTPException(404, "Design not found")
+
+    user_data = db_select_one("users", {"id": user["id"]}, "gorilla_api_key") or {}
+    return templates.TemplateResponse("design/editor.html", {
+        "request": request,
+        "user": user,
+        "design": design,
+        "gorilla_api_key": user_data.get("gorilla_api_key", ""),
+    })
+
+
+# ── VIEWER ───────────────────────────────────────────────────────────────
+
+@app.get("/design/viewer/{design_id}", response_class=HTMLResponse)
+async def design_viewer(request: Request, design_id: str):
+    user = get_current_user_safe(request)
+    try:
+        res = supabase.table("designs").select("*").eq("id", design_id).single().execute()
+        design = res.data
+    except Exception:
+        raise HTTPException(404, "Design not found")
+    return templates.TemplateResponse("design/viewer.html", {
+        "request": request,
+        "user": user,
+        "design": design,
+    })
+
+
+# ── HOSTED PAGE (public, no auth) ────────────────────────────────────────
+
+@app.get("/design/hosted/{slug}", response_class=HTMLResponse)
+async def design_hosted(slug: str):
+    try:
+        res = supabase.table("designs").select("hosted_html").eq("hosted_slug", slug).single().execute()
+        design = res.data
+    except Exception:
+        raise HTTPException(404, "Page not found")
+    if not design or not design.get("hosted_html"):
+        raise HTTPException(404, "Page not published yet")
+    return HTMLResponse(content=design["hosted_html"])
+
+
+# ── SAVE ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/design/{design_id}/save")
+async def save_design(request: Request, design_id: str):
+    user = get_current_user(request)
+    payload = await request.json()
+    try:
+        supabase.table("designs").update({
+            "figma_json": payload.get("figma_json"),
+            "tokens": payload.get("tokens"),
+            "updated_at": "now()",
+        }).eq("id", design_id).eq("owner_id", user["id"]).execute()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+
+# ── GENERATE — the main design creation endpoint ──────────────────────────
+
+@app.post("/api/design/{design_id}/generate")
+async def generate_design_endpoint(request: Request, design_id: str, background_tasks: BackgroundTasks):
+    """
+    Generate a complete design from a brief.
+    Returns immediately with status, polls /api/design/{id}/status for result.
+    Avoids ngrok 30s timeout.
+    """
+    user = get_current_user(request)
+    try:
+        enforce_token_limit_or_raise(user["id"])
+    except HTTPException as e:
+        if e.status_code == 402:
+            raise HTTPException(402, "Token limit reached")
+        raise
+
+    payload = await request.json()
+    brief = payload.get("brief", "").strip()
+    if not brief:
+        raise HTTPException(400, "Brief required")
+
+    # Mark as generating
+    supabase.table("designs").update({
+        "chat_history": [{"role": "user", "content": brief}],
+        "name": brief[:40].split(".")[0].strip().title() or "Generating...",
+        "updated_at": "now()",
+    }).eq("id", design_id).eq("owner_id", user["id"]).execute()
+
+    async def _generate_bg(design_id: str, brief: str, user_id: str):
+        try:
+            figma_json = await generate_design(brief)
+            tokens = figma_json.get("_gorilla_tokens", {})
+            name = figma_json.get("name") or brief[:40].split(".")[0].strip().title() or "Untitled"
+            supabase.table("designs").update({
+                "figma_json": figma_json,
+                "tokens": tokens,
+                "name": name,
+                "chat_history": [
+                    {"role": "user", "content": brief},
+                    {"role": "assistant", "content": f'Generated "{name}"'},
+                ],
+                "updated_at": "now()",
+            }).eq("id", design_id).eq("owner_id", user_id).execute()
+            add_monthly_tokens(user_id, 3000)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            supabase.table("designs").update({
+                "chat_history": [
+                    {"role": "user", "content": brief},
+                    {"role": "assistant", "content": f"Error: {str(e)[:200]}"},
+                ],
+                "updated_at": "now()",
+            }).eq("id", design_id).eq("owner_id", user_id).execute()
+
+    background_tasks.add_task(_generate_bg, design_id, brief, user["id"])
+    return JSONResponse({"status": "generating", "design_id": design_id})
+
+
+@app.get("/api/design/{design_id}/status")
+async def design_status(request: Request, design_id: str):
+    """Poll this after /generate to get the result."""
+    user = get_current_user(request)
+    try:
+        res = supabase.table("designs").select("figma_json, tokens, name, chat_history").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        d = res.data
+    except Exception:
+        raise HTTPException(404, "Design not found")
+
+    if d.get("figma_json"):
+        return JSONResponse({"status": "done", "figma_json": d["figma_json"], "tokens": d.get("tokens", {}), "name": d.get("name", "")})
+
+    # Check if error in chat history
+    history = d.get("chat_history") or []
+    last = history[-1] if history else {}
+    if last.get("content", "").startswith("Error:"):
+        return JSONResponse({"status": "error", "detail": last["content"]})
+
+    return JSONResponse({"status": "generating"})
+
+
+# Keep old endpoint name working too
+@app.post("/api/design/{design_id}/setup-tokens")
+async def setup_tokens_compat(request: Request, design_id: str):
+    """Compat shim — routes old setup-tokens calls to generate."""
+    payload = await request.json()
+    brand = payload.get("brand", payload.get("brief", ""))
+    request._body = json.dumps({"brief": brand}).encode()
+    return await generate_design_endpoint(request, design_id)
+
+
+# ── EDIT — surgical search/replace on existing design ────────────────────
+
+@app.post("/api/design/{design_id}/edit")
+async def edit_design_endpoint(request: Request, design_id: str):
+    """
+    Edit an existing design via surgical ops.
+    No full rewrites — just targeted changes.
+    """
+    user = get_current_user(request)
+    try:
+        enforce_token_limit_or_raise(user["id"])
+    except HTTPException as e:
+        if e.status_code == 402:
+            raise HTTPException(402, "Token limit reached")
+        raise
+
+    payload = await request.json()
+    instruction = payload.get("instruction", "").strip()
+    if not instruction:
+        raise HTTPException(400, "Instruction required")
+
+    try:
+        res = supabase.table("designs").select("figma_json, tokens").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        design = res.data
+    except Exception:
+        raise HTTPException(404, "Design not found")
+
+    tree = design.get("figma_json")
+    if not tree:
+        raise HTTPException(400, "No design to edit yet. Generate one first.")
+
+    try:
+        updated_tree, narration = await edit_design(tree, instruction)
+
+        tokens = updated_tree.get("_gorilla_tokens", design.get("tokens") or {})
+
+        # Append to chat history
+        try:
+            res2 = supabase.table("designs").select("chat_history").eq("id", design_id).single().execute()
+            history = res2.data.get("chat_history") or []
+            history.append({"role": "user", "content": instruction})
+            history.append({"role": "assistant", "content": narration})
+            if len(history) > 100:
+                history = history[-100:]
+        except Exception:
+            history = []
+
+        supabase.table("designs").update({
+            "figma_json": updated_tree,
+            "tokens": tokens,
+            "chat_history": history,
+            "updated_at": "now()",
+        }).eq("id", design_id).eq("owner_id", user["id"]).execute()
+
+        add_monthly_tokens(user["id"], 500)
+
+        return JSONResponse({
+            "figma_json": updated_tree,
+            "tokens": tokens,
+            "narration": narration,
+        })
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(500, detail=str(e))
+
+
+# Keep old agent endpoint working too
+@app.post("/api/design/{design_id}/agent")
+async def agent_compat(request: Request, design_id: str):
+    """Compat shim — routes old agent calls to edit."""
+    payload = await request.json()
+    instruction = payload.get("instruction", payload.get("message", ""))
+    request._body = json.dumps({"instruction": instruction}).encode()
+    return await edit_design_endpoint(request, design_id)
+
+
+# ── IMAGE GENERATION ─────────────────────────────────────────────────────
+
+@app.post("/api/design/{design_id}/image")
+async def generate_image_endpoint(request: Request, design_id: str):
+    """Generate an image and embed it as a fill on a specific node."""
+    user = get_current_user(request)
+    payload = await request.json()
+    node_id = payload.get("node_id", "")
+    prompt = payload.get("prompt", "")
+    if not node_id or not prompt:
+        raise HTTPException(400, "node_id and prompt required")
+
+    try:
+        res = supabase.table("designs").select("figma_json").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        tree = res.data.get("figma_json") or {}
+    except Exception:
+        raise HTTPException(404, "Design not found")
+
+    user_data = db_select_one("users", {"id": user["id"]}, "gorilla_api_key") or {}
+    api_key = user_data.get("gorilla_api_key", "")
+
+    updated_tree, success = await generate_image_fill(node_id, prompt, tree, api_key)
+
+    if success:
+        supabase.table("designs").update({
+            "figma_json": updated_tree,
+            "updated_at": "now()",
+        }).eq("id", design_id).eq("owner_id", user["id"]).execute()
+        add_monthly_tokens(user["id"], 8000)
+
+    return JSONResponse({"ok": success, "figma_json": updated_tree if success else tree})
+
+
+# ── EXPORT: FIGMA JSON download ───────────────────────────────────────────
+
+@app.post("/api/design/{design_id}/export/figma")
+async def export_figma(request: Request, design_id: str):
+    user = get_current_user(request)
+    try:
+        res = supabase.table("designs").select("figma_json, name").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        design = res.data
+    except Exception:
+        raise HTTPException(404, "Design not found")
+    return JSONResponse({"payload": design.get("figma_json"), "name": design.get("name")})
+
+
+# ── EXPORT: HTML download ─────────────────────────────────────────────────
+
+@app.post("/api/design/{design_id}/export/html")
+async def export_html(request: Request, design_id: str):
+    user = get_current_user(request)
+    try:
+        res = supabase.table("designs").select("figma_json").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        tree = res.data.get("figma_json") or {}
+    except Exception:
+        raise HTTPException(404, "Design not found")
+    html = design_to_html(tree)
+    return Response(content=html, media_type="text/html")
+
+
+# ── EXPORT: HOST as public page ───────────────────────────────────────────
+
+@app.post("/api/design/{design_id}/export/host")
+async def export_host(request: Request, design_id: str):
+    user = get_current_user(request)
+    try:
+        res = supabase.table("designs").select("*").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        design = res.data
+    except Exception:
+        raise HTTPException(404, "Design not found")
+
+    tree = design.get("figma_json") or {}
+    name = design.get("name", "design")
+    slug = design.get("hosted_slug") or generate_slug(name)
+    site_url = os.getenv("SITE_URL", "")
+
+    html = render_hosted_page(tree, design_id=design_id, site_url=site_url)
+
+    supabase.table("designs").update({
+        "hosted_slug": slug,
+        "hosted_html": html,
+        "updated_at": "now()",
+    }).eq("id", design_id).execute()
+
+    return JSONResponse({"url": f"{site_url}/design/hosted/{slug}", "slug": slug})
+
+
+# ── DELETE ────────────────────────────────────────────────────────────────
+
+@app.post("/api/design/{design_id}/delete")
+async def delete_design(request: Request, design_id: str):
+    user = get_current_user(request)
+    try:
+        supabase.table("designs").delete().eq("id", design_id).eq("owner_id", user["id"]).execute()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+# ==========================================================================
 # FILE API ROUTES
 # ==========================================================================
 
@@ -3508,11 +3904,6 @@ async def save_negotiation(request: Request, data: NegotiationResult):
 # THE GORILLA AI PROXY GATEWAY
 # ==========================================================================
 
-# --- Proxy Environment Variables ---
-FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY")
-REMBG_API_KEY = os.getenv("REMBG_API_KEY", "") 
-REMBG_API_URL = os.getenv("REMBG_API_URL", "http://localhost:5000/api/remove")
-
 # Add these missing OpenRouter variables!
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = os.getenv("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
@@ -3550,30 +3941,29 @@ def _deduct_proxy_tokens(user_id: str, cost: float, feature: str):
         print(f"⚠️ Failed to deduct {cost} tokens for {user_id}: {e}")
 
 async def verify_gorilla_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """
-    THE BOUNCER: Intercepts all /api/v1 requests, verifies the gb_live_ key,
-    and checks if the user has enough Gorilla Credits.
-    """
     api_key = credentials.credentials
+    print(f"🔑 key received: {api_key[:20]}...")
+    
     if not api_key.startswith("gb_live_"):
+        print(f"🔑 REJECTED: bad format")
         raise HTTPException(status_code=401, detail="Invalid API Key format. Must start with 'gb_live_'")
     
-    # 1. Look up user by key
     res = supabase.table("users").select("id, plan").eq("gorilla_api_key", api_key).single().execute()
+    print(f"🔑 DB lookup: {res.data}")
+    
     if not res or not res.data:
+        print(f"🔑 REJECTED: key not found in DB")
         raise HTTPException(status_code=401, detail="Invalid API Key. Unauthorized.")
     
     user = res.data
-    user_id = user["id"]
+    used, limit = get_token_usage_and_limit(user["id"])
+    print(f"🔑 tokens: used={used} limit={limit}")
     
-    # 2. Check Token Balance
-    used, limit = get_token_usage_and_limit(user_id)
     if used >= limit:
-        # 402 Payment Required perfectly matches OpenAI's out-of-credits error!
-        raise HTTPException(status_code=402, detail="Payment Required: Gorilla Credits limit reached. Top up to continue.")
-        
-    return {"user_id": user_id, "plan": user.get("plan")}
-
+        raise HTTPException(status_code=402, detail="Token limit reached.")
+    
+    print(f"🔑 APPROVED: user={user['id']}")
+    return {"user_id": user["id"], "plan": user.get("plan")}
 
 # --- 1. LLM CHAT (OpenRouter / 0.5 tokens per 1 API token) ---
 @app.post("/api/v1/chat/completions")
@@ -3644,46 +4034,57 @@ async def proxy_chat_completions(request: Request, auth=Depends(verify_gorilla_k
 @app.post("/api/v1/images/generations")
 async def proxy_image_generations(request: Request, auth=Depends(verify_gorilla_key)):
     user_id = auth["user_id"]
-    payload = await request.json()
+    print(f"🖼️ IMAGE GEN START — user_id={user_id}")
     
+    payload = await request.json()
+    prompt = payload.get("prompt", "")
+    print(f"🖼️ prompt={prompt[:100]}")
+    print(f"🖼️ OPENROUTER_API_KEY={'SET len='+str(len(OPENROUTER_API_KEY)) if OPENROUTER_API_KEY else 'EMPTY/NONE'}")
+
     openrouter_payload = {
         "model": "black-forest-labs/flux.2-klein-4b",
-        "messages": [
-            {
-                "role": "user",
-                "content": payload.get("prompt", "")
-            }
-        ],
-        "modalities": ["image"]  # image-only model, no "text"
+        "messages": [{"role": "user", "content": prompt}],
+        "modalities": ["image"],
+        "stream": False,
     }
-    
+    print(f"🖼️ sending payload={openrouter_payload}")
+
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": OPENROUTER_SITE_URL,
+        "X-Title": SITE_NAME,
     }
-    
-    async with httpx.AsyncClient() as client:
+
+    async with httpx.AsyncClient(timeout=90.0) as client:
         resp = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",  # correct endpoint
+            "https://openrouter.ai/api/v1/chat/completions",
             json=openrouter_payload,
             headers=headers,
-            timeout=60.0
         )
-        
-        if resp.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"OpenRouter Error: {resp.text}")
-        
-        result = resp.json()
-        
-        images = []
-        if result.get("choices"):
-            message = result["choices"][0]["message"]
-            for image in message.get("images", []):
-                images.append({"url": image["image_url"]["url"]})
-        
-        _deduct_proxy_tokens(user_id, 8000, "image_gen")
-        
-        return JSONResponse({"data": images})
+
+    print(f"🖼️ OpenRouter status={resp.status_code}")
+    print(f"🖼️ OpenRouter body={resp.text[:500]}")
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Image gen error {resp.status_code}: {resp.text[:200]}")
+
+    result = resp.json()
+    images = []
+    choices = result.get("choices", [])
+    if choices:
+        msg = choices[0].get("message", {})
+        print(f"🖼️ message keys={list(msg.keys())}")
+        for img in msg.get("images", []):
+            url = img.get("image_url", {}).get("url") or img.get("url", "")
+            if url:
+                images.append({"url": url})
+        if not images and msg.get("content", "").startswith("data:image"):
+            images.append({"url": msg["content"]})
+
+    print(f"🖼️ returning {len(images)} images")
+    _deduct_proxy_tokens(user_id, 8000, "image_gen")
+    return JSONResponse({"data": images})
 
 @app.post("/api/v1/audio/transcriptions")
 async def proxy_audio_transcriptions(
