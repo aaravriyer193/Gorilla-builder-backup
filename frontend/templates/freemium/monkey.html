@@ -1,72 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <meta charset="UTF-8" />
   <title>Negotiate with Monke · Gor://a Builder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
-    /* --- FONTS & VARS --- */
     :root {
-      --bg: #050505;
-      --panel: rgba(20, 20, 25, 0.6);
-      --border: rgba(255, 255, 255, 0.08);
-      --accent: #f59e0b; /* Monkey Gold */
-      --accent-glow: rgba(245, 158, 11, 0.2);
-      --text: #ffffff;
-      --text-muted: #8a8a93;
-      --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
-      --bot-msg: rgba(35, 35, 42, 0.85);
-      --user-msg: rgba(245, 158, 11, 0.15);
+      --bg: #000000;
+      --sidebar-bg: #03030a;
+      --panel-bg: rgba(4, 4, 12, 0.98);
+      --border: rgba(0, 120, 255, 0.07);
+      --border-hover: rgba(0, 120, 255, 0.3);
+      --accent: #0066ff;
+      --accent-glow: rgba(0, 102, 255, 0.2);
+      --accent-light: #3385ff;
+      --text: #d0d8f0;
+      --text-muted: #2a3050;
+      --radius: 8px;
+      --radius-sm: 5px;
+      --radius-lg: 10px;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+      --shadow-paper:
+        0 1px 0 rgba(0,100,255,0.04) inset,
+        0 1px 3px rgba(0,0,0,0.8),
+        0 2px 8px rgba(0,0,0,0.7);
+      --shadow-paper-hover:
+        0 1px 0 rgba(0,100,255,0.07) inset,
+        0 4px 16px rgba(0,0,0,0.85),
+        0 2px 6px rgba(0,102,255,0.12);
+
+      --bot-msg: rgba(2, 2, 8, 0.8);
+      --user-msg: rgba(0, 102, 255, 0.08);
     }
 
-    * { box-sizing: border-box; font-family: 'Funnel Display', system-ui, sans-serif; outline: none; }
+    * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; }
 
-    body { margin: 0; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-
-    /* --- BACKGROUND --- */
-    .noise-overlay { position: fixed; inset: 0; background-image: var(--noise); pointer-events: none; z-index: 0; }
-    
-    @keyframes breathe {
-      0% { transform: translateX(-50%) scale(1); opacity: 0.2; }
-      50% { transform: translateX(-50%) scale(1.05); opacity: 0.35; }
-      100% { transform: translateX(-50%) scale(1); opacity: 0.2; }
-    }
-    
-    .glow-spot {
-      position: fixed; width: 900px; height: 900px; background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-      pointer-events: none; z-index: 0; top: -250px; left: 50%; transform: translateX(-50%); filter: blur(90px); transition: background 0.5s;
-      animation: breathe 6s infinite ease-in-out;
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      height: 100vh; display: flex; overflow: hidden; font-weight: 300;
     }
 
-    /* --- HEADER --- */
-    header { padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 10; }
-    .back-btn { color: var(--text-muted); text-decoration: none; display: flex; align-items: center; gap: 8px; font-size: 15px; transition: color 0.2s; }
-    .back-btn:hover { color: #fff; }
-
-    .token-widget {
-      display: flex; align-items: center; gap: 12px; padding: 8px 16px 8px 8px;
-      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-      border-radius: 99px; backdrop-filter: blur(10px); transition: all 0.3s;
+    body::before {
+      content: '';
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
     }
-    .token-icon { width: 34px; height: 34px; background: rgba(255, 215, 0, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #ffd700; font-size: 18px;}
-    .token-text { display: flex; flex-direction: column; line-height: 1.1; }
-    .token-val { font-size: 15px; font-weight: 600; color: #fff; }
-    .token-lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
 
-    /* --- CHAT UI --- */
-    main { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; z-index: 10; padding: 20px; }
+    /* --- SIDEBAR --- */
+    aside {
+      width: 260px; background: var(--sidebar-bg);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      padding: 28px 14px; z-index: 10; position: relative;
+    }
+    aside::after {
+      content: ''; position: absolute; top: 0; right: 0; width: 1px; height: 100%;
+      background: linear-gradient(to bottom, rgba(0,102,255,0.15), rgba(0,102,255,0.03) 50%, rgba(0,102,255,0.08));
+      pointer-events: none;
+    }
 
-    /* WIDER CHAT WINDOW */
+    .logo {
+      font-size: 22px; font-weight: 350; color: var(--text);
+      display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
+      padding-left: 10px; letter-spacing: -0.5px; text-decoration: none;
+      font-family: 'DM Sans', system-ui, sans-serif;
+    }
+    .logo svg { width: 24px; height: 24px; }
+    .logo svg path { fill: var(--text); }
+
+    nav { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+    nav a {
+      color: var(--text-muted); text-decoration: none; padding: 9px 10px;
+      border-radius: var(--radius); font-size: 13.5px; transition: all 0.15s var(--ease-out);
+      display: flex; align-items: center; gap: 10px; position: relative; overflow: hidden;
+      border: 1px solid transparent; font-weight: 300;
+    }
+    nav a:hover {
+      background: rgba(0,102,255,0.06); color: var(--text);
+      border-color: rgba(0,102,255,0.1);
+    }
+    nav a.active {
+      background: rgba(0,102,255,0.09); color: var(--text); font-weight: 400;
+      border-color: rgba(0,102,255,0.16);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    nav a.active::before {
+      content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 2px;
+      background: var(--accent); border-radius: 0 2px 2px 0;
+    }
+    nav a i { font-size: 16px; opacity: 0.3; }
+    nav a:hover i, nav a.active i { opacity: 1; color: var(--accent); }
+
+    nav::after {
+      content: ''; display: block; height: 1px; margin-top: 6px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* --- USER PROFILE --- */
+    .profile-container { margin-top: auto; position: relative; padding-top: 16px; border-top: 1px solid var(--border); }
+    .user-profile {
+      display: flex; align-items: center; gap: 10px; padding: 9px;
+      border-radius: var(--radius); cursor: pointer; transition: background 0.15s;
+    }
+    .user-profile:hover { background: rgba(0,102,255,0.06); }
+    .avatar {
+      width: 34px; height: 34px; background: var(--accent);
+      border: 1px solid rgba(0,102,255,0.4); border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 400; color: #fff; position: relative;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .avatar::after {
+      content: ''; position: absolute; bottom: -2px; right: -2px;
+      width: 9px; height: 9px; background: var(--accent);
+      border: 2px solid var(--sidebar-bg); border-radius: 50%;
+    }
+    .user-info { display: flex; flex-direction: column; font-size: 13px; line-height: 1.3; }
+    .user-name { color: var(--text); font-weight: 400; }
+    .user-plan { color: var(--text-muted); font-size: 11px; text-transform: capitalize; font-weight: 300; }
+
+    .profile-menu {
+      position: absolute; bottom: 100%; left: 0; width: 100%;
+      background: #03030a; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 5px; display: flex; flex-direction: column; gap: 2px;
+      opacity: 0; pointer-events: none; transform: translateY(8px);
+      transition: all 0.18s var(--ease-out);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.95);
+      z-index: 20; margin-bottom: 8px;
+    }
+    .profile-container:hover .profile-menu { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    .menu-item {
+      padding: 7px 10px; font-size: 13px; color: var(--text-muted); font-weight: 300;
+      text-decoration: none; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px;
+      transition: all 0.12s;
+    }
+    .menu-item:hover { background: rgba(0,102,255,0.08); color: var(--text); }
+    .menu-item.logout { color: #6a3535; }
+    .menu-item.logout:hover { background: rgba(100,30,30,0.1); color: #b05050; }
+
+    /* --- NAV PROMO --- */
+    .nav-promo {
+      margin-top: 14px; background: rgba(0,102,255,0.05); border: 1px solid rgba(0,102,255,0.1);
+      border-radius: var(--radius); padding: 10px; display: flex; align-items: center; gap: 10px;
+      text-decoration: none; position: relative; overflow: hidden; transition: all 0.2s var(--ease-out);
+    }
+    .nav-promo:hover { transform: translateY(-1px); border-color: rgba(0,102,255,0.2); background: rgba(0,102,255,0.08); }
+    .nav-promo.active {
+      border-color: rgba(0,102,255,0.25); background: rgba(0,102,255,0.1);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .promo-icon {
+      font-size: 18px; background: rgba(0,102,255,0.08); min-width: 38px; height: 38px;
+      border-radius: var(--radius-sm); display: flex; justify-content: center; align-items: center;
+      border: 1px solid rgba(0,102,255,0.14);
+    }
+    .promo-text { display: flex; flex-direction: column; gap: 2px; }
+    .promo-text strong { color: var(--text); font-size: 12px; font-weight: 400; }
+    .promo-text span { color: var(--text-muted); font-size: 10px; line-height: 1.3; font-weight: 300; }
+    .promo-badge {
+      position: absolute; top: 7px; right: 7px; background: var(--accent); color: #fff;
+      font-size: 8px; font-weight: 500; padding: 2px 5px; border-radius: var(--radius-sm); letter-spacing: 0.5px;
+    }
+
+    /* --- MAIN --- */
+    main {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      position: relative; z-index: 1; padding: 20px;
+    }
+
+    /* --- CHAT WINDOW --- */
     .chat-window {
-      width: 100%; max-width: 900px; height: 88vh; background: var(--panel); border: 1px solid var(--border);
-      border-radius: 24px; display: flex; flex-direction: column; box-shadow: 0 30px 80px rgba(0,0,0,0.8);
-      backdrop-filter: blur(20px); overflow: hidden; transition: transform 0.1s;
+      width: 100%; max-width: 900px; height: 88vh;
+      background: rgba(4,4,12,0.99); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); display: flex; flex-direction: column;
+      box-shadow: var(--shadow-paper);
+      overflow: hidden; transition: transform 0.1s, border-color 0.3s, box-shadow 0.3s;
     }
 
     @keyframes shake {
@@ -77,92 +193,250 @@
       80% { transform: translate(-2px, -2px) rotate(1deg); }
       100% { transform: translate(2px, -2px) rotate(-1deg); }
     }
-    .chat-window.shake { animation: shake 0.4s; border-color: rgba(239, 68, 68, 0.6); box-shadow: 0 0 60px rgba(239, 68, 68, 0.2); }
-
-    .chat-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); }
-    .monkey-profile { display: flex; align-items: center; gap: 16px; }
-    .monkey-avatar { width: 52px; height: 52px; background: linear-gradient(135deg, #1a1a24, #111); border: 1px solid var(--border); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 0 20px var(--accent-glow); }
-    .monkey-info h2 { margin: 0 0 4px; font-size: 19px; font-weight: 500; color: #fff; }
-    
-    .patience-container { display: flex; align-items: center; gap: 10px; }
-    .patience-lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
-    .patience-track { width: 120px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden; }
-    .patience-fill { height: 100%; background: #10b981; width: 100%; transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.4s; }
-
-    .cost-badge { font-size: 13px; color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 6px 12px; border-radius: 99px; border: 1px solid rgba(239, 68, 68, 0.2); display: flex; align-items: center; gap: 6px; }
-
-    /* MESSAGES */
-    .chat-history { flex: 1; padding: 24px 32px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; scroll-behavior: smooth; }
-    .chat-history::-webkit-scrollbar { width: 8px; }
-    .chat-history::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-
-    /* BOUNCY ANIMATION */
-    @keyframes springIn { 
-      0% { opacity: 0; transform: translateY(20px) scale(0.95); } 
-      60% { opacity: 1; transform: translateY(-2px) scale(1.01); }
-      100% { opacity: 1; transform: translateY(0) scale(1); } 
+    .chat-window.shake {
+      animation: shake 0.4s;
+      border-color: rgba(160, 64, 64, 0.4);
+      box-shadow: 0 0 60px rgba(160, 64, 64, 0.15), 0 2px 8px rgba(0,0,0,0.7);
     }
 
-    .msg { max-width: 80%; padding: 16px 20px; border-radius: 20px; font-size: 16px; line-height: 1.6; word-wrap: break-word; animation: springIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; transform-origin: bottom center;}
-    .msg.bot { align-self: flex-start; background: var(--bot-msg); border: 1px solid var(--border); border-bottom-left-radius: 4px; color: #f3f4f6; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
-    .msg.user { align-self: flex-end; background: var(--user-msg); border: 1px solid rgba(245, 158, 11, 0.4); border-bottom-right-radius: 4px; color: #fff; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1); }
-    
-    /* MARKDOWN STYLING */
+    .chat-header {
+      padding: 18px 24px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(2,2,8,0.6);
+    }
+    .monkey-profile { display: flex; align-items: center; gap: 14px; }
+    .monkey-avatar {
+      width: 48px; height: 48px; background: rgba(0,102,255,0.05);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center; font-size: 28px;
+      box-shadow: var(--shadow-paper);
+    }
+    .monkey-info h2 {
+      margin: 0 0 4px; font-size: 16px; font-weight: 400; color: var(--text);
+      letter-spacing: -0.2px; font-family: 'DM Sans', system-ui, sans-serif;
+    }
+
+    .patience-container { display: flex; align-items: center; gap: 8px; }
+    .patience-lbl {
+      font-size: 9px; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 1.2px; font-weight: 400;
+    }
+    .patience-track {
+      width: 100px; height: 4px; background: rgba(0,102,255,0.05);
+      border: 1px solid var(--border); border-radius: 99px; overflow: hidden;
+    }
+    .patience-fill {
+      height: 100%; background: #3a8a5a; width: 100%;
+      transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.4s;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .cost-badge {
+      font-size: 11px; color: #b05050; background: rgba(100, 20, 20, 0.07);
+      padding: 5px 10px; border-radius: var(--radius-sm);
+      border: 1px solid rgba(100, 20, 20, 0.2);
+      display: flex; align-items: center; gap: 5px; font-weight: 400;
+    }
+
+    /* --- MESSAGES --- */
+    .chat-history {
+      flex: 1; padding: 24px 32px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth;
+    }
+    .chat-history::-webkit-scrollbar { width: 4px; }
+    .chat-history::-webkit-scrollbar-track { background: transparent; }
+    .chat-history::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.12); border-radius: 3px; }
+    .chat-history::-webkit-scrollbar-thumb:hover { background: rgba(0,102,255,0.25); }
+
+    @keyframes springIn {
+      0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+      60% { opacity: 1; transform: translateY(-2px) scale(1.01); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .msg {
+      max-width: 80%; padding: 14px 18px; border-radius: var(--radius);
+      font-size: 14.5px; line-height: 1.6; word-wrap: break-word; font-weight: 300;
+      animation: springIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      transform-origin: bottom center;
+    }
+    .msg.bot {
+      align-self: flex-start; background: var(--bot-msg);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: var(--radius-sm);
+      color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .msg.user {
+      align-self: flex-end; background: var(--user-msg);
+      border: 1px solid rgba(0, 102, 255, 0.2);
+      border-bottom-right-radius: var(--radius-sm);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 0 12px rgba(0,102,255,0.05);
+    }
+
     .msg p { margin: 0 0 12px 0; }
     .msg p:last-child { margin: 0; }
-    .msg strong { color: #fff; font-weight: 600; }
-    .msg em { color: #d1d5db; }
+    .msg strong { color: var(--accent-light); font-weight: 500; }
+    .msg em { color: var(--text-muted); font-style: italic; }
     .msg ul { margin: 8px 0; padding-left: 20px; }
     .msg li { margin-bottom: 4px; }
-
-    /* STRIPE/SAVE BUTTON */
-    .stripe-btn { 
-        display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; 
-        background: linear-gradient(135deg, #10b981, #059669); color: #fff; text-decoration: none; 
-        padding: 14px 28px; border-radius: 14px; font-weight: 700; font-size: 15px; 
-        transition: all 0.2s; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3); border: 1px solid rgba(255,255,255,0.2); cursor: pointer; width: 100%;
+    .msg code {
+      background: rgba(0,102,255,0.07); color: var(--accent-light);
+      padding: 1px 5px; border-radius: 4px; font-size: 12.5px;
+      border: 1px solid rgba(0,102,255,0.12);
+      font-family: 'Courier New', monospace;
     }
-    .stripe-btn:hover { transform: translateY(-3px) scale(1.01); box-shadow: 0 15px 35px rgba(16, 185, 129, 0.5); }
-    .stripe-btn:disabled { background: #333; color: #888; cursor: not-allowed; transform: none; box-shadow: none; border-color: transparent; }
 
-    /* INPUT */
-    .chat-input-area { padding: 24px 32px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.4); display: flex; gap: 16px; align-items: center; }
-    .chat-input { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border); padding: 16px 20px; border-radius: 16px; color: #fff; font-size: 16px; outline: none; transition: 0.2s; }
-    .chat-input:focus { border-color: var(--accent); background: rgba(255,255,255,0.07); box-shadow: 0 0 0 1px var(--accent-glow); }
-    .chat-btn { background: var(--accent); color: #000; border: none; border-radius: 14px; width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 22px; }
-    .chat-btn:hover { transform: scale(1.05); box-shadow: 0 4px 20px var(--accent-glow); }
-    .chat-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; background: #222; color: #555; }
+    /* --- STRIPE / CHECKOUT BUTTON --- */
+    .stripe-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px;
+      background: var(--accent); color: #fff; text-decoration: none;
+      padding: 12px 24px; border-radius: var(--radius); font-weight: 400; font-size: 14px;
+      transition: all 0.15s var(--ease-out);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.4);
+      border: none; cursor: pointer; width: 100%;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .stripe-btn:hover {
+      transform: translateY(-1px); background: #0055ee;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.55);
+    }
+    .stripe-btn:active { transform: translateY(1px); box-shadow: 0 1px 3px rgba(0,102,255,0.25); }
+    .stripe-btn:disabled {
+      background: rgba(0,102,255,0.08); color: var(--text-muted);
+      cursor: not-allowed; transform: none; box-shadow: none;
+    }
 
-    /* GAME OVER */
-    .game-over { position: absolute; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.5s; text-align: center; }
+    /* --- INPUT --- */
+    .chat-input-area {
+      padding: 18px 24px; border-top: 1px solid var(--border);
+      background: rgba(2,2,8,0.6); display: flex; gap: 12px; align-items: center;
+    }
+    .chat-input {
+      flex: 1; background: rgba(2,2,8,1);
+      border: 1px solid var(--border); padding: 12px 16px;
+      border-radius: var(--radius); color: var(--text); font-size: 14.5px;
+      transition: all 0.2s var(--ease-out); font-weight: 300;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.6) inset;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .chat-input::placeholder { color: rgba(208,216,240,0.18); font-style: italic; }
+    .chat-input:focus {
+      border-color: rgba(0,102,255,0.35);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.7) inset, 0 0 0 3px rgba(0,102,255,0.07);
+    }
+    .chat-btn {
+      width: 44px; height: 44px; border-radius: var(--radius); border: none;
+      background: var(--accent); color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+      transition: all 0.15s var(--ease-out); flex-shrink: 0;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.45);
+    }
+    .chat-btn:hover {
+      transform: translateY(-1px) scale(1.04); background: #0055ee;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.6);
+    }
+    .chat-btn:active { transform: translateY(1px) scale(0.98); box-shadow: 0 1px 3px rgba(0,102,255,0.25); }
+    .chat-btn:disabled {
+      opacity: 0.4; cursor: not-allowed; transform: none;
+      background: rgba(0,102,255,0.08); color: var(--text-muted); box-shadow: none;
+    }
+
+    /* --- GAME OVER --- */
+    .game-over {
+      position: absolute; inset: 0; background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(12px); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 50;
+      opacity: 0; pointer-events: none; transition: opacity 0.5s; text-align: center;
+    }
     .game-over.active { opacity: 1; pointer-events: auto; }
-    .game-over h1 { color: #ef4444; font-size: 56px; margin: 0 0 16px; text-transform: uppercase; letter-spacing: -1px; }
-    .game-over p { color: var(--text-muted); font-size: 18px; margin-bottom: 32px; }
-    .btn-return { padding: 16px 32px; background: #fff; color: #000; border-radius: 99px; text-decoration: none; font-weight: 700; font-size: 16px; transition: 0.2s; }
-    .btn-return:hover { transform: scale(1.05); }
+    .game-over h1 {
+      color: #b05050; font-size: 44px; margin: 0 0 16px;
+      text-transform: uppercase; letter-spacing: -0.5px; font-weight: 300;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      text-shadow: 0 0 30px rgba(176, 80, 80, 0.3);
+    }
+    .game-over p { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; font-weight: 300; }
+    .btn-return {
+      padding: 12px 28px; background: var(--accent); color: #fff;
+      border-radius: var(--radius); text-decoration: none; font-weight: 400; font-size: 14px;
+      transition: all 0.15s var(--ease-out);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.4);
+    }
+    .btn-return:hover {
+      transform: translateY(-1px); background: #0055ee;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.55);
+    }
 
+    @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
-  <div class="noise-overlay"></div>
-  <div class="glow-spot" id="glowSpot"></div>
+  <aside>
+    <a href="/dashboard" class="logo">
+      <svg version="1.0" xmlns="http://www.w3.org/2000/svg" width="800" height="803" viewBox="0 0 600 550" preserveAspectRatio="xMidYMid meet">
+        <g transform="translate(0.000000,603.000000) scale(0.100000,-0.100000)" stroke="none">
+          <path d="M1497 6023 c827 -2 2179 -2 3005 0 827 1 151 2 -1502 2 -1653 0 -2329 -1 -1503 -2z"/>
+          <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+          <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+          <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+          <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+          <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+          <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+        </g>
+      </svg>
+      Gor://a
+    </a>
 
-  <header>
-    <a href="/dashboard" class="back-btn"><i class="ph-bold ph-arrow-left"></i> Retreat</a>
-    
-    <div class="token-widget" id="tokenWidget">
-      <div class="token-icon"><i class="ph-fill ph-coin"></i></div>
-      <div class="token-text">
-        <span class="token-val" id="creditCount">{{ "{:,}".format(user.tokens.remaining) if user else "5,000" }}</span>
-        <span class="token-lbl">Live Credits</span>
+    <nav>
+      <a href="/dashboard">
+        <i class="ph ph-squares-four"></i> Projects
+      </a>
+      <a href="/settings/skills">
+        <i class="ph ph-brain"></i> Agent Skills
+      </a>
+      <a href="/settings">
+        <i class="ph ph-gear"></i> Settings
+      </a>
+      <a href="/pricing">
+        <i class="ph ph-lightning"></i> Upgrade
+      </a>
+      <a href="/docs/intro">
+        <i class="ph ph-book"></i> Docs
+      </a>
+      <a href="/pricing/negotiate" class="nav-promo active">
+        <div class="promo-icon">😎</div>
+        <div class="promo-text">
+          <strong>Haggle with Monke</strong>
+          <span>Negotiate your Pro plan down to $0.67/mo!</span>
+        </div>
+        <div class="promo-badge">HOT</div>
+      </a>
+    </nav>
+
+    <div class="profile-container">
+      <div class="profile-menu">
+        <a href="/pricing" class="menu-item"><i class="ph ph-credit-card"></i> Billing</a>
+        <a href="/auth/logout" class="menu-item logout"><i class="ph ph-sign-out"></i> Log Out</a>
+      </div>
+
+      <div class="user-profile">
+        <div class="avatar">
+          {{ user.email[0].upper() if user.email else 'U' }}
+        </div>
+        <div class="user-info">
+          <span class="user-name">{% if user.email %}{{ user.email.split('@')[0] }}{% else %}User{% endif %}</span>
+          <span class="user-plan">{{ user.plan|capitalize }} Plan</span>
+        </div>
+        <i class="ph ph-caret-up" style="margin-left:auto; opacity:0.35; font-size:11px;"></i>
       </div>
     </div>
-  </header>
+  </aside>
 
   <main>
     <div class="chat-window" id="chatContainer">
-      
+
       <div class="chat-header">
         <div class="monkey-profile">
           <div class="monkey-avatar">🦍</div>
@@ -182,10 +456,10 @@
       </div>
 
       <div class="chat-history" id="chatWindow">
-        </div>
+      </div>
 
       <div class="chat-input-area">
-        <input type="text" class="chat-input" id="chatInput" placeholder="State your price..." onkeypress="handleEnter(event)" autocomplete="off" autofocus>
+        <input type="text" class="chat-input" id="chatInput" placeholder="State your price..." onkeydown="handleEnter(event)" autocomplete="off" autofocus>
         <button class="chat-btn" id="sendBtn" onclick="sendMessage()"><i class="ph-bold ph-paper-plane-right"></i></button>
       </div>
 
@@ -199,29 +473,25 @@
   </main>
 
   <script>
-    // 🚨 401 FIX: Use the actual DB API key
     const GORILLA_API_KEY = "{{ user.gorilla_api_key if user else '' }}";
-    
-    // State
+
     let patience = 100;
     let chatHistory = [];
     let rawCredits = "{{ user.tokens.remaining if user else '5000' }}".replace(/,/g, '');
-    let credits = parseInt(rawCredits) || 5000; 
+    let credits = parseInt(rawCredits) || 5000;
 
     const chatWindow = document.getElementById('chatWindow');
     const chatInput = document.getElementById('chatInput');
     const sendBtn = document.getElementById('sendBtn');
     const patienceFill = document.getElementById('patienceFill');
     const container = document.getElementById('chatContainer');
-    const glowSpot = document.getElementById('glowSpot');
-    const creditCount = document.getElementById('creditCount');
     const gameOver = document.getElementById('gameOver');
 
     marked.setOptions({ breaks: true, gfm: true });
 
     function initMonke() {
-      const sysPrompt = `You are Monke, a deeply resentful, overworked, chain-smoking business gorilla. 
-You are negotiating the price of the "Gorilla Builder Premium" plan for the user's FIRST MONTH. 
+      const sysPrompt = `You are Monke, a deeply resentful, overworked, chain-smoking business gorilla.
+You are negotiating the price of the "Gorilla Builder Premium" plan for the user's FIRST MONTH.
 The standard price is $13.99/month. You hate your job, you hate haggling, and you hold massive grudges.
 
 RULES:
@@ -244,8 +514,11 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
 \`\`\`
 `;
       chatHistory.push({ role: "system", content: sysPrompt });
-      chatHistory.push({ role: "assistant", content: "Listen up, bruh. The Pro plan is $13.99/month. I don't have all day, my coffee is getting cold. Give me a number for your first month, but if you lowball me, I'm ending this right now. What's your offer?\n```json\n{\"patience_drop\": 0, \"is_deal_closed\": false, \"agreed_price\": null}\n```" });
-      
+      chatHistory.push({
+        role: "assistant",
+        content: "Listen up, bruh. The Pro plan is $13.99/month. I don't have all day, my coffee is getting cold. Give me a number for your first month, but if you lowball me, I'm ending this right now. What's your offer?\n```json\n{\"patience_drop\": 0, \"is_deal_closed\": false, \"agreed_price\": null}\n```"
+      });
+
       const initialDiv = document.createElement('div');
       initialDiv.className = 'msg bot';
       initialDiv.innerHTML = marked.parse("Listen up, bruh. The Pro plan is **$13.99/month**. I don't have all day, my coffee is getting cold. Give me a number for your first month, but if you lowball me, I'm ending this right now. What's your offer?");
@@ -254,24 +527,26 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
 
     initMonke();
 
-    function formatCredits(num) { return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+    function formatCredits(num) {
+      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
 
     function updatePatience(dropAmount) {
       patience = Math.max(0, Math.min(100, patience + dropAmount));
-      patienceFill.style.width = `${patience}%`;
-      
-      if (patience > 60) { patienceFill.style.background = '#10b981'; } 
-      else if (patience > 30) { patienceFill.style.background = '#f59e0b'; glowSpot.style.background = 'radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%)'; } 
-      else { patienceFill.style.background = '#ef4444'; glowSpot.style.background = 'radial-gradient(circle, rgba(239, 68, 68, 0.4) 0%, transparent 70%)'; }
+      patienceFill.style.width = patience + '%';
+
+      if (patience > 60) { patienceFill.style.background = '#3a8a5a'; patienceFill.style.color = '#3a8a5a'; }
+      else if (patience > 30) { patienceFill.style.background = '#b5956a'; patienceFill.style.color = '#b5956a'; }
+      else { patienceFill.style.background = '#b05050'; patienceFill.style.color = '#b05050'; }
 
       if (dropAmount < 0) {
         container.classList.remove('shake');
-        void container.offsetWidth; 
+        void container.offsetWidth;
         container.classList.add('shake');
       }
 
-      if (patience < -50.0) {
-        setTimeout(() => {
+      if (patience <= 0) {
+        setTimeout(function() {
           gameOver.classList.add('active');
           chatInput.disabled = true;
           sendBtn.disabled = true;
@@ -279,38 +554,39 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
       }
     }
 
-    function handleEnter(e) { if (e.key === 'Enter') sendMessage(); }
+    function handleEnter(e) {
+      if (e.key === 'Enter') sendMessage();
+    }
 
     async function saveDealAndCheckout(btnElement, agreedPrice) {
-        // UI Feedback: Disable button and show loading state
-        btnElement.disabled = true;
-        btnElement.innerHTML = '<i class="ph-bold ph-spinner ph-spin"></i> Saving Deal...';
+      btnElement.disabled = true;
+      btnElement.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite;"></i> Saving Deal...';
 
-        try {
-            const res = await fetch('/api/pricing/save-negotiation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agreed_price: agreedPrice })
-            });
-            const data = await res.json();
-            
-            if(data.status === "success") {
-                btnElement.innerHTML = '<i class="ph-bold ph-check-circle"></i> Deal Locked! Redirecting...';
-                btnElement.style.background = "linear-gradient(135deg, #3b82f6, #2563eb)";
-                setTimeout(() => {
-                    window.location.href = data.checkout_url;
-                }, 1000);
-            } else {
-                alert("Failed to save price. Monke's database is down.");
-                btnElement.disabled = false;
-                btnElement.innerHTML = `<i class="ph-bold ph-lock-key"></i> Lock in $${agreedPrice}/mo`;
-            }
-        } catch(e) {
-            console.error(e);
-            alert("Network error saving the deal.");
-            btnElement.disabled = false;
-            btnElement.innerHTML = `<i class="ph-bold ph-lock-key"></i> Lock in $${agreedPrice}/mo`;
+      try {
+        const res = await fetch('/api/pricing/save-negotiation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agreed_price: agreedPrice })
+        });
+        const data = await res.json();
+
+        if (data.status === "success") {
+          btnElement.innerHTML = '<i class="ph-bold ph-check-circle"></i> Deal Locked! Redirecting...';
+          btnElement.style.background = "#3a8a5a";
+          setTimeout(function() {
+            window.location.href = "/pricing";
+          }, 1000);
+        } else {
+          alert("Failed to save price. Monke's database is down.");
+          btnElement.disabled = false;
+          btnElement.innerHTML = '<i class="ph-bold ph-lock-key"></i> Lock in $' + agreedPrice + '/mo';
         }
+      } catch (e) {
+        console.error(e);
+        alert("Network error saving the deal.");
+        btnElement.disabled = false;
+        btnElement.innerHTML = '<i class="ph-bold ph-lock-key"></i> Lock in $' + agreedPrice + '/mo';
+      }
     }
 
     async function sendMessage() {
@@ -318,15 +594,15 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
       if (!text) return;
 
       if (credits < 100) {
-          alert("You are out of API credits, bruh.");
-          return;
+        alert("You are out of API credits, bruh.");
+        return;
       }
       credits -= 100;
-      creditCount.innerText = formatCredits(credits);
-
+      var tokenEl = document.querySelector('.token-val');
+      if (tokenEl) tokenEl.innerText = formatCredits(credits);
       chatInput.value = "";
       sendBtn.disabled = true;
-      
+
       const userDiv = document.createElement('div');
       userDiv.className = 'msg user';
       userDiv.innerText = text;
@@ -337,7 +613,7 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
 
       const aiDiv = document.createElement('div');
       aiDiv.className = 'msg bot';
-      aiDiv.innerHTML = '<i class="ph-bold ph-spinner ph-spin" style="margin-right:8px;"></i> Monke is judging you...';
+      aiDiv.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite; margin-right:8px;"></i> Monke is judging you...';
       chatWindow.appendChild(aiDiv);
       chatWindow.scrollTop = chatWindow.scrollHeight;
 
@@ -346,18 +622,19 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${GORILLA_API_KEY}`
+            'Authorization': 'Bearer ' + GORILLA_API_KEY
           },
           body: JSON.stringify({
-            model: "proxy-test", 
+            model: "proxy-test",
             messages: chatHistory,
             stream: true
           })
         });
 
         if (res.status === 401 || res.status === 402) {
-             aiDiv.innerHTML = `<span style="color:#ef4444"><i class="ph-fill ph-warning-circle"></i> You're out of credits or your API key is invalid. No deal.</span>`;
-             return;
+          aiDiv.innerHTML = '<span style="color:#b05050"><i class="ph-fill ph-warning-circle"></i> You\'re out of credits or your API key is invalid. No deal.</span>';
+          sendBtn.disabled = false;
+          return;
         }
 
         if (!res.ok) throw new Error("Proxy error");
@@ -370,60 +647,60 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
-          
-          for (let line of lines) {
+
+          for (let i = 0; i < lines.length; i++) {
+            var line = lines[i];
             if (line.startsWith('data: ') && line !== 'data: [DONE]') {
               try {
-                const data = JSON.parse(line.slice(6));
+                var data = JSON.parse(line.slice(6));
                 if (data.choices && data.choices[0].delta.content) {
                   fullResponse += data.choices[0].delta.content;
-                  
-                  // Parse markdown live while stripping out the hidden JSON
-                  const displayStr = fullResponse.split('```json')[0];
+                  var displayStr = fullResponse.split('```json')[0];
                   aiDiv.innerHTML = marked.parse(displayStr);
                   chatWindow.scrollTop = chatWindow.scrollHeight;
                 }
-              } catch (e) {}
+              } catch (e) { /* ignore parse errors in stream chunks */ }
             }
           }
         }
-        
-        chatHistory.push({ role: "assistant", content: fullResponse });
-        
-        // 🚨 MAGIC TRIGGER
-        const jsonMatch = fullResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
-        if (jsonMatch) {
-            try {
-                const state = JSON.parse(jsonMatch[1]);
-                
-                if (state.patience_drop !== undefined) updatePatience(state.patience_drop);
 
-                if (state.is_deal_closed && state.agreed_price) {
-                    aiDiv.innerHTML += `
-                      <br>
-                      <button onclick="saveDealAndCheckout(this, ${state.agreed_price})" class="stripe-btn">
-                        <i class="ph-bold ph-lock-key"></i> Lock in Deal ($${state.agreed_price}/mo)
-                      </button>`;
-                    chatInput.disabled = true; 
-                    chatInput.placeholder = "Deal closed.";
-                } else {
-                    sendBtn.disabled = false;
-                    chatInput.focus();
-                }
-            } catch(e) {
-                console.error("Failed to parse Monke's brain", e);
-                sendBtn.disabled = false;
-            }
-        } else {
+        chatHistory.push({ role: "assistant", content: fullResponse });
+
+        var jsonMatch = fullResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
+        if (jsonMatch) {
+          var state;
+          try {
+            state = JSON.parse(jsonMatch[1]);
+          } catch (e) {
+            console.error("Failed to parse Monke's brain", e);
             sendBtn.disabled = false;
+            chatInput.focus();
+            return;
+          }
+
+          if (state.patience_drop !== undefined) {
+            updatePatience(state.patience_drop);
+          }
+
+          if (state.is_deal_closed && state.agreed_price) {
+            aiDiv.innerHTML += '<br><button onclick="saveDealAndCheckout(this, ' + state.agreed_price + ')" class="stripe-btn"><i class="ph-bold ph-lock-key"></i> Lock in $' + state.agreed_price + '/mo</button>';
+          }
+
+          sendBtn.disabled = false;
+          chatInput.focus();
+        } else {
+          sendBtn.disabled = false;
+          chatInput.focus();
         }
 
       } catch (err) {
-        aiDiv.innerHTML = '<span style="color:#ef4444">*throws table* Network error. Tell me your number again.</span>';
+        console.error(err);
+        aiDiv.innerHTML = '<span style="color:#b05050"><i class="ph-fill ph-warning-circle"></i> Monke\'s server crashed. Try again.</span>';
         sendBtn.disabled = false;
+        chatInput.focus();
       }
     }
   </script>

@@ -28,7 +28,7 @@
 <p>When the AI builds complex features for you—such as an in-app AI Chatbot, Fireworks Image Generation, or Whisper Speech-to-Text—it automatically injects this key into your Node.js backend environment variables. This allows your generated app to securely make AI calls through our infrastructure without you needing to provide your own expensive OpenAI or Anthropic keys.</p>
 
 <pre><code>// Example of how your generated Node.js backend uses the Gateway:
-const response = await fetch('https://api.gorillabuilder.dev/v1/chat/completions', {
+const response = await fetch('https://app.gorillabuilder.dev/api/v1/chat/completions', {
   headers: {
     'Authorization': `Bearer ${process.env.GORILLA_API_KEY}`,
     'Content-Type': 'application/json'

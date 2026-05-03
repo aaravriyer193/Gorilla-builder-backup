@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Editor · {{ project_name }} · Gor://a Builder</title>
+  <title>Editor · {{ project_name }} · Gor://a</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 
   <script type="module">
     import { marked } from "https://esm.sh/marked@12.0.1";
     import DOMPurify from "https://esm.sh/dompurify@3.0.9";
-
-    // 🛑 The ULTIMATE fix for CodeMirror's "Multiple Instances" Error.
     import { EditorState } from "https://esm.sh/@codemirror/state@6.4.1";
     import { EditorView, keymap, lineNumbers } from "https://esm.sh/@codemirror/view@6.26.3?deps=@codemirror/state@6.4.1";
     import { defaultKeymap, history, historyKeymap } from "https://esm.sh/@codemirror/commands@6.5.0?deps=@codemirror/state@6.4.1,@codemirror/view@6.26.3";
@@ -24,1642 +22,983 @@
     import { css } from "https://esm.sh/@codemirror/lang-css@6.2.1?deps=@codemirror/state@6.4.1,@codemirror/view@6.26.3";
 
     window.createEditor = (parent, content, onChange, fileName) => {
-      const fixedHeightEditor = EditorView.theme({
-        "&": { height: "100%", fontSize: "14px", backgroundColor: "transparent" },
-        ".cm-scroller": { overflow: "auto" },
-        ".cm-gutters": { backgroundColor: "transparent", borderRight: "1px solid rgba(255,255,255,0.05)", color: "#565f89" }
+      const theme = EditorView.theme({
+        "&": { height: "100%", fontSize: "13px", backgroundColor: "transparent", fontFamily: "'DM Mono', monospace" },
+        ".cm-scroller": { overflow: "auto", fontFamily: "'DM Mono', monospace" },
+        ".cm-content": { fontFamily: "'DM Mono', monospace", padding: "16px 0" },
+        ".cm-gutters": { backgroundColor: "transparent", borderRight: "1px solid rgba(0,102,255,0.07)", color: "#2a3050", minWidth: "44px" },
+        ".cm-activeLineGutter": { backgroundColor: "rgba(0,102,255,0.05)" },
+        ".cm-activeLine": { backgroundColor: "rgba(0,102,255,0.04)" },
       });
-
       let extensions = [
-          fixedHeightEditor,
-          lineNumbers(),
-          history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
-          oneDark,
-          EditorView.lineWrapping,
-          EditorView.updateListener.of((v) => {
-            if (v.docChanged && typeof onChange === "function") {
-              onChange(v.state.doc.toString());
-            }
-          })
+        theme, lineNumbers(), history(),
+        keymap.of([...defaultKeymap, ...historyKeymap]),
+        oneDark, EditorView.lineWrapping,
+        EditorView.updateListener.of((v) => {
+          if (v.docChanged && typeof onChange === "function") onChange(v.state.doc.toString());
+        })
       ];
-
       if (fileName) {
-          if (fileName.endsWith('.js') || fileName.endsWith('.tsx') || fileName.endsWith('.ts') || fileName.endsWith('.json')) {
-              extensions.push(javascript());
-          } else if (fileName.endsWith('.html')) {
-              extensions.push(html());
-          } else if (fileName.endsWith('.css')) {
-              extensions.push(css());
-          } else if (fileName.endsWith('.sql')) {
-              extensions.push(javascript());
-          }
+        if (fileName.endsWith('.js') || fileName.endsWith('.tsx') || fileName.endsWith('.ts') || fileName.endsWith('.json')) extensions.push(javascript());
+        else if (fileName.endsWith('.html')) extensions.push(html());
+        else if (fileName.endsWith('.css')) extensions.push(css());
       }
-
-      const state = EditorState.create({
-        doc: content,
-        extensions: extensions
-      });
-
-      return new EditorView({ state, parent });
+      return new EditorView({ state: EditorState.create({ doc: content, extensions }), parent });
     };
   </script>
 
   <style>
-  /* --- 1. FONTS & RESETS --- */
+    :root {
+      --bg: #000000;
+      --sidebar-bg: #03030a;
+      --panel-bg: rgba(4, 4, 12, 0.98);
+      --surface: rgba(6, 6, 16, 0.95);
+      --border: rgba(0, 102, 255, 0.07);
+      --border-hover: rgba(0, 102, 255, 0.22);
+      --accent: #0066ff;
+      --accent-dim: rgba(0, 102, 255, 0.12);
+      --accent-glow: rgba(0, 102, 255, 0.18);
+      --accent-light: #3385ff;
+      --text: #d0d8f0;
+      --text-muted: #2a3050;
+      --text-mid: #6070a0;
+      --ok: #3ECF8E;
+      --warn: #f5b544;
+      --danger: #e05555;
+      --radius: 8px;
+      --radius-sm: 5px;
+      --radius-lg: 10px;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
 
-  :root {
-    /* Core Palette - Deep Space Theme */
-    --bg: #020408;
-    --panel: rgba(13, 17, 28, 0.85); /* Glassy panel */
-    --panel-solid: #0d111c;
-    --panel-light: rgba(20, 25, 40, 0.6);
-    --border: rgba(255, 255, 255, 0.08);
-    --glass: blur(12px) saturate(180%);
-    
-    /* Status Colors */
-    --danger: #ff4d6d;
-    --ok: #00f0aa;
-    --warn: #ffcc00;
-    
-    /* Text */
-    --text: #ececf1;
-    --text-muted: #8b949e;
+    * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; margin: 0; padding: 0; }
 
-    /* Default Theme (Electric Blue) */
-    --accent: #3b82f6;
-    --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    --accent-glow: rgba(59, 130, 246, 0.3);
-    
-    /* Role Colors */
-    --coder-bg: rgba(212, 45, 45, 0.1);
-    --coder-border: rgba(212, 45, 45, 0.3);
-    --coder-text: #d42d2d;
-    
-    --planner-bg: rgba(250, 204, 21, 0.1);
-    --planner-border: rgba(250, 204, 21, 0.3);
-    --planner-text: #facc15;
-  }
-
-  * { box-sizing: border-box; font-family: 'Funnel Display', system-ui, -apple-system, sans-serif; outline: none; }
-
-  /* --- 2. LAYOUT & BODY --- */
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    height: 100vh;
-    overflow: hidden;
-    background-image: 
-      radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 100% 100%, rgba(124, 58, 237, 0.08) 0%, transparent 50%);
-    font-size: 13px;
-    font-weight: 400;
-  }
-
-  .shell { display: flex; height: 100vh; width: 100%; overflow: hidden; }
-
-  /* --- 3. THEME OVERRIDES --- */
-  body.premium {
-    --accent: #ffd700; 
-    --accent-gradient: linear-gradient(135deg, #ffd700 0%, #ffb700 100%);
-    --accent-glow: rgba(255, 215, 0, 0.25);
-  }
-  body.premium .msg.user { color: #000; font-weight: 600; }
-  body.premium .agent-input button { color: #000; }
-
-  body.xmode {
-    --bg: #05010a;
-    --panel: rgba(18, 5, 34, 0.9);
-    --panel-light: rgba(30, 10, 50, 0.5);
-    --accent: #d946ef;
-    --accent-gradient: linear-gradient(135deg, #d946ef 0%, #a855f7 100%);
-    --accent-glow: rgba(217, 70, 239, 0.4);
-    --border: rgba(217, 70, 239, 0.15);
-    background-image: radial-gradient(circle at 50% 0%, rgba(217, 70, 239, 0.1) 0%, transparent 60%) !important;
-  }
-
-  /* --- 4. LEFT SIDEBAR (AGENT) --- */
-  .left {
-    width: 420px;
-    min-width: 380px;
-    background: var(--panel);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    backdrop-filter: var(--glass);
-    position: relative;
-    z-index: 20;
-  }
-
-  .left header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(0,0,0,0.2);
-  }
-
-  .hgroup .t { 
-    font-size: 16px; font-weight: 600; letter-spacing: -0.5px; 
-    display: flex; align-items: center; gap: 8px; color: #fff;
-  }
-  .header-actions { display: flex; gap: 6px; }
-
-  /* UI Elements */
-  .pill {
-    border: 1px solid var(--border);
-    background: rgba(255,255,255,0.03);
-    color: var(--text-muted);
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-    transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-    font-weight: 500;
-  }
-  .pill:hover { 
-    border-color: rgba(255,255,255,0.2); 
-    color: #fff; 
-    background: rgba(255,255,255,0.08); 
-    transform: translateY(-1px);
-  }
-
-  .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--text-muted); box-shadow: 0 0 0 2px rgba(0,0,0,0.2); }
-  .dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(0, 240, 170, 0.4); }
-  .dot.warn { background: var(--warn); }
-  .dot.bad { background: var(--danger); }
-
-  /* Phases & Progress */
-  .phases {
-    display: flex; gap: 4px; padding: 10px 20px;
-    border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.1);
-  }
-  .phase {
-    flex: 1;
-    padding: 6px 0; border-radius: 6px; font-size: 10px;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    text-align: center;
-    border: 1px solid transparent; color: var(--text-muted); opacity: 0.5; transition: all 0.3s;
-    background: rgba(255,255,255,0.02);
-  }
-  .phase.active {
-    border-color: var(--accent); 
-    background: rgba(59, 130, 246, 0.08);
-    color: var(--accent); opacity: 1; font-weight: 700; 
-  }
-
-  .progress {
-    padding: 12px 20px; border-bottom: 1px solid var(--border);
-    display: flex; flex-direction: column; gap: 8px;
-    background: rgba(0,0,0,0.05);
-  }
-  .progress-row { display: flex; align-items: center; justify-content: space-between; }
-  .progress-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
-  .progress-status { font-size: 11px; color: var(--accent); font-weight: 600; text-shadow: 0 0 10px var(--accent-glow); }
-
-  .bar-bg { height: 4px; border-radius: 999px; background: rgba(255,255,255,0.05); overflow: hidden; }
-  .bar-fill {
-    height: 100%; width: 0%;
-    background: var(--accent-gradient);
-    border-radius: 999px; transition: width 0.4s ease-out; box-shadow: 0 0 12px var(--accent-glow);
-  }
-
-  /* Loading Animation */
-  .loading-wave { display: flex; align-items: center; gap: 3px; height: 10px; opacity: 0; transition: opacity 0.3s; }
-  .loading-wave.active { opacity: 1; }
-  .loading-bar { width: 3px; height: 8px; background: var(--accent); border-radius: 2px; animation: wave 1s infinite ease-in-out; }
-  .loading-bar:nth-child(2) { animation-delay: 0.1s; }
-  .loading-bar:nth-child(3) { animation-delay: 0.2s; }
-  @keyframes wave { 0%, 100% { transform: scaleY(1); opacity: 0.5; } 50% { transform: scaleY(2); opacity: 1; } }
-
-  /* Chat Area */
-  .chat { 
-      flex: 1; 
-      padding: 20px; 
-      overflow-y: auto; 
-      display: flex; 
-      flex-direction: column; 
-      gap: 16px; 
-      scroll-behavior: smooth; 
-      background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 100%);
-  }
-
-  .msg {
-    max-width: 94%; padding: 14px 18px; border-radius: 16px; font-size: 13.5px; line-height: 1.6; word-break: break-word;
-    animation: slideIn 0.3s ease-out; position: relative;
-  }
-  @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-
-  .msg.user { 
-    align-self: flex-end; 
-    background: var(--accent-gradient); 
-    color: #fff; 
-    border: 1px solid rgba(255,255,255,0.1); 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    border-bottom-right-radius: 4px;
-  }
-  
-  /* --- STYLED THE ASSISTANT MESSAGES --- */
-  .msg.agent, .msg.assistant { 
-    align-self: flex-start; 
-  }
-  
-  .msg.coder { 
-      align-self: flex-start; 
-      background: #0f131a; 
-      border: 1px solid var(--coder-border); 
-      border-left: 3px solid var(--coder-text);
-  }
-  .msg.planner { 
-      align-self: flex-start; 
-      background: transparent;
-      border: none;
-      padding: 0;
-      max-width: 100%;
-  }
-  .msg.system { 
-      align-self: center; font-size: 11px; color: var(--text-muted); 
-      border-radius: 999px; padding: 4px 12px; margin: 8px 0; box-shadow: none; 
-      background: rgba(255,255,255,0.03);
-  }
-
-  .meta { 
-      font-size: 10px; opacity: 0.7; margin-bottom: 6px; 
-      text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; 
-      display: flex; align-items: center; gap: 6px; 
-  }
-  .msg.coder .meta { color: var(--coder-text); }
-  .msg.planner .meta { color: var(--planner-text); }
-
-  /* Markdown Styles inside Chat */
-  .md p { margin: 0 0 10px 0; }
-  .md p:last-child { margin: 0; }
-  .md ul, .md ol { margin: 0 0 10px 0; padding-left: 20px; }
-  .md li { margin-bottom: 6px; }
-  .md strong { color: #fff; font-weight: 600; }
-  .md code { 
-      background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; 
-      font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e2e8f0;
-      border: 1px solid rgba(255,255,255,0.1);
-  }
-  .md pre { 
-      background: #080a0f; padding: 12px; border-radius: 8px; 
-      overflow-x: auto; border: 1px solid var(--border); margin: 8px 0; 
-  }
-  .md pre code { background: none; border: none; padding: 0; color: #a5b3ce; }
-
-  /* Agent Input Area */
-  .agent-input { 
-      padding: 20px; 
-      border-top: 1px solid var(--border); 
-      display: flex; gap: 12px; 
-      background: rgba(10, 12, 18, 0.95);
-      position: relative;
-      z-index: 50;
-  }
-  .agent-input::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border), transparent);
-  }
-
-  .agent-input textarea {
-    flex: 1; height: 50px; min-height: 50px; max-height: 150px; resize: vertical;
-    border-radius: 12px; border: 1px solid var(--border); 
-    background: rgba(0,0,0,0.3); color: #fff; padding: 14px;
-    font-size: 14px; transition: all 0.2s;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
-  }
-  .agent-input textarea:focus { border-color: var(--accent); background: rgba(0,0,0,0.5); box-shadow: 0 0 0 2px var(--accent-glow); }
-  .agent-input textarea::placeholder { color: rgba(255,255,255,0.3); }
-
-  .agent-input button {
-    background: var(--accent-gradient); 
-    border: none; color: #fff; border-radius: 12px; width: 50px; height: 50px;
-    display: flex; align-items: center; justify-content: center; 
-    cursor: pointer; transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); 
-    box-shadow: 0 4px 12px var(--accent-glow);
-  }
-  .agent-input button:hover { transform: scale(1.05) translateY(-2px); filter: brightness(1.1); }
-  .agent-input button:active { transform: scale(0.95); }
-
-  /* --- 5. MAIN AREA --- */
-  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); position: relative; }
-
-  /* Top Bar (Editor Tabs) */
-  .topbar { 
-      height: 52px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; 
-      border-bottom: 1px solid var(--border); background: var(--panel-solid); 
-  }
-  .tabs { display: flex; gap: 4px; padding: 4px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border); }
-  .tab {
-    padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;
-    color: var(--text-muted); transition: all 0.2s; border: 1px solid transparent;
-  }
-  .tab:hover { color: #fff; }
-  .tab.active { 
-      background: rgba(255,255,255,0.08); 
-      border-color: rgba(255,255,255,0.05); 
-      color: #fff; 
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  }
-
-  .tab.link { background: none; border: none; padding: 0; box-shadow: none; margin-left: 12px; }
-  .previewMode { display: flex; gap: 8px; align-items: center; margin-left: 16px; padding-left: 16px; border-left: 1px solid var(--border); }
-
-  .select { 
-      background: #050810; border: 1px solid var(--border); color: #fff; 
-      border-radius: 6px; padding: 6px 10px; font-size: 12px; 
-      cursor: pointer; transition: border 0.2s;
-  }
-  .select:hover { border-color: rgba(255,255,255,0.2); }
-
-  .smallbtn { 
-      border: 1px solid var(--border); background: rgba(255,255,255,0.03); 
-      color: #fff; border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: 600;
-      cursor: pointer; transition: all 0.2s; 
-  }
-  .smallbtn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
-  .smallbtn.danger { border-color: rgba(255, 77, 109, 0.3); color: var(--danger); }
-  .smallbtn.danger:hover { background: rgba(255, 77, 109, 0.1); border-color: var(--danger); }
-
-  .badge { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(255,255,255,0.03); border-radius: 4px; }
-
-  /* Content Grid */
-  .content { flex: 1; display: flex; min-height: 0; }
-
-  /* File Tree */
-  .files { 
-      width: 240px; min-width: 200px; 
-      background: var(--panel-light); 
-      border-right: 1px solid var(--border); 
-      display: flex; flex-direction: column; 
-      backdrop-filter: blur(10px);
-  }
-  .tree-header { 
-      padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; 
-      border-bottom: 1px solid var(--border); 
-  }
-  .treeTitle { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; }
-
-  .upload-btn { 
-      background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); 
-      color: var(--accent); cursor: pointer; font-size: 11px; padding: 4px 10px; 
-      border-radius: 4px; transition: all 0.2s; font-weight: 600;
-  }
-  .upload-btn:hover { background: var(--accent); color: #fff; }
-
-  .file-list { padding: 10px; overflow-y: auto; flex: 1; }
-  .node { 
-      display: flex; align-items: center; gap: 8px; padding: 6px 10px; 
-      border-radius: 6px; cursor: pointer; font-size: 13px; color: #94a3b8; 
-      transition: all 0.15s; margin-bottom: 2px;
-  }
-  .node:hover { background: rgba(255,255,255,0.04); color: #fff; transform: translateX(2px); }
-  .node.active { 
-      background: rgba(59, 130, 246, 0.15); color: #fff; 
-      font-weight: 500;
-  }
-  .ico { opacity: 0.7; font-size: 14px; }
-
-  /* Editor & Preview Stage */
-  .stage { flex: 1; min-width: 0; background: #0d111c; position: relative; display: flex; flex-direction: column; }
-  #editor { flex: 1; height: 100%; overflow: hidden; }
-  #preview { width: 100%; height: 100%; border: 0; display: none; background: #fff; }
-
-  /* --- 6. AD STYLES (Cleaned Up) --- */
-  .ad-strip-horiz {
-      background: #000;
-      border-bottom: 1px solid var(--border);
-      display: flex; justify-content: center; align-items: center;
-      padding: 10px; width: 100%; min-height: 90px;
-  }
-  .ad-box-square {
-      margin: 10px; background: rgba(0,0,0,0.5);
-      border: 1px solid var(--border); border-radius: 8px;
-      display: flex; justify-content: center; align-items: center;
-      min-height: 200px;
-  }
-
-  /* Scrollbar Customization */
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-
-  /* --- AGENT SELECTOR --- */
-    .agent-select-wrapper {
-      position: relative;
+    body {
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
       display: flex;
-      align-items: center;
-      margin-right: 6px;
-      transition: all 0.3s var(--ease-out);
+      font-weight: 300;
+      font-size: 13.5px;
+      -webkit-font-smoothing: antialiased;
     }
-    .agent-select {
-      appearance: none;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 10px 32px 10px 14px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      outline: none;
-      transition: all 0.2s var(--ease-out);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.2) inset;
-    }
-    .agent-select:hover {
-      background: rgba(255, 255, 255, 0.05);
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.1);
-    }
-    .agent-select:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px var(--accent-glow);
-      color: #fff;
-    }
-    .agent-select-wrapper::after {
+
+    body::before {
       content: '';
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      border-left: 4px solid transparent;
-      border-right: 4px solid transparent;
-      border-top: 4px solid var(--text-muted);
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ─── LAYOUT ─── */
+    .shell { display: flex; width: 100%; height: 100vh; position: relative; z-index: 1; }
+
+    /* ─── LEFT PANEL ─── */
+    .left {
+      width: 420px; min-width: 380px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      position: relative;
+    }
+    .left::after {
+      content: ''; position: absolute; top: 0; right: 0; width: 1px; height: 100%;
+      background: linear-gradient(to bottom, rgba(0,102,255,0.15), rgba(0,102,255,0.03) 50%, rgba(0,102,255,0.06));
       pointer-events: none;
-      transition: border-top-color 0.2s;
     }
-    .agent-select-wrapper:hover::after { border-top-color: #fff; }
-    .agent-select option {
-      background: #111116;
+
+    /* ─── TOPBAR ─── */
+    .topbar {
+      height: 48px; padding: 0 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 15px; font-weight: 400; color: var(--text);
+      text-decoration: none; letter-spacing: -0.3px;
+    }
+    .logo svg { width: 22px; height: 22px; }
+
+    .topbar-actions { display: flex; align-items: center; gap: 4px; }
+
+    .icon-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s var(--ease);
+      background: transparent;
+      font-size: 16px;
+      text-decoration: none;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--border-hover); background: var(--accent-dim); }
+    .icon-btn.accent { color: var(--accent-light); background: var(--accent-dim); border-color: rgba(0,102,255,0.2); }
+    .icon-btn.accent:hover { background: rgba(0,102,255,0.2); }
+
+    /* ─── STATUS STRIP ─── */
+    .status-strip {
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .status-left { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--warn); transition: all 0.3s; }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 5px rgba(62,207,142,0.4); }
+    .dot.bad { background: var(--danger); }
+    .status-label { font-size: 11px; color: var(--text-muted); font-weight: 400; letter-spacing: 0.3px; }
+
+    .prog-wrap { width: 80px; height: 1.5px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+    .prog-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.4s var(--ease); }
+
+    /* ─── CHAT ─── */
+    .chat {
+      flex: 1; overflow-y: auto;
+      padding: 20px 16px;
+      display: flex; flex-direction: column; gap: 12px;
+      scroll-behavior: smooth;
+    }
+    .chat::-webkit-scrollbar { width: 3px; }
+    .chat::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.15); border-radius: 2px; }
+
+    .msg-user {
+      align-self: flex-end; max-width: 82%;
+      padding: 9px 13px;
+      border-radius: 12px 12px 3px 12px;
+      background: var(--accent);
       color: #fff;
-      font-weight: 500;
+      font-size: 13px; line-height: 1.55;
+      font-weight: 300;
+      animation: slideR 0.3s var(--ease);
     }
-    
-    /* The Completely Locked State */
-    .agent-select-wrapper.locked-mode {
-      opacity: 0.6;
-      pointer-events: none; /* Physically prevents clicking */
-      transform: scale(0.98);
+    @keyframes slideR { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
+
+    .narration {
+      align-self: stretch;
+      font-size: 13px; line-height: 1.7;
+      color: var(--text-mid);
+      padding: 2px 0;
+      animation: fadeUp 0.25s var(--ease);
     }
-    
-    /* Specific styling if it locked onto Supabase */
-    .agent-select-wrapper.locked-supabase .agent-select {
-      border-color: #3ECF8E;
-      color: #3ECF8E;
-      background: rgba(62, 207, 142, 0.05);
+    .narration p { margin: 0 0 6px; }
+    .narration p:last-child { margin: 0; }
+    .narration code {
+      background: var(--accent-dim); padding: 1px 5px; border-radius: 3px;
+      font-family: 'DM Mono', monospace; font-size: 11.5px; color: var(--accent-light);
     }
-    .agent-select-wrapper.locked-supabase::after {
-       border-top-color: #3ECF8E;
+    @keyframes fadeUp { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ─── ACTIVITY ─── */
+    .activity-group {
+      display: flex; flex-direction: column; gap: 2px;
+      padding-left: 10px;
+      border-left: 1px solid rgba(0,102,255,0.1);
     }
+
+    .act {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: rgba(4,4,12,0.8);
+      font-size: 12px; color: var(--text-mid);
+      cursor: default;
+      transition: all 0.15s var(--ease);
+      animation: fadeUp 0.25s var(--ease);
+    }
+    .act:hover { border-color: var(--border-hover); }
+    .act.running { border-color: rgba(0,102,255,0.2); background: rgba(0,102,255,0.04); color: var(--text); }
+    .act.done { opacity: 0.6; }
+    .act.done:hover { opacity: 0.9; }
+    .act.failed { border-color: rgba(224,85,85,0.25); color: var(--danger); }
+
+    .act-icon { font-size: 14px; flex-shrink: 0; color: var(--text-muted); }
+    .act.running .act-icon { color: var(--accent-light); }
+    .act.failed .act-icon { color: var(--danger); }
+
+    .act-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+    .act-target { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+
+    .act-status { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+    .act.running .act-status { background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+    .act.done .act-status { background: var(--ok); }
+    .act.failed .act-status { background: var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+    .act-output { display: none; padding: 0 0 4px 22px; }
+    .act.expanded .act-output { display: block; }
+    .act-output-inner {
+      background: #02020a; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 8px 10px;
+      font-family: 'DM Mono', monospace; font-size: 11px; line-height: 1.5;
+      color: #6070a0; max-height: 140px; overflow-y: auto;
+    }
+
+    /* ─── INPUT ─── */
+    .input-area {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      background: rgba(2,2,10,0.9);
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex; align-items: flex-end; gap: 8px;
+      background: rgba(4,4,14,0.95);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      transition: border-color 0.2s;
+    }
+    .input-row:focus-within { border-color: rgba(0,102,255,0.35); }
+
+    .input-row textarea {
+      flex: 1; min-height: 22px; max-height: 120px; resize: none;
+      background: transparent; border: none; color: var(--text);
+      font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 300;
+      line-height: 1.5;
+    }
+    .input-row textarea::placeholder { color: var(--text-muted); }
+
+    .attach-btn {
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); cursor: pointer; border-radius: 5px; flex-shrink: 0;
+      transition: all 0.15s; font-size: 16px;
+    }
+    .attach-btn:hover { color: var(--accent-light); background: var(--accent-dim); }
+
+    .send-btn {
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+      background: var(--accent); color: #fff; border: none; border-radius: 6px;
+      cursor: pointer; flex-shrink: 0; font-size: 14px;
+      transition: all 0.15s var(--ease);
+    }
+    .send-btn:hover:not(:disabled) { background: #0055ee; transform: translateY(-1px); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #editorImagePreview {
+      display: none; height: 36px; width: 36px;
+      border-radius: 5px; object-fit: cover;
+      border: 1px solid var(--border); flex-shrink: 0; cursor: pointer;
+    }
+
+    /* ─── RIGHT SIDE ─── */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+
+    .main-topbar {
+      height: 48px; padding: 0 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--sidebar-bg);
+      flex-shrink: 0;
+    }
+
+    .tab-group {
+      display: flex; gap: 1px; padding: 3px;
+      background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .tab {
+      padding: 4px 12px; border-radius: 4px; cursor: pointer;
+      font-size: 12px; font-weight: 400; color: var(--text-muted);
+      transition: all 0.15s; display: flex; align-items: center; gap: 5px;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { background: rgba(0,102,255,0.1); color: var(--text); border: 1px solid rgba(0,102,255,0.15); }
+
+    .right-actions { display: flex; align-items: center; gap: 4px; }
+
+    .badge {
+      font-size: 11px; color: var(--text-muted);
+      padding: 3px 8px; background: rgba(255,255,255,0.02);
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      font-weight: 400; display: flex; align-items: center; gap: 5px;
+    }
+    .badge.live { color: var(--ok); background: rgba(62,207,142,0.07); border-color: rgba(62,207,142,0.18); }
+
+    .pill-btn {
+      border: 1px solid var(--border); background: rgba(255,255,255,0.02); color: var(--text-muted);
+      padding: 4px 10px; border-radius: var(--radius-sm); font-size: 11.5px; cursor: pointer;
+      text-decoration: none; display: inline-flex; gap: 5px; align-items: center;
+      transition: all 0.15s; font-weight: 400;
+    }
+    .pill-btn:hover { border-color: var(--border-hover); color: var(--text); background: var(--accent-dim); }
+    .pill-btn.warn { background: rgba(239,154,70,0.08); border-color: rgba(239,154,70,0.2); color: #ef9a46; }
+    .pill-btn.warn:hover { background: rgba(239,154,70,0.15); }
+    .pill-btn.gh { background: rgba(255,255,255,0.03); color: var(--text); border-color: rgba(255,255,255,0.08); }
+
+    /* ─── CONTENT AREA ─── */
+    .content { flex: 1; display: flex; min-height: 0; }
+
+    /* ─── FILE TREE ─── */
+    .files {
+      width: 210px; min-width: 170px;
+      background: rgba(2,2,8,0.6);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+    }
+    .tree-head {
+      padding: 8px 10px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .tree-title { font-size: 10px; font-weight: 500; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; }
+    .upload-btn {
+      width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+      border-radius: 4px; color: var(--text-muted); cursor: pointer; font-size: 15px;
+      transition: all 0.15s; border: 1px solid transparent;
+    }
+    .upload-btn:hover { color: var(--accent-light); border-color: rgba(0,102,255,0.2); background: var(--accent-dim); }
+
+    .file-list { padding: 6px 4px; overflow-y: auto; flex: 1; }
+    .file-list::-webkit-scrollbar { width: 3px; }
+    .file-list::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.1); }
+
+    .node {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 8px; border-radius: 4px;
+      font-size: 12px; color: var(--text-mid); cursor: pointer;
+      transition: all 0.12s; margin-bottom: 1px; border: 1px solid transparent;
+    }
+    .node:hover { background: rgba(0,102,255,0.05); color: var(--text); border-color: var(--border); }
+    .node.active { background: rgba(0,102,255,0.1); color: var(--text); font-weight: 400; border-color: rgba(0,102,255,0.15); }
+    .node .ico { font-size: 13px; flex-shrink: 0; display: flex; align-items: center; opacity: 0.8; }
+
+    /* ─── STAGE ─── */
+    .stage { flex: 1; min-width: 0; background: #01010a; display: flex; flex-direction: column; }
+    #editor { flex: 1; height: 100%; overflow: hidden; }
+    #preview { width: 100%; height: 100%; border: 0; display: none; background: #fff; }
+
+    .preview-empty {
+      display: none; flex: 1; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; color: var(--text-muted); text-align: center; padding: 40px;
+    }
+    .preview-empty i { font-size: 28px; color: var(--text-muted); }
+    .preview-empty p { font-size: 13px; color: var(--text-muted); max-width: 240px; line-height: 1.5; }
+
+    /* ─── LOADER ─── */
+    #editor-loading-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      transition: opacity 0.5s ease;
+    }
+    #editor-loading-overlay img { width: 256px; height: 256px; object-fit: contain; opacity: 0.9; }
+    #editor-loading-overlay p { color: var(--text-muted); font-size: 11px; letter-spacing: 2px; font-weight: 400; }
+
+    /* ─── WAVE LOADER ─── */
+    .wave { display: flex; gap: 2px; align-items: center; opacity: 0; transition: opacity 0.3s; }
+    .wave.active { opacity: 1; }
+    .wave span { width: 2px; height: 10px; background: var(--accent); border-radius: 2px; animation: wv 1s infinite ease-in-out; }
+    .wave span:nth-child(2) { animation-delay: 0.12s; }
+    .wave span:nth-child(3) { animation-delay: 0.24s; }
+    @keyframes wv { 0%,100%{transform:scaleY(0.5);opacity:0.4;} 50%{transform:scaleY(1.8);opacity:1;} }
+
+    /* ─── SCROLLBAR ─── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.1); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0,102,255,0.22); }
+
+    /* ─── SPIN ─── */
+    @keyframes spin { 100%{ transform: rotate(360deg); } }
   </style>
-  
 </head>
 
-<body class="{% if user.plan == 'premium' %}premium{% endif %} {% if xmode %}xmode{% endif %}">
+<body class="{% if user.plan == 'premium' %}premium{% endif %}">
 
-<style>
-  @keyframes ag-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.85); } }
-  @keyframes ag-spin { 100% { transform: rotate(360deg); } }
-  @keyframes ag-scan { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
-  @keyframes ag-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
-  .anim-pulse { animation: ag-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-  .anim-spin { animation: ag-spin 3s linear infinite; }
-  .anim-scan { animation: ag-scan 1.5s ease-in-out infinite; }
-  .anim-shake { animation: ag-shake 0.5s ease-in-out infinite; }
-</style>
-
-<div id="editor-loading-overlay" style="position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease, visibility 0.5s ease;">
-  <img src="/static/gorilla.gif" alt="Waking up Gorilla..." style="width: 250px; height: 250px; object-fit: contain; filter: drop-shadow(0 10px 30px rgba(59, 108, 255, 0.2));" />
-  <h2 style="color: #fff; font-size: 18px; margin-top: -10px; font-weight: 300; letter-spacing: 2px;">
-    WAKING UP GORILLA...
-  </h2>
+<div id="editor-loading-overlay">
+  <img src="/static/gorilla.gif" alt="" />
+  <p>WAKING UP GORILLA</p>
 </div>
 
 <div class="shell">
 
+<!-- ──────────────── LEFT PANEL ──────────────── -->
 <aside class="left">
-  <header>
-    <div class="hgroup">
-      <div class="t">
-        <svg version="1.0" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 600 600" style="filter: drop-shadow(0 0 5px var(--accent));"> 
-            <g transform="translate(0.000000,603.000000) scale(0.100000,-0.100000)" fill="currentColor" stroke="none"> <path d="M1497 6023 c827 -2 2179 -2 3005 0 827 1 151 2 -1502 2 -1653 0 -2329 -1 -1503 -2z"/> <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/> <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/> <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/> <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/> <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/> <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/> </g> 
-        </svg> 
-        <span> Gor://a {% if xmode %}X{% endif %}</span>
-      </div>
-    </div>
 
-    <div class="header-actions">
-      <a class="pill" href="/projects/{{ project_id }}/settings" title="Project settings">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-      </a>
-      
+  <div class="topbar">
+    <a class="logo" href="/dashboard">
+      <svg version="1.0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 550" preserveAspectRatio="xMidYMid meet">
+        <g transform="translate(0,603) scale(0.1,-0.1)" fill="currentColor" stroke="none">
+          <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+          <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+          <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+          <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+          <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+          <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+        </g>
+      </svg>
+      Gor://a
+    </a>
+
+    <div class="topbar-actions">
+      <a class="icon-btn" href="/projects/{{ project_id }}/settings" title="Settings"><i class="ph ph-gear"></i></a>
       {% if user.plan == 'premium' %}
-      <button class="pill" id="btnExportZip" style="color: #ffd700;" title="Export project to ZIP">
-        ⬇ ZIP
-      </button>
+      <button class="icon-btn accent" onclick="window.open('/api/project/{{ project_id }}/export')" title="Export ZIP"><i class="ph ph-download-simple"></i></button>
       {% endif %}
-      <span class="pill" id="connPill" title="SSE connection" style="cursor: default;">
-        <span class="dot warn" id="connDot"></span>
+      <span class="icon-btn" id="connPill" style="cursor:default;" title="Connection">
+        <span class="dot" id="connDot"></span>
       </span>
     </div>
-  </header>
-
-  <div class="phases">
-    <div class="phase" id="phase-planner">Planner</div>
-    <div class="phase" id="phase-coder">Coder</div>
-    <div class="phase" id="phase-files">Files</div>
   </div>
 
-  <div class="progress">
-    <div class="progress-row">
-      <div class="progress-title">
-        Status
-        <div class="loading-wave" id="loadingWave">
-          <div class="loading-bar"></div>
-          <div class="loading-bar"></div>
-          <div class="loading-bar"></div>
-        </div>
-      </div>
-      <div class="progress-status" id="progressText">Idle</div>
+  <div class="status-strip">
+    <div class="status-left">
+      <div class="wave" id="loadingWave"><span></span><span></span><span></span></div>
+      <span class="status-label" id="progressText">Ready</span>
     </div>
-    <div class="bar-bg">
-      <div class="bar-fill" id="progressBar"></div>
-    </div>
+    <div class="prog-wrap"><div class="prog-bar" id="progressBar"></div></div>
   </div>
 
   <div class="chat" id="chat"></div>
 
-<div class="agent-input" style="align-items: center; padding: 15px 20px;">
-    
-    <input type="file" id="editorImageInput" accept="image/png, image/jpeg, image/webp" hidden />
-    
-    <label for="editorImageInput" title="Attach UI Reference" style="
-        color: var(--text-muted); cursor: pointer; font-size: 20px; 
-        background: rgba(255,255,255,0.05); border: 1px solid var(--border); 
-        border-radius: 12px; width: 44px; height: 44px; 
-        display: flex; align-items: center; justify-content: center; 
-        transition: all 0.2s; flex-shrink: 0;
-    ">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-    </label>
-    
-    <img id="editorImagePreview" src="" alt="Attached" style="display: none; height: 44px; width: 44px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); flex-shrink: 0;">
-    
-    <textarea id="prompt" placeholder="What shall we build?" style="margin: 0; flex: 1; height: 44px; min-height: 44px; padding-top: 12px;"></textarea>
-    <button id="runAgent" title="Run agent" style="height: 44px; width: 44px; flex-shrink: 0;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576zm6.787-8.201L1.591 6.602l4.339 2.76z"/>
-      </svg>
-    </button>
+  <div class="input-area">
+    <input type="file" id="editorImageInput" accept="image/png,image/jpeg,image/webp" hidden />
+    <div class="input-row">
+      <label for="editorImageInput" class="attach-btn" title="Attach image"><i class="ph ph-paperclip"></i></label>
+      <img id="editorImagePreview" alt="" />
+      <textarea id="prompt" placeholder="What shall we build?" rows="1"></textarea>
+      <button id="runAgent" class="send-btn" title="Send">
+        <i class="ph-fill ph-paper-plane-tilt"></i>
+      </button>
+    </div>
   </div>
+
 </aside>
 
+<!-- ──────────────── MAIN AREA ──────────────── -->
 <section class="main">
-  <div class="topbar">
-    <div class="tabs">
-      <div class="tab active" id="tabCode">Code</div>
-      <div class="tab" id="tabPreview">Preview</div>
+
+  <div class="main-topbar">
+    <div class="tab-group">
+      <div class="tab active" id="tabCode"><i class="ph ph-code" style="font-size:13px;"></i></div>
+      <div class="tab" id="tabPreview"><i class="ph ph-eye" style="font-size:13px;"></i></div>
     </div>
 
-    <div style="display:flex; align-items:center;">
-       <div class="previewMode" id="previewModeWrap" style="display:none; border:none; padding-left:0; margin-left:0; margin-right: 20px;">
-        <span class="badge" id="serverStatus" style="margin-left:8px;">stopped</span>
-      </div>
+    <div class="right-actions">
+      <span class="badge" id="sandboxStatus">Sandbox Offline</span>
+      {% if user and user.tokens %}
+      <span class="badge" title="Tokens used">
+        <i class="ph ph-lightning" style="font-size:11px;"></i>
+        <span id="tokenDisplay">{{ "{:,}".format(user.tokens.used) }}</span>
+      </span>
+      {% endif %}
+      <span class="badge" id="saveStatus">Saved</span>
 
-      <div style="display:flex; gap:12px; align-items:center;">
-        {% if user and user.tokens %}
-        <span class="badge" title="Tokens used this month">
-          ⚡ <span id="tokenDisplay">{{ "{:,}".format(user.tokens.used) }}</span>
-        </span>
-        {% endif %}
-        
-        <span class="badge" id="saveStatus">Saved</span>
-        
-        <a class="pill" href="/dashboard" target="_blank">Dashboard</a>
-        {% if user.plan != 'premium' %}
-          <a class="pill" style="background-color:var(--accent); color:#fff; border-color:var(--accent);" href="/pricing" target="_blank">UPGRADE</a>
-        {% endif %}
+      <a class="pill-btn" href="/dashboard" title="Dashboard"><i class="ph ph-squares-four"></i></a>
 
-        <div style="width: 1px; height: 20px; background: var(--border); margin: 0 4px;"></div>
+      {% if user.plan != 'premium' %}
+      <a class="pill-btn" href="/pricing" style="background:var(--accent);border-color:transparent;color:#fff;">Upgrade</a>
+      {% endif %}
 
-        {% if not has_github %}
-          <a class="pill" href="/auth/github/link" style="background: #24292e; color: #fff; border-color: #374151;" title="Connect your GitHub account">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right:2px;"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            Link GitHub
-          </a>
-        {% elif not project.github_repo_url %}
-          <button class="pill" id="btn-github-action" onclick="commitToGithub()" style="background: #24292e; color: #fff; border-color: #374151; cursor: pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right:2px;"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            Push to GitHub
-          </button>
-        {% else %}
-          <button class="pill" id="btn-github-action" onclick="commitToGithub()" style="background: #24292e; color: #fff; border-color: #374151; cursor: pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-            Update Repo
-          </button>
-        {% endif %}
-        
-        <a class="pill" href="/projects/{{ project_id }}/deploy" target="_blank" style="border-color: #ef9a46; color: #efa346; background: rgba(239, 154, 70, 0.1);">
-          {% if project.github_repo_url %}Update Deployment{% else %}Deploy App{% endif %}
-        </a>
+      {% if not has_github %}
+      <a class="pill-btn gh" href="/auth/github/link" title="Connect GitHub">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        GitHub
+      </a>
+      {% else %}
+      <button class="pill-btn gh" onclick="commitToGithub()" id="btn-github-action" title="{% if project.github_repo_url %}Sync{% else %}Push{% endif %} to GitHub">
+        <i class="ph ph-git-branch" style="font-size:12px;"></i>
+        {% if project.github_repo_url %}Sync{% else %}Push{% endif %}
+      </button>
+      {% endif %}
 
-      </div>
+      <a class="pill-btn warn" href="/projects/{{ project_id }}/deploy" target="_blank" title="Deploy">
+        <i class="ph ph-rocket-launch" style="font-size:12px;"></i> Deploy
+      </a>
     </div>
   </div>
 
   <div class="content">
     <aside class="files">
-      <div class="tree-header">
-        <div class="treeTitle">Explorer</div>
-        <button class="upload-btn" id="btnUpload" title="Upload file">+ Upload</button>
+      <div class="tree-head">
+        <span class="tree-title">Explorer</span>
+        <button class="upload-btn" id="btnUpload" title="Upload file"><i class="ph ph-upload-simple"></i></button>
         <input type="file" id="uploadInput" hidden />
       </div>
       <div class="file-list" id="filetree"></div>
     </aside>
 
     <div class="stage">
-      <div id="code-loading-overlay" style="display: none; position: absolute; inset: 0; background: var(--panel); backdrop-filter: blur(10px); z-index: 100; flex-direction: column; align-items: center; justify-content: center; color: var(--accent);">
-        <img src="/static/gorilla.gif" alt="Loading..." style="width: 300px; height: 300px; margin-bottom: 20px; filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.3));" />
-        <div style="font-size: 30px; font-weight: medium; letter-spacing: 2px; color: #fff;">Relax it'll take 6-7 mins 🍿</div>
-      </div>
       <div id="editor"></div>
-      <div id="imageViewer" style="display:none; flex:1; align-items:center; justify-content:center; overflow:auto; background:#0d111c; padding: 20px;"></div>
-      <iframe id="preview"></iframe>
+      <div id="imageViewer" style="display:none;flex:1;align-items:center;justify-content:center;overflow:auto;background:#01010a;padding:20px;"></div>
+      <iframe
+        id="preview"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads allow-pointer-lock allow-top-navigation-by-user-activation allow-presentation"
+        allow="clipboard-write; clipboard-read; microphone; camera; display-capture"
+        referrerpolicy="no-referrer">
+      </iframe>
+      <div class="preview-empty" id="previewEmpty">
+        <i class="ph ph-timer"></i>
+        <p>Preview will appear once the sandbox is live.</p>
+      </div>
     </div>
   </div>
+
 </section>
+</div>
 
 <script>
-  async function commitToGithub() {
-    const btn = document.getElementById("btn-github-action");
-    const originalHTML = btn.innerHTML;
-    
-    btn.disabled = true;
-    btn.innerHTML = 'Syncing...';
-    btn.style.opacity = "0.7";
-
-    try {
-      const res = await fetch(`/projects/{{ project_id }}/github/publish`, { method: 'POST' });
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Server error. Please refresh and ensure you are logged in.");
-      }
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to sync to GitHub");
-      
-      btn.innerHTML = '✓ Synced';
-      setTimeout(() => {
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> Update Repo';
-        btn.disabled = false;
-        btn.style.opacity = "1";
-      }, 3000);
-
-    } catch (err) {
-      console.error(err);
-      btn.innerHTML = 'Error (See Console)';
-      setTimeout(() => {
-        btn.innerHTML = originalHTML;
-        btn.disabled = false;
-        btn.style.opacity = "1";
-      }, 3000);
-    }
+async function commitToGithub() {
+  const btn = document.getElementById("btn-github-action"); if (!btn) return;
+  const orig = btn.innerHTML; btn.disabled = true; btn.style.opacity = "0.5";
+  try {
+    const res = await fetch(`/projects/{{ project_id }}/github/publish`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed");
+    btn.innerHTML = '<i class="ph ph-check"></i> Synced';
+    setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
+  } catch (err) {
+    btn.innerHTML = 'Error';
+    setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
   }
+}
 </script>
 
-</div>
 <script type="module">
-import { webRunner } from '/static/webrunner.js';
 import { marked } from 'https://esm.sh/marked@9.1.2';
 import DOMPurify from 'https://esm.sh/dompurify@3.0.6';
 
-window.isAppStable = false; // Add global stability flag
-
-// ✅ ADDED: Listen for the clean, native browser event from webrunner.js
-window.addEventListener('app_stable', () => {
-    console.info("🟢 [SYSTEM] Native app_stable event received! Unlocking UI.");
-    window.isAppStable = true;
-    setInputState(false);
-    const codeOverlay = document.getElementById('code-loading-overlay');
-    if(codeOverlay) {
-        codeOverlay.style.display = 'none';
-    }
-    // Only auto-switch if they are already on the preview tab, or force it if you prefer
-    switchTab('preview'); 
-});
-
-// 🛑 NEW: Listen for the unstable lock event
-window.addEventListener('app_unstable', () => {
-    console.info("🟡 [SYSTEM] Native app_unstable event received! Locking UI.");
-    window.isAppStable = false;
-    setInputState(true);
-    const codeOverlay = document.getElementById('code-loading-overlay');
-    if(codeOverlay) {
-        codeOverlay.style.display = 'flex';
-    }
-});
-
-// 🛑 OVERRIDE FETCH ONLY TO MUTE ERRORS ONCE STABLE 🛑
-const originalFetch = window.fetch;
-window.fetch = async function(...args) {
-    const url = args[0];
-    const options = args[1];
-
-    if (url && typeof url === 'string' && url.includes('/log') && options && options.method === 'POST') {
-        if (options.body && options.body instanceof FormData) {
-            const lvl = options.body.get('level') || '';
-
-            // (The old ALL_CLEAR text hack was deleted from here)
-
-            if (window.isAppStable && lvl === 'ERROR') {
-                console.info("🛡️ [SHIELD] Suppressed error from AI because app is stable.");
-                return new Response(JSON.stringify({success: true}), { status: 200 });
-            }
-        }
-    }
-    return originalFetch.apply(this, args);
-};
-
 const PROJECT_ID = "{{ project_id }}";
-const INITIAL_PROMPT = "{{ initial_prompt or '' }}"; 
-const CHAT_KEY = `gorilla_chat_${PROJECT_ID}`;
-
-// Feature Flags from Backend
+const INITIAL_PROMPT = "{{ initial_prompt or '' }}";
 const HAS_SUPABASE = {{ 'true' if has_supabase else 'false' }};
 const PROJECT_HAS_DB = {{ 'true' if project_has_db else 'false' }};
-const RESUME_DB_AGENT = {{ 'true' if resume_db_agent else 'false' }};
 
 window.isAgentWorking = false;
-let pendingFileUpdates = {}; 
-let needsNpmInstall = false; // 🛑 Tracks if package.json was modified
-let currentThoughtBlock = null;
-let thoughtList = null;
+let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
+let es = null, saveTimer = null, sandboxUrl = null, currentAttachedImage = null;
+let currentGroup = null;
+const activityRefs = new Map();
 
-function hideEditorLoader() {
-  const loader = document.getElementById('editor-loading-overlay');
-  if (loader) {
-    loader.style.opacity = '0';
-    setTimeout(() => {
-      loader.style.visibility = 'hidden';
-      loader.style.display = 'none';
-    }, 500);
-  }
-}
-
-// 2. LOGGING (Browser -> Backend) - SHIELDED
-function captureConsole() {
-    const originalLog = console.log;
-    const originalErr = console.error;
-    const originalWarn = console.warn;
-
-    function sendLog(level, args) {
-        if (!window.isAgentWorking) return; 
-        if (window.isAppStable && level === 'ERROR') return; // MUTE ERRORS AFTER ALL CLEAR
-        try {
-            const msg = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-            const data = new FormData();
-            data.append('level', level);
-            data.append('message', msg);
-            navigator.sendBeacon(`/api/project/${PROJECT_ID}/log`, data);
-        } catch(e) {}
-    }
-
-    console.log = (...args) => { originalLog.apply(console, args); sendLog('INFO', args); };
-    console.error = (...args) => { originalErr.apply(console, args); sendLog('ERROR', args); };
-    console.warn = (...args) => { originalWarn.apply(console, args); sendLog('WARN', args); };
-    
-    window.addEventListener('error', (e) => sendLog('CRITICAL', [e.message, e.filename, e.lineno]));
-    window.addEventListener('unhandledrejection', (e) => sendLog('PROMISE', [e.reason]));
-}
-captureConsole();
-
-let editorView = null;
-let currentFile = "index.html"; 
-let currentContent = "";
-let dirty = false;
-let es = null;
-let saveTimer = null;
-let isWebContainerBooted = false;
-
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 const chat = $("chat");
 
-function setInputState(locked) {
-    window.isAgentWorking = locked;
-    const promptEl = $("prompt");
-    const runBtn = $("runAgent");
-    
-    if (promptEl) promptEl.disabled = locked;
-    if (runBtn) runBtn.disabled = locked;
-    
-    if (locked) {
-        if(promptEl) promptEl.placeholder = "Gorilla is working...";
-        if(runBtn) {
-            runBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: ag-spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
-            runBtn.style.opacity = '0.5';
-        }
-    } else {
-        if(promptEl) promptEl.placeholder = "What shall we build?";
-        if(runBtn) {
-            runBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576zm6.787-8.201L1.591 6.602l4.339 2.76z"/></svg>';
-            runBtn.style.opacity = '1';
-        }
-    }
+const PREFIXES = [
+  /TAKE YOUR TIME AND THINK DEEPLY\. Before writing any code, carefully plan your architecture, reason through edge cases, and think about potential failure points\. Quality and thoroughness over speed and do this:\s*/gi,
+  /BE TOKEN EFFICIENT AND FAST AND DO THIS:\s*/gi
+];
+function cleanPromptText(t) {
+  if (!t) return t;
+  for (const r of PREFIXES) t = t.replace(r, '');
+  return t.trim();
 }
 
-let currentAttachedImage = null;
-const editorImageInput = $("editorImageInput");
-const editorImagePreview = $("editorImagePreview");
+const VERB_ICONS = {
+  edit: 'ph-pencil-simple', create: 'ph-plus', delete: 'ph-trash',
+  install: 'ph-package', execute: 'ph-terminal', fetch: 'ph-globe',
+  database: 'ph-database', read: 'ph-eye', scan: 'ph-magnifying-glass', git: 'ph-git-branch'
+};
+function iconFor(verb) { return VERB_ICONS[verb] || 'ph-terminal'; }
 
-if (editorImageInput) {
-    editorImageInput.addEventListener("change", function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const objectUrl = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = function() {
-            const canvas = document.createElement("canvas");
-            const MAX_SIZE = 1024;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height && width > MAX_SIZE) {
-                height *= MAX_SIZE / width;
-                width = MAX_SIZE;
-            } else if (height > MAX_SIZE) {
-                width *= MAX_SIZE / height;
-                height = MAX_SIZE;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, width, height);
-
-            currentAttachedImage = canvas.toDataURL("image/jpeg", 0.7);
-            
-            document.querySelector('label[for="editorImageInput"]').style.display = 'none';
-            if(editorImagePreview) {
-                editorImagePreview.src = objectUrl; 
-                editorImagePreview.style.display = "block";
-            }
-        };
-        img.src = objectUrl;
-    });
+function hideLoader() {
+  const l = $('editor-loading-overlay');
+  if (l) { l.style.opacity = '0'; setTimeout(() => l.style.display = 'none', 500); }
 }
 
-// --- SLEEK THOUGHT TIMELINE ---
-function addThought(text, role = "system") {
-    if (!currentThoughtBlock) {
-        currentThoughtBlock = document.createElement('div');
-        currentThoughtBlock.className = 'msg agent-thoughts';
-        currentThoughtBlock.style.cssText = 'background: #0f0f11; border: 1px solid rgba(255,255,255,0.06); padding: 12px 16px; border-radius: 12px; width: 94%; align-self: flex-start; box-shadow: 0 4px 20px rgba(0,0,0,0.3); margin-bottom: 12px; font-family: system-ui, -apple-system, sans-serif;';
-        
-        thoughtList = document.createElement('div');
-        thoughtList.style.cssText = 'display: flex; flex-direction: column; position: relative;';
-        
-        const line = document.createElement('div');
-        line.style.cssText = 'position: absolute; left: 11px; top: 16px; bottom: 16px; width: 1px; background: rgba(255,255,255,0.1); z-index: 1;';
-        thoughtList.appendChild(line);
-
-        currentThoughtBlock.appendChild(thoughtList);
-        chat.appendChild(currentThoughtBlock);
-    }
-    
-    let cleanText = text.trim();
-    if (/^[^a-zA-Z0-9\[]/.test(cleanText)) {
-        cleanText = cleanText.substring(1).trim();
-    }
-    if (!cleanText) return;
-
-    let iconSvg = '';
-    let iconClass = '';
-    
-    const lowerText = cleanText.toLowerCase();
-    if (lowerText.includes('plan') || lowerText.includes('reflect') || lowerText.includes('analyze')) {
-        iconSvg = `<svg width="16px" height="16px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 15H17M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 9C8.22386 9 8 8.77614 8 8.5C8 8.22386 8.22386 8 8.5 8C8.77614 8 9 8.22386 9 8.5C9 8.77614 8.77614 9 8.5 9Z" fill="#a1a1aa" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 9C15.2239 9 15 8.77614 15 8.5C15 8.２２3８６ １５．２２３９ ８ １５．５ ８C１５．７７６１ ８ １６ ８．２２３８６ １６ ８．５C１６ ８．７７６１４ １５．７７６１ ９ １５．５ ９Z" fill="#a1a1aa" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        iconClass = 'anim-scan';
-    } else if (lowerText.includes('update') || lowerText.includes('build') || lowerText.includes('edit')) {
-        iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-        iconClass = 'anim-spin';
-    } else if (lowerText.includes('error') || lowerText.includes('token limit reached') || lowerText.includes('failed')) {
-        iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
-        iconClass = 'anim-shake';
-    } else if (lowerText.includes('read') || lowerText.includes('gathering') || lowerText.includes('analyzed')) {
-        iconSvg = `<svg fill="#a1a1aa" width="18px" height="18px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g id="read"><g><path  d="M12,18.883a10.8,10.8,0,0,1-9.675-5.728,2.6,2.6,0,0,1,0-2.31A10.8,10.8,0,0,1,12,5.117a10.8,10.8,0,0,1,9.675,5.728h0a2.6,2.6,0,0,1,0,2.31A10.8,10.8,0,0,1,12,18.883ZM12,6.117a9.787,9.787,0,0,0-8.78,5.176,1.586,1.586,0,0,0,0,1.415A9.788,9.788,0,0,0,12,17.883a9.787,9.787,0,0,0,8.78-5.176,1.584,1.584,0,0,0,0-1.414h0A9.787,9.787,0,0,0,12,6.117Z"/><path  d="M12,16.049A4.049,4.049,0,1,1,16.049,12,4.054,4.054,0,0,1,12,16.049Zm0-7.1A3.049,3.049,0,1,0,15.049,12,3.052,3.052,0,0,0,12,8.951Z"/><circle  cx="12" cy="12" r="2.028"/></g></g></svg>`;
-        iconClass = 'anim-pulse';
-    } else if (lowerText.includes('done') || lowerText.includes('complete')) {
-        iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-        iconClass = '';
-    } else {
-        iconSvg = `<div style="width: 6px; height: 6px; border-radius: 50%; background: #52525b;"></div>`;
-        iconClass = '';
-    }
-
-    const step = document.createElement('div');
-    step.style.cssText = `display:flex; gap:16px; align-items:center; padding: 8px 0; position: relative; z-index: 2; cursor: pointer; border-radius: 6px; transition: background 0.2s;`;
-    step.onmouseover = () => { step.style.background = 'rgba(255,255,255,0.03)'; };
-    step.onmouseout = () => { step.style.background = 'transparent'; };
-    
-    step.innerHTML = `
-        <div class="${iconClass}" style="width: 24px; height: 24px; border-radius: 6px; background: #18181b; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: 2;">
-            ${iconSvg}
-        </div>
-        <div style="color: #a1a1aa; font-size: 13px; line-height: 1.4; flex: 1;">
-            ${DOMPurify.sanitize(cleanText)}
-        </div>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#52525b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5; flex-shrink: 0; margin-right: 8px;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-    `;
-    
-    thoughtList.appendChild(step);
-    chat.scrollTop = chat.scrollHeight;
+function resetGroup() { currentGroup = null; }
+function ensureGroup() {
+  if (!currentGroup) { currentGroup = document.createElement('div'); currentGroup.className = 'activity-group'; chat.appendChild(currentGroup); }
+  return currentGroup;
 }
 
-// 🛑 1. SUPER SAFE: Load Chat History
+function addUserMessage(text) {
+  resetGroup();
+  const el = document.createElement('div'); el.className = 'msg-user'; el.textContent = text;
+  chat.appendChild(el); chat.scrollTop = chat.scrollHeight;
+}
+
+async function addNarration(text, withTyping = true) {
+  resetGroup();
+  const el = document.createElement('div'); el.className = 'narration';
+  chat.appendChild(el);
+  const html = DOMPurify.sanitize(marked.parse(text));
+  if (withTyping) {
+    const plain = new DOMParser().parseFromString(html, 'text/html').body.textContent || "";
+    el.innerHTML = '<span class="typed"></span>';
+    const typed = el.querySelector('.typed');
+    for (let i = 0; i < plain.length; i++) {
+      typed.textContent += plain[i];
+      chat.scrollTop = chat.scrollHeight;
+      let d = 8 + Math.random() * 6;
+      if (plain[i] === '.' || plain[i] === ',') d += 60;
+      await new Promise(r => setTimeout(r, d));
+    }
+    el.innerHTML = html;
+  } else { el.innerHTML = html; }
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function addActivityCard(id, verb, target, short) {
+  const group = ensureGroup();
+  const card = document.createElement('div');
+  card.className = 'act running';
+  card.innerHTML = `
+    <i class="ph ${iconFor(verb)} act-icon"></i>
+    <span class="act-label">${short || verb}${target ? `<span class="act-target">${target}</span>` : ''}</span>
+    <span class="act-status"></span>
+  `;
+
+  const outputWrap = document.createElement('div'); outputWrap.className = 'act-output';
+  const inner = document.createElement('div'); inner.className = 'act-output-inner';
+  outputWrap.appendChild(inner);
+
+  const wrap = document.createElement('div');
+  wrap.appendChild(card); wrap.appendChild(outputWrap);
+  group.appendChild(wrap);
+
+  activityRefs.set(id, { cardEl: card, outputEl: inner, hasOutput: false });
+  card.onclick = () => {
+    if (activityRefs.get(id)?.hasOutput) card.classList.toggle('expanded');
+  };
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function appendActivityChunk(id, stream, text) {
+  const ref = activityRefs.get(id); if (!ref) return;
+  const line = document.createElement('div');
+  line.className = stream === 'stderr' ? 'stream-err' : 'stream-out';
+  line.textContent = text; line.style.color = stream === 'stderr' ? 'var(--danger)' : '';
+  ref.outputEl.appendChild(line); ref.hasOutput = true;
+  ref.outputEl.scrollTop = ref.outputEl.scrollHeight;
+}
+
+function endActivity(id, ok) {
+  const ref = activityRefs.get(id); if (!ref) return;
+  ref.cardEl.classList.remove('running');
+  ref.cardEl.classList.add(ok ? 'done' : 'failed');
+}
+
 function loadChatHistory() {
   try {
-    const dbHistory = {{ chat_history | safe }};
-    
-    if (Array.isArray(dbHistory) && dbHistory.length > 0) {
-      localStorage.removeItem(CHAT_KEY);
-      
-      dbHistory.forEach(m => {
-        const text = m.content || m.text || "";
-        const role = m.role || "user";
-        
-        addMessage(role, text, false); 
-      });
-      
-      const freshHistory = dbHistory
-         .filter(h => h.role !== "system" && !(h.content || h.text || "").includes("data:image"))
-         .map(h => ({ role: h.role, text: h.content || h.text }));
-         
-      localStorage.setItem(CHAT_KEY, JSON.stringify(freshHistory));
-      chat.scrollTop = chat.scrollHeight;
-    }
-  } catch (e) { 
-    console.error("Chat Load Error: Data corrupted. Falling back to fresh start.", e); 
-    localStorage.removeItem(CHAT_KEY);
-  }
-}
-
-// 🛑 2. SUPER SAFE: Save Chat History
-function saveChatHistory(role, text) {
-  if (!text) return;
-  if (role === "system" || text.includes("data:image") || text.length > 50000) return;
-
-  try {
-    const raw = localStorage.getItem(CHAT_KEY);
-    const history = raw ? JSON.parse(raw) : [];
-    
-    history.push({ role, text });
-    
-    if (history.length > 50) history.shift();
-    
-    localStorage.setItem(CHAT_KEY, JSON.stringify(history));
-  } catch (e) {
-    console.warn("Storage warning:", e);
-    if (e.name === 'QuotaExceededError') {
-      localStorage.removeItem(CHAT_KEY);
-    }
-  }
-}
-
-// 🛑 3. SUPER SAFE: Add Message to DOM
-function addMessage(role, text, save=true) {
-  if (!text) return;
-
-  if (role === "system") {
-      return; 
-  }
-
-  if (role === "assistant" || role === "agent") {
-      // 🛑 The Fix for run-on markdown lists with bolded numbers (e.g. "**1.**")
-      text = text.replace(/(\S)\s+(?=(?:\*\*)?\d+\.\s*(?:\*\*)?)/g, '$1\n\n');
-  }
-
-  const el = document.createElement("div");
-  el.className = "msg " + role;
-
-  if (role === "planner") {
-      if (text.includes('agent-step') || text.includes('<script')) {
-          el.innerHTML = DOMPurify.sanitize(text, { ADD_TAGS: ['script'], ADD_ATTR: ['onclick', 'onload', 'id', 'class', 'style', 'data-status'] });
-      } else {
-          el.innerHTML = `<div class="meta">${role}</div><div class="md">${DOMPurify.sanitize(marked.parse(text))}</div>`;
+    const hist = {{ chat_history | safe }};
+    if (!Array.isArray(hist)) return;
+    hist.forEach(m => {
+      const text = m.content || ''; if (!text) return;
+      if (m.role === 'user') addUserMessage(cleanPromptText(text));
+      else if (m.role === 'assistant') {
+        const el = document.createElement('div'); el.className = 'narration';
+        el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+        chat.appendChild(el);
       }
+    });
+    chat.scrollTop = chat.scrollHeight;
+  } catch(e) {}
+}
+
+function setInputState(locked) {
+  window.isAgentWorking = locked;
+  const p = $("prompt"), b = $("runAgent");
+  if (p) p.disabled = locked;
+  if (b) b.disabled = locked;
+  const ed = $("editor");
+  if (ed) { ed.style.opacity = locked ? "0.4" : "1"; ed.style.pointerEvents = locked ? "none" : "auto"; }
+  if (locked) {
+    if (p) p.placeholder = "Gorilla is thinking...";
+    if (b) b.innerHTML = '<i class="ph ph-spinner" style="animation:spin 0.9s linear infinite;"></i>';
   } else {
-      try {
-          el.innerHTML = `<div class="meta">${role}</div><div class="md">${DOMPurify.sanitize(marked.parse(text))}</div>`;
-      } catch(e) { el.textContent = text; }
+    if (p) p.placeholder = "What shall we build?";
+    if (b) b.innerHTML = '<i class="ph-fill ph-paper-plane-tilt"></i>';
   }
-
-  if (chat) {
-      chat.appendChild(el);
-      chat.scrollTop = chat.scrollHeight;
-  }
-  
-  if (save) saveChatHistory(role, text);
 }
 
-// --- STATUS UI ---
-function setConn(state){
-  const dot = $("connDot");
-  const pill = $("connPill");
-  if(!dot || !pill) return;
-  if(state === "ok"){ dot.className = "dot ok"; pill.title = "Live"; }
-  else if(state === "bad"){ dot.className = "dot bad"; pill.title = "Offline"; }
-  else { dot.className = "dot warn"; pill.title = "Connecting…"; }
-}
+$("prompt").addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
 
-function setPhase(p) {
-  ["planner","coder","files"].forEach(x => {
-    const el = $("phase-"+x);
-    if(el) el.classList.toggle("active", x === p);
-  });
-}
+const imgInput = $("editorImageInput"), imgPreview = $("editorImagePreview");
+if (imgInput) imgInput.addEventListener("change", function(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = function() {
+    const canvas = document.createElement("canvas");
+    const MAX = 1024; let w = img.width, h = img.height;
+    if (w > h && w > MAX) { h *= MAX / w; w = MAX; } else if (h > MAX) { w *= MAX / h; h = MAX; }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    currentAttachedImage = canvas.toDataURL("image/jpeg", 0.7);
+    document.querySelector('label[for="editorImageInput"]').style.display = 'none';
+    if (imgPreview) { imgPreview.src = url; imgPreview.style.display = "block"; }
+  };
+  img.src = url;
+});
+if (imgPreview) imgPreview.onclick = () => {
+  currentAttachedImage = null; imgPreview.style.display = 'none'; imgPreview.src = '';
+  document.querySelector('label[for="editorImageInput"]').style.display = 'flex';
+  if (imgInput) imgInput.value = '';
+};
 
-function setProgress(text, pct){
-  if(text && $("progressText")) $("progressText").textContent = text;
-  if(pct !== undefined && $("progressBar")) $("progressBar").style.width = Math.max(0, Math.min(100, Number(pct))) + "%";
-  
+function setConn(state) {
+  const dot = $("connDot"); if (!dot) return;
+  dot.className = "dot" + (state === "ok" ? " ok" : state === "bad" ? " bad" : "");
+}
+function setProgress(text, pct) {
+  if (text) $("progressText").textContent = text;
+  if (pct !== undefined) $("progressBar").style.width = Math.max(0, Math.min(100, Number(pct))) + "%";
   const wave = $("loadingWave");
-  if(wave) wave.classList.toggle("active", text && !text.includes("Idle") && !text.includes("Done") && !text.includes("Complete"));
+  if (wave) wave.classList.toggle("active", text && !/Idle|Done|Ready/i.test(text));
+}
+function updateSandboxStatus(status) {
+  const el = $("sandboxStatus"); if (!el) return;
+  el.textContent = "Sandbox " + status;
+  el.className = "badge" + (status === "Live" ? " live" : "");
+}
+function updateTokens(val) { const el = $("tokenDisplay"); if (el) el.textContent = Number(val).toLocaleString(); }
+function setSaveStatus() {
+  const el = $("saveStatus"); if (!el) return;
+  el.textContent = dirty ? "Unsaved" : "Saved";
+  el.style.color = dirty ? "var(--warn)" : "var(--text-muted)";
 }
 
-function setSaveStatus(){
-  const el = $("saveStatus");
-  if(!el) return;
-  if(dirty) { el.textContent = "Unsaved"; el.style.color = "var(--warn)"; }
-  else { el.textContent = "Saved"; el.style.color = "var(--text-muted)"; }
-}
+async function fetchJSON(url, opts) { try { return await (await fetch(url, opts)).json(); } catch(e) { return { ok: false }; } }
 
-function updateTokens(newTotal) {
-  const el = $("tokenDisplay");
-  if(el) {
-    const isError = String(newTotal).toLowerCase().includes("error") || String(newTotal).toLowerCase().includes("limit");
-    el.textContent = isError ? "Limit Reached" : (newTotal);
-    el.style.color = isError ? "var(--danger)" : "var(--text)";
-    if(!isError) setTimeout(() => el.style.color = "", 1000); 
-  }
-}
-
-// --- FILES & TREE ---
-async function fetchJSON(url, opts){
-  try {
-      const r = await fetch(url, opts);
-      const t = await r.text();
-      try { return JSON.parse(t); } catch { return { raw: t, ok: r.ok }; }
-  } catch(e) { return { ok: false }; }
-}
-
-function buildTree(paths){
+function buildTree(paths) {
   const root = {};
-  for(const p of paths){
-    const parts = p.split("/").filter(Boolean);
-    let cur = root;
-    for(let i=0;i<parts.length;i++){
-      const part = parts[i];
-      const isFile = (i === parts.length - 1);
+  for (const p of paths) {
+    const parts = p.split("/").filter(Boolean); let cur = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i], isFile = (i === parts.length - 1);
       cur[part] = cur[part] || { __children: {}, __file: false, __path: null };
-      if(isFile){ cur[part].__file = true; cur[part].__path = p; }
+      if (isFile) { cur[part].__file = true; cur[part].__path = p; }
       cur = cur[part].__children;
     }
   }
   return root;
 }
 
-function renderTree(container, nodeObj, depth){
-  const entries = Object.entries(nodeObj).sort(([a],[b]) => a.localeCompare(b));
-  for(const [name, meta] of entries){
+function fileIcon(name) {
+  if (name.endsWith('.js') || name.endsWith('.ts')) return '<i class="ph ph-file-ts ico" style="color:#f5c542;"></i>';
+  if (name.endsWith('.tsx') || name.endsWith('.jsx')) return '<i class="ph ph-atom ico" style="color:#53c1de;"></i>';
+  if (name.endsWith('.html')) return '<i class="ph ph-file-html ico" style="color:#e65100;"></i>';
+  if (name.endsWith('.css')) return '<i class="ph ph-file-css ico" style="color:#0277bd;"></i>';
+  if (name.endsWith('.env') || name.endsWith('config')) return '<i class="ph ph-gear ico" style="color:#6070a0;"></i>';
+  if (name.endsWith('.json')) return '<i class="ph ph-file-code ico" style="color:#6070a0;"></i>';
+  if (name.endsWith('.sql')) return '<i class="ph ph-database ico" style="color:#3b82f6;"></i>';
+  if (name.endsWith('.md')) return '<i class="ph ph-file-text ico" style="color:#6070a0;"></i>';
+  if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.b64')) return '<i class="ph ph-image ico" style="color:#3b82f6;"></i>';
+  return '<i class="ph ph-file ico"></i>';
+}
+
+function renderTree(container, nodeObj, depth) {
+  const entries = Object.entries(nodeObj).sort(([a, ma], [b, mb]) => {
+    const fa = !!ma.__file, fb = !!mb.__file;
+    if (fa !== fb) return fa - fb;
+    return a.localeCompare(b);
+  });
+  for (const [name, meta] of entries) {
     const hasKids = meta.__children && Object.keys(meta.__children).length > 0;
     const isFile = !!meta.__file;
-
     const row = document.createElement("div");
     row.className = "node" + ((isFile && meta.__path === currentFile) ? " active" : "");
-    row.style.paddingLeft = (10 + (depth * 14)) + "px";
-
-    const ico = document.createElement("span");
-    ico.className = "ico";
-    
-    if(isFile) {
-        if (name.endsWith('.js')) ico.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 48"><path fill="#ffd600" d="M6,42V6h36v36H6z"/><path fill="none" stroke="#000" stroke-width="3.3" d="M23.8,22.3v9.8c0,3.7-4.4,4-6.3,0.8"/><path fill="none" stroke="#000" stroke-width="3.3" d="M34.7,25.3c-1.7-2.7-5.7-2.3-5.8,0.6c-0.2,3.7,6.8,2.9,6.2,7.1c-0.4,2.9-4.9,3.9-7.2-0.1"/></svg>`;
-        else if (name.endsWith('.html')) ico.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 48"><path fill="#E65100" d="M41,5H7l3,34l14,4l14-4L41,5z"/><path fill="#FF6D00" d="M24 8L24 39.9 35.2 36.7 37.7 8z"/><path fill="#FFF" d="M24,25v-4h8.6l-0.7,11.5L24,35.1v-4.2l4.1-1.4l0.3-4.5H24z M32.9,17l0.3-4H24v4H32.9z"/><path fill="#EEE" d="M24,30.9v4.2l-7.9-2.6L15.7,27h4l0.2,2.5L24,30.9z M19.1,17H24v-4h-9.1l0.7,12H24v-4h-4.6L19.1,17z"/></svg>`;
-        else if (name.endsWith('.css')) ico.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 48"><path fill="#0277BD" d="M41,5H7l3,34l14,4l14-4L41,5z"/><path fill="#039BE5" d="M24 8L24 39.9 35.2 36.7 37.7 8z"/><path fill="#FFF" d="M33.1 13L24 13 24 17 28.9 17 28.6 21 24 21 24 25 28.4 25 28.1 29.5 24 30.9 24 35.1 31.9 32.5 32.6 21z"/><path fill="#EEE" d="M24,13v4h-8.9l-0.3-4H24z M19.4,21l0.2,4H24v-4H19.4z M19.8,27h-4l0.3,5.5l7.9,2.6v-4.2l-4.1-1.4L19.8,27z"/></svg>`;
-        else if (name.endsWith('.tsx') || name.endsWith('.jsx')) ico.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 32 32" fill="none"><path d="M18.6789 15.9759C18.6789 14.5415 17.4796 13.3785 16 13.3785C14.5206 13.3785 13.3211 14.5415 13.3211 15.9759C13.3211 17.4105 14.5206 18.5734 16 18.5734C17.4796 18.5734 18.6789 17.4105 18.6789 15.9759Z" fill="#53C1DE"/><path fill-rule="evenodd" clip-rule="evenodd" d="M24.7004 11.1537C25.2661 8.92478 25.9772 4.79148 23.4704 3.39016C20.9753 1.99495 17.7284 4.66843 16.0139 6.27318C14.3044 4.68442 10.9663 2.02237 8.46163 3.42814C5.96751 4.82803 6.73664 8.8928 7.3149 11.1357C4.98831 11.7764 1 13.1564 1 15.9759C1 18.7874 4.98416 20.2888 7.29698 20.9289C6.71658 23.1842 5.98596 27.1909 8.48327 28.5877C10.9973 29.9932 14.325 27.3945 16.0554 25.7722C17.7809 27.3864 20.9966 30.0021 23.4922 28.6014C25.9956 27.1963 25.3436 23.1184 24.7653 20.8625C27.0073 20.221 31 18.7523 31 15.9759C31 13.1835 26.9903 11.7923 24.7004 11.1537ZM24.4162 19.667C24.0365 18.5016 23.524 17.2623 22.8971 15.9821C23.4955 14.7321 23.9881 13.5088 24.3572 12.3509C26.0359 12.8228 29.7185 13.9013 29.7185 15.9759C29.7185 18.07 26.1846 19.1587 24.4162 19.667ZM22.85 27.526C20.988 28.571 18.2221 26.0696 16.9478 24.8809C17.7932 23.9844 18.638 22.9422 19.4625 21.7849C20.9129 21.6602 22.283 21.4562 23.5256 21.1777C23.9326 22.7734 24.7202 26.4763 22.85 27.526ZM9.12362 27.5111C7.26143 26.47 8.11258 22.8946 8.53957 21.2333C9.76834 21.4969 11.1286 21.6865 12.5824 21.8008C13.4123 22.9332 14.2816 23.9741 15.1576 24.8857C14.0753 25.9008 10.9945 28.557 9.12362 27.5111ZM2.28149 15.9759C2.28149 13.874 5.94207 12.8033 7.65904 12.3326C8.03451 13.5165 8.52695 14.7544 9.12123 16.0062C8.51925 17.2766 8.01977 18.5341 7.64085 19.732C6.00369 19.2776 2.28149 18.0791 2.28149 15.9759ZM9.1037 4.50354C10.9735 3.45416 13.8747 6.00983 15.1159 7.16013C14.2444 8.06754 13.3831 9.1006 12.5603 10.2265C11.1494 10.3533 9.79875 10.5569 8.55709 10.8297C8.09125 9.02071 7.23592 5.55179 9.1037 4.50354ZM20.3793 11.5771C21.3365 11.6942 22.2536 11.85 23.1147 12.0406C22.8562 12.844 22.534 13.6841 22.1545 14.5453C21.6044 13.5333 21.0139 12.5416 20.3793 11.5771ZM16.0143 8.0481C16.6054 8.66897 17.1974 9.3623 17.7798 10.1145C16.5985 10.0603 15.4153 10.0601 14.234 10.1137C14.8169 9.36848 15.414 8.67618 16.0143 8.0481ZM9.8565 14.5444C9.48329 13.6862 9.16398 12.8424 8.90322 12.0275C9.75918 11.8418 10.672 11.69 11.623 11.5748C10.9866 12.5372 10.3971 13.5285 9.8565 14.5444ZM11.6503 20.4657C10.6679 20.3594 9.74126 20.2153 8.88556 20.0347C9.15044 19.2055 9.47678 18.3435 9.85796 17.4668C10.406 18.4933 11.0045 19.4942 11.6503 20.4657ZM16.0498 23.9915C15.4424 23.356 14.8365 22.6531 14.2448 21.8971C15.4328 21.9423 16.6231 21.9424 17.811 21.891C17.2268 22.6608 16.6369 23.3647 16.0498 23.9915ZM22.1667 17.4222C22.5677 18.3084 22.9057 19.1657 23.1742 19.9809C22.3043 20.1734 21.3652 20.3284 20.3757 20.4435C21.015 19.4607 21.6149 18.4536 22.1667 17.4222ZM18.7473 20.5941C16.9301 20.72 15.1016 20.7186 13.2838 20.6044C12.2509 19.1415 11.3314 17.603 10.5377 16.0058C11.3276 14.4119 12.2404 12.8764 13.2684 11.4158C15.0875 11.2825 16.9178 11.2821 18.7369 11.4166C19.7561 12.8771 20.6675 14.4086 21.4757 15.9881C20.6771 17.5812 19.7595 19.1198 18.7473 20.5941ZM22.8303 4.4666C24.7006 5.51254 23.8681 9.22726 23.4595 10.8426C22.2149 10.5641 20.8633 10.3569 19.4483 10.2281C18.6239 9.09004 17.7698 8.05518 16.9124 7.15949C18.1695 5.98441 20.9781 3.43089 22.8303 4.4666Z" fill="#53C1DE"/></svg>`;
-        else if (name.endsWith('.sql')) ico.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>`;
-        else if (name.endsWith('.b64')) ico.innerHTML = `<svg fill="#000000" width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="3" width="20" height="18" rx="2" style="fill: transparent; stroke: #3b82f6; stroke-width: 2;"></rect><path d="M2.29,17,7,12.29a1,1,0,0,1,1.42,0l2.09,2.1,4.07-4.08a1,1,0,0,1,1.42,0L21.71,16a1,1,0,0,1,.29.71V19a2,2,0,0,1-2,2H4a2,2,0,0,1-2-2V17.71A1,1,0,0,1,2.29,17ZM7.5,7.5A1.5,1.5,0,1,0,9,6,1.5,1.5,0,0,0,7.5,7.5Z" style="fill: #3b82f6;"></path></svg>`;
-        else if(name.endsWith('.json')) ico.textContent = "{ }";
-        else if(name.endsWith('.env')) ico.textContent = "⚙︎";
-        else if(name.endsWith('.ts')) ico.textContent = "ts";
-        else ico.textContent = "📄";
-    } else {
-        ico.textContent = "📁";
-    }
-
-    const label = document.createElement("span");
-    label.textContent = name;
-
-    row.appendChild(ico);
-    row.appendChild(label);
-
-    if(isFile){
-      row.onclick = () => loadFile(meta.__path);
-    } else {
+    row.style.paddingLeft = (8 + depth * 12) + "px";
+    const ico = isFile ? fileIcon(name) : '<i class="ph ph-folder ico" style="color:#2a3a5e;"></i>';
+    row.innerHTML = `${ico}<span>${name}</span>`;
+    if (isFile) row.onclick = () => loadFile(meta.__path);
+    else {
       let open = true;
-      const kids = document.createElement("div");
-      kids.style.display = "block";
-      row.onclick = () => {
-        open = !open;
-        kids.style.display = open ? "block" : "none";
-        ico.textContent = open ? "📂" : "📁";
-      };
-      container.appendChild(row);
-      container.appendChild(kids);
-      if(hasKids) renderTree(kids, meta.__children, depth + 1);
+      const kids = document.createElement("div"); kids.style.display = "block";
+      row.onclick = () => { open = !open; kids.style.display = open ? "block" : "none"; };
+      container.appendChild(row); container.appendChild(kids);
+      if (hasKids) renderTree(kids, meta.__children, depth + 1);
       continue;
     }
     container.appendChild(row);
   }
 }
 
-async function refreshFiles(){
+async function refreshFiles() {
   const data = await fetchJSON(`/api/project/${PROJECT_ID}/files`);
   const paths = (data.files || []).map(x => x.path);
-  
-  if (paths.length > 0 && !paths.includes(currentFile)) {
-      if (paths.includes('README.md')) currentFile = 'README.md';
-      else if (paths.includes('package.json')) currentFile = 'package.json';
-      else if (paths.includes('server.js')) currentFile = 'server.js';
-      else currentFile = paths[0];
-  }
-
+  if (paths.length > 0 && !paths.includes(currentFile))
+    currentFile = paths.includes('README.md') ? 'README.md' : paths.includes('package.json') ? 'package.json' : paths[0];
   const tree = buildTree(paths);
   const mount = $("filetree");
-  if(mount) {
-      mount.innerHTML = "";
-      renderTree(mount, tree, 0);
-  }
+  if (mount) { mount.innerHTML = ""; renderTree(mount, tree, 0); }
 }
 
-function buildEditor(content, fileName){
-  const el = $("editor");
-  if(!el) return;
-  
-  el.innerHTML = "";
-  currentContent = content || "";
-  dirty = false;
-  setSaveStatus();
-
-  if(!window.createEditor){ return; }
-
+function buildEditor(content, fileName) {
+  const el = $("editor"); if (!el) return;
+  el.innerHTML = ""; currentContent = content || ""; dirty = false; setSaveStatus();
+  if (!window.createEditor) return;
   editorView = window.createEditor(el, currentContent, (newText) => {
-    currentContent = newText;
-    dirty = true;
-    setSaveStatus();
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => saveCurrentFile(), 800);
+    currentContent = newText; dirty = true; setSaveStatus();
+    clearTimeout(saveTimer); saveTimer = setTimeout(() => saveCurrentFile(), 800);
   }, fileName);
 }
 
-async function loadFile(path){
+async function loadFile(path) {
   currentFile = path;
   const data = await fetchJSON(`/api/project/${PROJECT_ID}/file?path=${encodeURIComponent(path)}`);
-  const content = (data.content !== undefined) ? data.content : (data.raw || "");
-  
-  if(path.endsWith('.b64') || path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg')) {
-      const iv = $("imageViewer");
-      let src = content;
-      if(path.endsWith('.b64') && !content.startsWith('data:image')) {
-          src = `data:image/jpeg;base64,${content}`;
-      }
-      iv.innerHTML = `<img src="${src}" style="max-width:100%; max-height:100%; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.6);">`;
-      switchTab("code");
-  } else {
-      buildEditor(content, path);
-      switchTab("code");
-  }
-  
-  await refreshFiles(); 
+  const content = data.content !== undefined ? data.content : (data.raw || "");
+  if (path.endsWith('.b64') || path.endsWith('.png') || path.endsWith('.jpg')) {
+    const iv = $("imageViewer");
+    let src = content;
+    if (path.endsWith('.b64') && !content.startsWith('data:image')) src = `data:image/jpeg;base64,${content}`;
+    iv.innerHTML = `<img src="${src}" style="max-width:100%;max-height:100%;border-radius:8px;">`;
+    switchTab("code");
+  } else { buildEditor(content, path); switchTab("code"); }
+  await refreshFiles();
 }
 
-async function saveCurrentFile(){
-  if(!dirty) return;
-  const formData = new FormData();
-  formData.append("file", currentFile);
-  const blob = new Blob([currentContent], { type: "text/plain" });
-  formData.append("content", blob, currentFile);
-
-  const r = await fetch(`/api/project/${PROJECT_ID}/save`, { method: "POST", body: formData });
-
-  if(r.ok){
-    dirty = false;
-    setSaveStatus();
-    await refreshFiles();
-    if (isWebContainerBooted && webRunner && !window.isAgentWorking) {
-        await webRunner.writeFile(currentFile, currentContent);
-    }
-  }
+async function saveCurrentFile() {
+  if (!dirty) return;
+  const fd = new FormData();
+  fd.append("file", currentFile);
+  fd.append("content", new Blob([currentContent], { type: "text/plain" }), currentFile);
+  const r = await fetch(`/api/project/${PROJECT_ID}/save`, { method: "POST", body: fd });
+  if (r.ok) { dirty = false; setSaveStatus(); await refreshFiles(); }
 }
 
 const btnUpload = $("btnUpload");
-if(btnUpload) btnUpload.onclick = () => $("uploadInput").click();
+if (btnUpload) btnUpload.onclick = () => $("uploadInput").click();
 const upInput = $("uploadInput");
-if(upInput) upInput.onchange = (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
+if (upInput) upInput.onchange = (e) => {
+  const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = async (evt) => {
     const form = new URLSearchParams();
-    form.set("file", file.name);
-    form.set("content", evt.target.result);
-    await fetch(`/api/project/${PROJECT_ID}/save`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form
-    });
-    await refreshFiles();
-    upInput.value = "";
+    form.set("file", file.name); form.set("content", evt.target.result);
+    await fetch(`/api/project/${PROJECT_ID}/save`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form });
+    await refreshFiles(); upInput.value = "";
   };
   reader.readAsText(file);
 };
 
-// 🛑 AUTONOMOUS BOOT SEQUENCE
-async function bootWebContainer() {
-    if (isWebContainerBooted) {
-        refreshPreview();
-        return;
-    }
-
-    const iframe = $("preview");
-    const status = $("serverStatus");
-
-    try {
-        setProgress("Booting Virtual Machine...", 20);
-        if (status) {
-            status.textContent = "Booting VM...";
-            status.style.color = "var(--warn)";
-        }
-
-        const response = await fetchJSON(`/api/project/${PROJECT_ID}/files`);
-        const files = response.files || [];
-
-        setProgress("Mounting Files...", 40);
-        await webRunner.mount(files);
-        
-        setProgress("Installing Dependencies (this takes a minute)...", 60);
-        await webRunner.install((role, text) => addMessage("system", text));
-        
-        setProgress("Starting Development Server...", 80);
-        await webRunner.start((url) => {
-            if (status) {
-                status.textContent = "Live";
-                status.style.color = "var(--ok)";
-            }
-            setProgress("Live", 100);
-            iframe.src = url;
-            iframe.style.display = "block";
-            isWebContainerBooted = true;
-            
-            setTimeout(() => setProgress("Ready", 0), 2000);
-        }, (role, text) => { });
-
-    } catch (e) {
-        console.error(e);
-        if (status) {
-            status.textContent = "Error";
-            status.style.color = "var(--danger)";
-        }
-        setProgress("Environment Boot Failed.", 0);
-    }
-}
-
-// 🛑 SEAMLESS TAB SWITCHER
-// 🛑 SEAMLESS TAB SWITCHER (LOCKED UNTIL STABLE)
 function switchTab(tab) {
-  // 🛑 The Fix: Block tab switching completely if the app is working/unstable
-  if (!window.isAppStable) return;
-
   if (tab === "preview") {
-    $("tabPreview").classList.add("active");
-    $("tabCode").classList.remove("active");
-    $("editor").style.display = "none";
-    $("imageViewer").style.display = "none";
-    $("preview").style.display = "block";
-    $("previewModeWrap").style.display = "flex";
-    
-    // Automatically boot the VM if it isn't running yet!
-    if (isWebContainerBooted && webRunner.url) {
-        refreshPreview();
-    } else {
-        bootWebContainer();
-    }
+    $("tabPreview").classList.add("active"); $("tabCode").classList.remove("active");
+    $("editor").style.display = "none"; $("imageViewer").style.display = "none";
+    document.querySelector(".files").style.display = "none";
+    if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
+      $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
+    } else { $("preview").style.display = "none"; $("previewEmpty").style.display = "flex"; bootSandboxIfNeeded(); }
   } else {
-    $("tabCode").classList.add("active");
-    $("tabPreview").classList.remove("active");
-    $("preview").style.display = "none";
-    $("previewModeWrap").style.display = "none";
-    
-    if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png') || currentFile.endsWith('.jpg'))) {
-        $("editor").style.display = "none";
-        $("imageViewer").style.display = "flex";
-    } else {
-        $("editor").style.display = "block";
-        $("imageViewer").style.display = "none";
-    }
+    $("tabCode").classList.add("active"); $("tabPreview").classList.remove("active");
+    document.querySelector(".files").style.display = "flex";
+    $("preview").style.display = "none"; $("previewEmpty").style.display = "none";
+    if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png'))) {
+      $("editor").style.display = "none"; $("imageViewer").style.display = "flex";
+    } else { $("editor").style.display = "block"; $("imageViewer").style.display = "none"; }
   }
 }
+$("tabCode").onclick = () => switchTab("code");
+$("tabPreview").onclick = () => switchTab("preview");
 
-const tCode = $("tabCode");
-if (tCode) tCode.onclick = () => switchTab("code");
-
-const tPrev = $("tabPreview");
-if (tPrev) tPrev.onclick = () => switchTab("preview");
-
-function refreshPreview(){
-    if (webRunner.url) {
-        $("preview").src = webRunner.url;
-    }
-}
-const pm = $("previewMode");
-if (pm) pm.onchange = refreshPreview;
-
-// 🛑 DETERMINISTIC FILE SYNC & NPM INSTALL
-async function applyPendingUpdates() {
-    if (!isWebContainerBooted || !webRunner || Object.keys(pendingFileUpdates).length === 0) return;
-    
-    setProgress("Applying changes...", 90);
-    for (let path in pendingFileUpdates) {
-        const d = await fetchJSON(`/api/project/${PROJECT_ID}/file?path=${encodeURIComponent(path)}`);
-        const c = (d.content !== undefined) ? d.content : (d.raw || "");
-        await webRunner.writeFile(path, c);
-    }
-    pendingFileUpdates = {};
-
-    // Only run install if the agent explicitly modified the package.json!
-    if (needsNpmInstall) {
-        setProgress("Installing new dependencies...", 95);
-        await webRunner.install((role, text) => addMessage("system", text));
-        needsNpmInstall = false;
-    }
-
-    setTimeout(refreshPreview, 1000);
-    setProgress("Ready", 0);
+async function bootSandboxIfNeeded() {
+  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { $("preview").src = sandboxUrl; return; }
+  updateSandboxStatus("Booting");
+  try {
+    const res = await fetch(`/api/project/${PROJECT_ID}/sandbox/start`, { method: 'POST' });
+    const data = await res.json();
+    if (data.url) {
+      sandboxUrl = data.url; updateSandboxStatus("Live");
+      if ($("tabPreview").classList.contains("active")) {
+        $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
+      }
+    } else updateSandboxStatus("Error");
+  } catch (e) { updateSandboxStatus("Error"); }
 }
 
-// --- AGENT STREAM WITH DETERMINISM ---
-function startStream(){
-  if(es) es.close();
-  setConn("warn");
+function startStream() {
+  if (es) es.close(); setConn("warn");
   es = new EventSource(`/api/project/${PROJECT_ID}/events`);
-  
   es.onopen = () => setConn("ok");
-  
-  es.onmessage = (e) => {
+  es.onmessage = async (e) => {
     const m = JSON.parse(e.data);
-    
-    if(m.type === "status") {
+    if (m.type === "status") {
       setProgress(m.text);
-      if (m.text.includes("Done") || m.text.includes("Ready") || m.text.includes("Error") || m.text.includes("Waiting for User")) {
-          currentThoughtBlock = null; 
-          
-          // 🛑 THE FIX: Explicitly tell WebRunner the AI is no longer busy fixing!
-          if (webRunner && typeof webRunner.releaseFixLock === 'function') {
-              webRunner.releaseFixLock();
+      if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
+      if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) {
+        updateSandboxStatus("Live");
+        if (sandboxUrl && $("tabPreview").classList.contains("active")) {
+          setTimeout(() => { $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none"; }, 600);
+        }
+      }
+      if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
+    }
+    else if (m.type === "progress") setProgress(m.text, m.pct);
+    else if (m.type === "sandbox_url") {
+      sandboxUrl = m.url; updateSandboxStatus("Live");
+      if ($("tabPreview").classList.contains("active")) {
+        const iframe = $("preview");
+        iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
+        const checkPort = setInterval(async () => {
+          try {
+            const res = await fetch(sandboxUrl); const text = await res.text();
+            if (!text.includes("Closed Port Error") && !text.includes("no service running on port")) {
+              clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
+            }
+          } catch (err) {
+            clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
           }
-          
-          if (!isWebContainerBooted && m.text.includes("Done")) {
-              bootWebContainer();
-          } else if (isWebContainerBooted) {
-              if (Object.keys(pendingFileUpdates).length > 0) {
-                  applyPendingUpdates();
-              }
-              setTimeout(() => {
-                  window.isAppStable = true;
-                  setInputState(false);
-                  const codeOverlay = document.getElementById('code-loading-overlay');
-                  if(codeOverlay) codeOverlay.style.display = 'none';
-              }, 2000);
-          } else {
-              window.isAppStable = true;
-              setInputState(false);
-              const codeOverlay = document.getElementById('code-loading-overlay');
-              if(codeOverlay) codeOverlay.style.display = 'none';
-          }
+        }, 2000);
       }
     }
-
-    if(m.type === "phase") setPhase(m.value);
-    if(m.type === "progress") setProgress(m.text, m.pct);
-    
-    if(m.type === "log") {
-      const role = (m.role || "agent").toLowerCase();
-      
-      if (role === "assistant") {
-          currentThoughtBlock = null; 
-          addMessage(role, m.text);
-      } else if (role !== "user") {
-          const tLower = m.text.toLowerCase();
-          const isJunk = tLower.includes("initialized") || 
-                         tLower.includes("need user clarification") || 
-                         tLower.includes("clarification needed") ||
-                         tLower.includes("asking") ||
-                         tLower.includes("bypassing review") ||
-                         tLower.includes("executing") ||
-                         tLower.includes("analyzing: --- previous") ||
-                         tLower.includes("building:") ||
-                         tLower.includes("dispatch") ||
-                         tLower.includes("subscribed:");
-                         
-          if (!isJunk) {
-              addThought(m.text, role);
-          }
-      }
-    }
-    
-    if(m.type === "file_changed") {
-      setPhase("files");
-      refreshFiles();
-      if(m.path === currentFile) loadFile(currentFile);
-      
-      pendingFileUpdates[m.path] = true;
-      
-      // 🛑 The deterministic package.json trigger
-      if (m.path === "package.json") {
-          needsNpmInstall = true;
-      }
-    }
-    
-    if(m.type === "token_usage") updateTokens(m.used);
+    else if (m.type === "narration") await addNarration(m.text, true);
+    else if (m.type === "activity_start") addActivityCard(m.id, m.verb, m.target, m.short);
+    else if (m.type === "activity_chunk") appendActivityChunk(m.id, m.stream, m.text);
+    else if (m.type === "activity_end") endActivity(m.id, m.ok);
+    else if (m.type === "log") { if ((m.role || "").toLowerCase() === "assistant") await addNarration(m.text, false); }
+    else if (m.type === "file_changed") { refreshFiles(); if (m.path === currentFile) loadFile(currentFile); }
+    else if (m.type === "file_deleted") { refreshFiles(); if (m.path === currentFile) currentFile = "README.md"; }
+    else if (m.type === "token_usage") updateTokens(m.used);
   };
   es.onerror = () => setConn("bad");
 }
 
-// --- REAL-TIME EDITOR AGENT AUTO-TOGGLE ---
-const editorAgentWrapper = document.getElementById('editorAgentWrapper');
-const editorAgentSelect = document.getElementById('editorAgentSelect');
-const promptTextarea = document.getElementById('prompt');
-
-let initialEditorSelection = editorAgentSelect ? editorAgentSelect.value : 'fast';
-
-function evaluateEditorAgentLock() {
-    if (!editorAgentWrapper || !editorAgentSelect || !promptTextarea) return;
-
-    const text = promptTextarea.value.toLowerCase().trim();
-    const mentionsDb = /\b(db|database|supabase|postgres|sql)\b/.test(text);
-
-    // If input is empty, unlock and revert
-    if (text.length === 0) {
-        editorAgentWrapper.classList.remove('locked-mode', 'locked-supabase');
-        editorAgentSelect.value = initialEditorSelection;
-        return;
-    }
-
-    // Lock choice once typing starts
-    editorAgentWrapper.classList.add('locked-mode');
-
-    // Force Supabase if DB keyword is detected
-    if (mentionsDb) {
-        editorAgentSelect.value = 'supabase';
-        editorAgentWrapper.classList.add('locked-supabase');
-    } else {
-        editorAgentWrapper.classList.remove('locked-supabase');
-    }
-}
-
-if (editorAgentSelect) {
-    editorAgentSelect.addEventListener('change', (e) => {
-        initialEditorSelection = e.target.value;
-    });
-}
-
-if (promptTextarea) {
-    promptTextarea.addEventListener('input', evaluateEditorAgentLock);
-}
-
-// ---------------------------------------------------------
-// UPDATE your existing triggerAgent function with this:
-// ---------------------------------------------------------
 async function triggerAgent(promptText) {
-    if(!promptText && !currentAttachedImage) return;
-
-    currentThoughtBlock = null;
-
-    const deployRegex = /(deploy my app|make it go live|make it live|publish my app|im done let's deploy)/i;
-    if (deployRegex.test(promptText)) {
-        // ... (Keep existing deploy logic) ...
-        return;
-    }
-
-    const dbKeywords = /\b(db|database|supabase|postgres|sql)\b/i;
-    const isDbReq = dbKeywords.test(promptText);
-    
-    const formData = new FormData();
-    
-    // 👇 NEW: Send the agent type to the backend
-    const agentType = editorAgentSelect ? editorAgentSelect.value : 'fast';
-    formData.append("agent_type", agentType);
-    
-    if (isDbReq && !PROJECT_HAS_DB) {
-        if (!HAS_SUPABASE) {
-            // ... (Keep existing missing Supabase link logic) ...
-            return;
-        } else {
-            formData.append("is_db_request", "true");
-        }
-    }
-    
-    // Lock the runner and UI
-    if (webRunner && typeof webRunner.markUnstable === 'function') {
-        webRunner.markUnstable();
-    }
-    
-    window.isAppStable = false;
-    const codeOverlay = document.getElementById('code-loading-overlay');
-    if (codeOverlay) codeOverlay.style.display = 'flex';
-    setInputState(true);
-
-    if (currentAttachedImage) {
-        // ... (Keep existing attached image logic) ...
-    }
-    
-    addMessage("user", promptText || "Please update the UI to match the attached reference image.");
-    
-    formData.append("prompt", promptText || "Please update the UI to match the attached reference image.");
-    if (currentAttachedImage) formData.append("image_base64", currentAttachedImage);
-    
-    currentAttachedImage = null;
-    if(editorImagePreview) {
-        editorImagePreview.style.display = "none";
-        editorImagePreview.src = "";
-    }
-    const imgLabel = document.querySelector('label[for="editorImageInput"]');
-    if(imgLabel) imgLabel.style.display = 'flex';
-    if(editorImageInput) editorImageInput.value = "";
-    
-    await fetch(`/api/project/${PROJECT_ID}/agent/start`, { method: "POST", body: formData });
-    
-    // Unlock the dropdown AFTER submitting so they can switch for the next task
-    if (editorAgentWrapper) {
-        editorAgentWrapper.classList.remove('locked-mode', 'locked-supabase');
-        editorAgentSelect.value = initialEditorSelection;
-    }
-    
-    startStream();
+  if (!promptText && !currentAttachedImage) return;
+  resetGroup();
+  const dbKeywords = /\b(db|database|supabase|postgres|sql)\b/i;
+  const isDbReq = dbKeywords.test(promptText);
+  const formData = new FormData();
+  formData.append("agent_type", isDbReq ? "supabase" : "fast");
+  if (isDbReq && !PROJECT_HAS_DB && !HAS_SUPABASE) {
+    await addNarration("To use a database, please link your Supabase account from Dashboard settings.", false); return;
+  }
+  if (isDbReq && !PROJECT_HAS_DB) formData.append("is_db_request", "true");
+  setInputState(true);
+  addUserMessage(cleanPromptText(promptText) || "Please update to match this image.");
+  formData.append("prompt", promptText || "Please update to match this image.");
+  if (currentAttachedImage) formData.append("image_base64", currentAttachedImage);
+  currentAttachedImage = null;
+  if (imgPreview) { imgPreview.style.display = "none"; imgPreview.src = ""; }
+  document.querySelector('label[for="editorImageInput"]').style.display = 'flex';
+  if (imgInput) imgInput.value = "";
+  startStream();
+  await new Promise(r => setTimeout(r, 120));
+  fetch(`/api/project/${PROJECT_ID}/agent/start`, { method: "POST", body: formData })
+    .catch(err => { console.error("Agent start failed:", err); setInputState(false); });
 }
 
-const btnRunAgent = $("runAgent");
-if (btnRunAgent) {
-    btnRunAgent.onclick = () => {
-      if(window.isAgentWorking) return;
-      const promptInput = $("prompt");
-      if(!promptInput) return;
-      
-      const p = promptInput.value.trim();
-      if(!p && !currentAttachedImage) return; 
-      promptInput.value = "";
-      triggerAgent(p);
-    };
-}
+const runBtn = $("runAgent");
+if (runBtn) runBtn.onclick = () => {
+  const val = $("prompt").value.trim();
+  if (val || currentAttachedImage) { triggerAgent(val); $("prompt").value = ""; }
+};
 
-const promptInput = $("prompt");
-if (promptInput) {
-    promptInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault(); 
-            const runAgentBtn = $("runAgent");
-            if(runAgentBtn) runAgentBtn.click();
-        }
-    });
-}
+const promptEl = $("prompt");
+if (promptEl) promptEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    const val = promptEl.value.trim();
+    if (val || currentAttachedImage) { triggerAgent(val); promptEl.value = ""; }
+  }
+});
 
-// --- INIT ---
 (async () => {
   loadChatHistory();
   await refreshFiles();
   try { await loadFile(currentFile); } catch(e) {}
-  
-  startStream();
-  setProgress("Ready", 0);
-  hideEditorLoader();
-  
-  if (RESUME_DB_AGENT) {
-      addThought("Resuming Supabase Architecture Session...");
-  } else if (INITIAL_PROMPT && INITIAL_PROMPT.length > 0 && !INITIAL_PROMPT.includes("figma.json")) {
-      setTimeout(() => triggerAgent(INITIAL_PROMPT), 1000);
-  }
+  startStream(); setProgress("Ready", 0); hideLoader();
+  if (INITIAL_PROMPT && INITIAL_PROMPT.length > 0) setTimeout(() => triggerAgent(INITIAL_PROMPT), 800);
 })();
 </script>
 </body>

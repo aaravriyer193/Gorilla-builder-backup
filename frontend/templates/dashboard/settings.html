@@ -6,366 +6,370 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
   <style>
+    /* --- VARIABLES (From Dashboard Style) --- */
     :root {
-      --bg: #050505;
-      --sidebar-bg: rgba(8, 8, 10, 0.85);
-      --panel: rgba(20, 20, 25, 0.4);
-      --border: rgba(255, 255, 255, 0.06);
-      --border-hover: rgba(255, 255, 255, 0.14);
-      --accent: #3b6cff;
-      --accent-glow: rgba(59, 108, 255, 0.25);
-      --text: #ffffff;
-      --text-muted: #7a7a85;
-      --radius: 10px;
-      --radius-sm: 6px;
-      --radius-lg: 12px;
+      --bg: #000000;
+      --sidebar-bg: #03030a;
+      --panel-bg: rgba(4, 4, 12, 0.98);
+      --border: rgba(0, 120, 255, 0.07);
+      --border-hover: rgba(0, 120, 255, 0.3);
+      --accent: #0066ff;
+      --accent-glow: rgba(0, 102, 255, 0.2);
+      --accent-light: #3385ff;
+      --text: #d0d8f0;
+      --text-muted: #2a3050;
+      --radius: 8px;
+      --radius-sm: 5px;
+      --radius-lg: 10px;
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-      --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+
+      --shadow-paper:
+        0 1px 0 rgba(0,100,255,0.04) inset,
+        0 1px 3px rgba(0,0,0,0.8),
+        0 2px 8px rgba(0,0,0,0.7);
+      --shadow-paper-hover:
+        0 1px 0 rgba(0,100,255,0.07) inset,
+        0 4px 16px rgba(0,0,0,0.85),
+        0 2px 6px rgba(0,102,255,0.12);
+      --shadow-paper-press:
+        0 1px 0 rgba(0,100,255,0.02) inset,
+        0 1px 2px rgba(0,0,0,0.8);
     }
 
-    body.premium { --accent: #ffd700; --accent-glow: rgba(255, 215, 0, 0.2); }
+    * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; }
 
-    * { box-sizing: border-box; font-family: 'Funnel Display', system-ui, sans-serif; outline: none; }
-    body { margin: 0; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      height: 100vh; display: flex; overflow: hidden;
+      font-weight: 300;
+    }
 
-    /* --- EFFECTS --- */
-    .noise-overlay { position: fixed; inset: 0; background-image: var(--noise); pointer-events: none; z-index: 0; }
-    .glow-spot {
-      position: fixed; width: 700px; height: 700px;
-      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-      opacity: 0.3; pointer-events: none; z-index: 0;
-      top: -250px; left: 18%; filter: blur(100px);
-    }
-    .glow-spot-2 {
-      position: fixed; width: 400px; height: 400px;
-      background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
-      opacity: 0.5; pointer-events: none; z-index: 0;
-      bottom: -100px; right: 10%; filter: blur(80px);
-    }
-    .grid-overlay {
-      position: fixed; top: 0; left: 260px; right: 0; bottom: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
-      background-size: 60px 60px;
+    body::before {
+      content: '';
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
       pointer-events: none; z-index: 0;
-      mask-image: radial-gradient(ellipse 70% 50% at 50% 30%, black, transparent);
     }
 
     /* --- SIDEBAR --- */
     aside {
-      width: 260px; background: var(--sidebar-bg); backdrop-filter: blur(30px);
+      width: 260px; background: var(--sidebar-bg);
       border-right: 1px solid var(--border); display: flex; flex-direction: column;
-      padding: 24px 14px; z-index: 10; position: relative;
+      padding: 28px 14px; z-index: 10; position: relative;
     }
+
     aside::after {
       content: ''; position: absolute; top: 0; right: 0; width: 1px; height: 100%;
-      background: linear-gradient(to bottom, var(--accent-glow), transparent 40%, transparent 60%, rgba(139,92,246,0.1));
+      background: linear-gradient(to bottom, rgba(0,102,255,0.15), rgba(0,102,255,0.03) 50%, rgba(0,102,255,0.08));
       pointer-events: none;
     }
 
     .logo {
-      font-size: 22px; font-weight: 600; color: #fff;
+      font-size: 22px; font-weight: 350; color: var(--text);
       display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
-      padding-left: 12px; letter-spacing: -0.5px; text-decoration: none;
+      padding-left: 10px; letter-spacing: -0.5px; text-decoration: none;
+      font-family: 'DM Sans', system-ui, sans-serif;
     }
-    .logo svg { color: var(--accent); width: 24px; height: 24px; }
+    .logo svg { width: 24px; height: 24px; }
+    .logo svg path { fill: var(--text); }
+
     .premium-badge {
-      font-size: 10px; background: var(--accent); color: #000;
-      padding: 2px 6px; border-radius: var(--radius-sm); font-weight: 800;
-      display: none; transform: translateY(-1px);
+      font-size: 9px; background: var(--accent); color: #fff;
+      padding: 2px 7px; border-radius: var(--radius-sm); font-weight: 500;
+      letter-spacing: 1px; display: none; transform: translateY(-1px);
+      font-family: 'DM Sans', sans-serif;
     }
     body.premium .premium-badge { display: inline-block; }
 
-    nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+    nav { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+
     nav a {
-      color: var(--text-muted); text-decoration: none; padding: 10px 12px;
-      border-radius: var(--radius); font-size: 14px; transition: all 0.2s var(--ease-out);
-      display: flex; align-items: center; gap: 12px; position: relative;
-      border: 1px solid transparent;
+      color: var(--text-muted); text-decoration: none; padding: 9px 10px;
+      border-radius: var(--radius); font-size: 13.5px; transition: all 0.15s var(--ease-out);
+      display: flex; align-items: center; gap: 10px; position: relative; overflow: hidden;
+      border: 1px solid transparent; font-weight: 300;
     }
     nav a:hover {
-      background: rgba(255,255,255,0.04); color: #fff;
-      border-color: rgba(255,255,255,0.04);
+      background: rgba(0,102,255,0.06); color: var(--text);
+      border-color: rgba(0,102,255,0.1);
     }
     nav a.active {
-      background: rgba(255,255,255,0.06); color: #fff; font-weight: 500;
-      border-color: rgba(255,255,255,0.06);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.04) inset;
+      background: rgba(0,102,255,0.09); color: var(--text); font-weight: 400;
+      border-color: rgba(0,102,255,0.16);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
     nav a.active::before {
-      content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 3px;
+      content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 2px;
       background: var(--accent); border-radius: 0 2px 2px 0;
-      box-shadow: 0 0 12px var(--accent-glow);
     }
-    nav a svg { width: 18px; height: 18px; opacity: 0.7; transition: all 0.2s; }
-    nav a:hover svg, nav a.active svg { opacity: 1; color: var(--accent); }
+    nav a i { font-size: 16px; opacity: 0.3; }
+    nav a:hover i, nav a.active i { opacity: 1; color: var(--accent); }
 
-    .profile-container { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
-    .user-profile {
-      display: flex; align-items: center; gap: 12px; padding: 10px;
-      border-radius: var(--radius); cursor: pointer; transition: background 0.2s;
+    nav::after {
+      content: ''; display: block; height: 1px; margin-top: 6px;
+      background: linear-gradient(90deg, var(--border), transparent);
     }
-    .user-profile:hover { background: rgba(255,255,255,0.05); }
+
+    /* --- NAV PROMO --- */
+    .nav-promo {
+      margin-top: 14px; background: rgba(0,102,255,0.05); border: 1px solid rgba(0,102,255,0.1);
+      border-radius: var(--radius); padding: 10px; display: flex; align-items: center; gap: 10px;
+      text-decoration: none; position: relative; overflow: hidden; transition: all 0.2s var(--ease-out);
+    }
+    .nav-promo:hover { transform: translateY(-1px); border-color: rgba(0,102,255,0.2); background: rgba(0,102,255,0.08); }
+
+    .promo-icon { font-size: 18px; background: rgba(0,102,255,0.08); min-width: 38px; height: 38px; border-radius: var(--radius-sm); display: flex; justify-content: center; align-items: center; border: 1px solid rgba(0,102,255,0.14); }
+    .promo-text { display: flex; flex-direction: column; gap: 2px; }
+    .promo-text strong { color: var(--text); font-size: 12px; font-weight: 400; }
+    .promo-text span { color: var(--text-muted); font-size: 10px; line-height: 1.3; font-weight: 300; }
+    .promo-badge { position: absolute; top: 7px; right: 7px; background: var(--accent); color: #fff; font-size: 8px; font-weight: 500; padding: 2px 5px; border-radius: var(--radius-sm); letter-spacing: 0.5px; }
+
+    /* --- USER PROFILE --- */
+    .profile-container { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+
+    .user-profile {
+      display: flex; align-items: center; gap: 10px; padding: 9px;
+      border-radius: var(--radius); cursor: pointer; transition: background 0.15s;
+    }
+    .user-profile:hover { background: rgba(0,102,255,0.06); }
+
     .avatar {
-      width: 36px; height: 36px;
-      background: linear-gradient(145deg, #1e1e24, #0c0c0f);
-      border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius);
+      width: 34px; height: 34px;
+      background: var(--accent);
+      border: 1px solid rgba(0,102,255,0.4); border-radius: var(--radius);
       display: flex; align-items: center; justify-content: center;
-      font-size: 14px; font-weight: 600; color: #fff; position: relative; text-transform: uppercase;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset;
+      font-size: 13px; font-weight: 400; color: #fff; position: relative;
+      font-family: 'DM Sans', sans-serif;
     }
     .avatar::after {
       content: ''; position: absolute; bottom: -2px; right: -2px;
-      width: 10px; height: 10px; background: #10b981;
-      border: 2px solid #0a0a0c; border-radius: 50%;
+      width: 9px; height: 9px; background: var(--accent);
+      border: 2px solid var(--sidebar-bg); border-radius: 50%;
     }
+
     .user-info { display: flex; flex-direction: column; font-size: 13px; line-height: 1.3; }
-    .user-name { color: #fff; font-weight: 500; }
-    .user-plan { color: var(--text-muted); font-size: 11px; text-transform: capitalize; }
+    .user-name { color: var(--text); font-weight: 400; }
+    .user-plan { color: var(--text-muted); font-size: 11px; text-transform: capitalize; font-weight: 300; }
 
-    /* --- MAIN --- */
+    /* --- MAIN CONTENT --- */
     main { flex: 1; overflow-y: auto; padding: 40px 60px; position: relative; z-index: 1; }
-    main::-webkit-scrollbar { width: 5px; }
+    main::-webkit-scrollbar { width: 4px; }
     main::-webkit-scrollbar-track { background: transparent; }
-    main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    main::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.12); border-radius: 3px; }
+    main::-webkit-scrollbar-thumb:hover { background: rgba(0,102,255,0.25); }
 
-    @keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-entry { animation: slideUp 0.7s var(--ease-out) forwards; opacity: 0; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-entry { animation: slideUp 0.6s var(--ease-out) forwards; opacity: 0; }
 
     .page-header { margin-bottom: 40px; }
-    .page-header h1 { font-size: 32px; font-weight: 300; margin: 0 0 8px; color: #fff; letter-spacing: -0.5px; }
-    .page-header p { color: var(--text-muted); margin: 0; font-size: 15px; }
+    .page-header h1 {
+      font-size: 36px; font-weight: 300; margin: 0 0 6px; letter-spacing: -0.5px;
+      font-family: 'DM Sans', system-ui, sans-serif; color: var(--text);
+    }
+    .page-header p { color: var(--text-muted); margin: 0; font-size: 14px; font-weight: 300; }
 
-    /* --- SETTINGS CARDS with 3D depth --- */
-    .settings-grid { display: flex; flex-direction: column; gap: 28px; max-width: 700px; padding-bottom: 60px; }
+    /* --- SETTINGS CARDS --- */
+    .settings-grid { display: flex; flex-direction: column; gap: 24px; max-width: 680px; padding-bottom: 60px; }
 
     .settings-card {
-      background: linear-gradient(180deg, rgba(22, 22, 28, 0.85) 0%, rgba(14, 14, 18, 0.85) 100%);
+      background: rgba(4,4,12,0.99);
       border: 1px solid var(--border); border-radius: var(--radius-lg);
-      padding: 30px; position: relative;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.03) inset,
-        0 4px 12px rgba(0,0,0,0.4),
-        0 2px 4px rgba(0,0,0,0.2);
-      transition: border-color 0.3s;
+      padding: 28px; position: relative;
+      box-shadow: var(--shadow-paper);
+      transition: all 0.2s var(--ease-out);
     }
-    .settings-card:hover { border-color: rgba(255,255,255,0.08); }
+    .settings-card:hover {
+      border-color: rgba(0,102,255,0.18);
+      box-shadow: var(--shadow-paper-hover);
+    }
 
     .card-title {
-      font-size: 17px; font-weight: 500; color: #fff; margin: 0 0 24px;
-      display: flex; align-items: center; gap: 10px; letter-spacing: -0.2px;
+      font-size: 16px; font-weight: 400; color: var(--text); margin: 0 0 22px;
+      display: flex; align-items: center; gap: 9px; letter-spacing: -0.2px;
     }
-    .card-title svg { color: var(--accent); width: 20px; height: 20px; }
+    .card-title i { color: var(--accent); font-size: 20px; }
 
-    .form-group { margin-bottom: 20px; }
+    .form-group { margin-bottom: 18px; }
     .form-group label {
-      display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 8px;
-      font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+      display: block; font-size: 10px; color: var(--text-muted); margin-bottom: 7px;
+      font-weight: 400; text-transform: uppercase; letter-spacing: 1.2px;
     }
 
     .input-box {
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid var(--border); border-radius: var(--radius);
-      display: flex; align-items: center; padding: 0 16px;
-      transition: all 0.2s var(--ease-out);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2) inset, 0 1px 0 rgba(255,255,255,0.02);
+      background: rgba(4,4,12,0.99);
+      border: 1px solid var(--border); border-radius: var(--radius-lg);
+      display: flex; align-items: center; padding: 0 14px;
+      transition: all 0.25s var(--ease-out);
+      box-shadow: var(--shadow-paper);
     }
     .input-box:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3) inset, 0 0 0 1px rgba(59,108,255,0.2), 0 0 20px rgba(59,108,255,0.05);
+      border-color: rgba(0,102,255,0.35);
+      box-shadow: 0 1px 0 rgba(0,102,255,0.05) inset, 0 4px 16px rgba(0,0,0,0.8), 0 0 0 3px rgba(0,102,255,0.07);
     }
     .input-box input {
-      flex: 1; background: transparent; border: none; color: #fff;
-      height: 44px; font-size: 14px; width: 100%;
+      flex: 1; background: transparent; border: none; color: var(--text);
+      height: 48px; font-size: 15px; width: 100%; font-weight: 300;
+      font-family: 'DM Sans', system-ui, sans-serif;
     }
-    .input-box input::placeholder { color: rgba(255,255,255,0.18); }
-    .input-box input:disabled { opacity: 0.5; cursor: not-allowed; }
+    .input-box input::placeholder { color: rgba(208,216,240,0.18); transition: opacity 0.2s; }
+    .input-box:focus-within input::placeholder { opacity: 0.45; }
+    .input-box input:disabled { opacity: 0.45; cursor: not-allowed; color: var(--text-muted); }
 
     .api-key-display {
-      font-family: monospace; color: var(--accent); font-size: 14px;
+      font-family: 'Courier New', monospace; color: var(--accent-light); font-size: 14px;
       width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      filter: blur(4px); transition: filter 0.3s ease; user-select: none;
+      filter: blur(4px); transition: filter 0.25s ease; user-select: none; font-weight: 400;
     }
     .input-box:hover .api-key-display { filter: blur(0px); user-select: auto; }
 
-    /* --- 3D BUTTONS --- */
-    .btn-save {
-      background: rgba(255,255,255,0.04); color: #fff;
-      border: 1px solid var(--border); padding: 10px 20px;
-      border-radius: var(--radius); font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: all 0.15s var(--ease-out);
-      text-decoration: none; display: inline-block;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.04) inset,
-        0 2px 6px rgba(0,0,0,0.3);
+    /* --- BUTTONS --- */
+    .btn-save, .btn-upgrade-accent {
+      background: var(--accent);
+      color: #fff; padding: 11px 20px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 400; text-decoration: none;
+      transition: all 0.15s var(--ease-out); border: none;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.4);
+      letter-spacing: 0.1px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      cursor: pointer; font-family: 'DM Sans', sans-serif;
     }
-    .btn-save:hover {
-      background: linear-gradient(180deg, #ffffff 0%, #e8e8e8 100%);
-      color: #000; border-color: transparent;
-      transform: translateY(-1px);
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.9) inset,
-        0 -2px 0 rgba(0,0,0,0.1) inset,
-        0 6px 16px rgba(0,0,0,0.4),
-        0 0 20px rgba(255,255,255,0.06);
+    .btn-save:hover, .btn-upgrade-accent:hover {
+      transform: translateY(-1px); background: #0055ee;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.55);
     }
-    .btn-save:active {
-      transform: translateY(1px);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }
-
-    .btn-upgrade-accent {
-      background: linear-gradient(180deg, #4f7fff 0%, #2a5cee 100%);
-      color: #fff; border: none; padding: 10px 20px;
-      border-radius: var(--radius); font-size: 13px; font-weight: 600;
-      cursor: pointer; text-decoration: none; display: inline-block;
-      transition: all 0.15s var(--ease-out);
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.2) inset,
-        0 -2px 0 rgba(0,0,0,0.3) inset,
-        0 4px 12px rgba(59, 108, 255, 0.35),
-        0 2px 4px rgba(0,0,0,0.3);
-    }
-    .btn-upgrade-accent:hover {
-      transform: translateY(-2px); filter: brightness(1.08);
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.25) inset,
-        0 -2px 0 rgba(0,0,0,0.3) inset,
-        0 8px 24px rgba(59, 108, 255, 0.45),
-        0 4px 8px rgba(0,0,0,0.4);
-    }
-    .btn-upgrade-accent:active {
-      transform: translateY(1px);
-      box-shadow: 0 1px 4px rgba(59,108,255,0.2);
-    }
-    body.premium .btn-upgrade-accent {
-      background: linear-gradient(180deg, #ffe14d 0%, #ffd700 50%, #e6b800 100%);
-      color: #000;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.3) inset,
-        0 -2px 0 rgba(0,0,0,0.2) inset,
-        0 4px 12px rgba(255,215,0,0.3),
-        0 2px 4px rgba(0,0,0,0.3);
+    .btn-save:active, .btn-upgrade-accent:active {
+      transform: translateY(1px); box-shadow: 0 1px 3px rgba(0,102,255,0.2);
     }
 
     /* --- ACTION ROWS --- */
     .action-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px; background: rgba(255,255,255,0.015);
+      padding: 14px; background: rgba(2,2,8,0.6);
       border: 1px solid var(--border); border-radius: var(--radius);
-      margin-bottom: 12px; transition: all 0.2s var(--ease-out);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      margin-bottom: 10px; transition: all 0.15s var(--ease-out);
+      box-shadow: 0 1px 0 rgba(0,102,255,0.02) inset, 0 1px 3px rgba(0,0,0,0.5);
     }
+    .action-row:last-child { margin-bottom: 0; }
     .action-row:hover {
-      border-color: rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.025);
+      border-color: rgba(0,102,255,0.15);
+      background: rgba(4,4,12,0.9);
     }
     .action-row-info { display: flex; align-items: center; gap: 12px; }
-    .action-row-text h4 { margin: 0 0 4px 0; font-size: 14px; font-weight: 500; color: #fff; }
-    .action-row-text p { margin: 0; font-size: 12px; color: var(--text-muted); }
+    .action-row-info svg { opacity: 0.6; flex-shrink: 0; }
+    .action-row-text h4 { margin: 0 0 3px 0; font-size: 13.5px; font-weight: 400; color: var(--text); }
+    .action-row-text p { margin: 0; font-size: 11.5px; color: var(--text-muted); font-weight: 300; }
 
     .connected-badge {
-      color: #10b981; font-size: 13px; font-weight: 500;
-      display: flex; gap: 6px; align-items: center;
-      background: rgba(16, 185, 129, 0.06); padding: 6px 12px;
-      border-radius: var(--radius-sm); border: 1px solid rgba(16,185,129,0.15);
+      color: #3ECF8E; font-size: 11px; font-weight: 400;
+      display: flex; gap: 5px; align-items: center;
+      background: rgba(62,207,142,0.1); padding: 5px 10px;
+      border-radius: var(--radius-sm); border: 1px solid rgba(62,207,142,0.2);
+      white-space: nowrap;
     }
 
     /* --- DANGER ZONE --- */
     .danger-zone {
-      border-color: rgba(239, 68, 68, 0.15);
-      background: linear-gradient(180deg, rgba(239, 68, 68, 0.04) 0%, rgba(14, 14, 18, 0.85) 100%);
+      border-color: rgba(100,20,20,0.18);
+      background: rgba(100,20,20,0.03);
     }
-    .danger-zone:hover { border-color: rgba(239, 68, 68, 0.25); }
-    .danger-zone .card-title svg { color: #ef4444; }
+    .danger-zone:hover { border-color: rgba(100,20,20,0.3); }
+    .danger-zone .card-title i { color: #a04040; }
 
     .btn-danger {
-      background: rgba(239, 68, 68, 0.08); color: #ef4444;
-      border: 1px solid rgba(239, 68, 68, 0.2); padding: 10px 20px;
-      border-radius: var(--radius); font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: all 0.15s var(--ease-out);
-      text-decoration: none; display: inline-block;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.03) inset,
-        0 2px 6px rgba(239, 68, 68, 0.08);
+      background: rgba(2,2,8,0.95); color: #8a3535; border: 1px solid rgba(100,20,20,0.18);
+      padding: 11px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 400;
+      cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.7);
+      font-family: 'DM Sans', sans-serif;
     }
     .btn-danger:hover {
-      background: linear-gradient(180deg, #f55 0%, #dc2626 100%);
-      color: #fff; border-color: transparent;
-      transform: translateY(-1px);
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.15) inset,
-        0 -2px 0 rgba(0,0,0,0.3) inset,
-        0 6px 16px rgba(239, 68, 68, 0.25);
+      background: rgba(100,20,20,0.1); color: #b05050; transform: translateY(-1px);
     }
-    .btn-danger:active {
-      transform: translateY(1px);
-      box-shadow: 0 1px 3px rgba(239, 68, 68, 0.15);
-    }
+    .btn-danger:active { transform: translateY(1px); box-shadow: none; }
 
     /* --- TOAST --- */
     .toast {
-      position: fixed; bottom: 30px; right: 30px;
-      background: linear-gradient(180deg, #ffffff, #eeeeee);
-      color: #000; padding: 12px 20px; border-radius: var(--radius);
-      font-size: 14px; font-weight: 500;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.8) inset,
-        0 10px 30px rgba(0,0,0,0.4);
-      transform: translateY(100px); opacity: 0;
-      transition: all 0.4s var(--ease-out); z-index: 100;
+      position: fixed; bottom: 28px; right: 28px;
+      background: #03030a; color: var(--text);
+      border: 1px solid var(--border);
+      padding: 12px 20px; border-radius: var(--radius);
+      font-size: 13.5px; font-weight: 300;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.95);
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.35s var(--ease-out); z-index: 100;
       display: flex; align-items: center; gap: 8px;
+      font-family: 'DM Sans', sans-serif;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
     .toast.error {
-      background: linear-gradient(180deg, #f55, #dc2626); color: #fff;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.15) inset,
-        0 10px 30px rgba(239, 68, 68, 0.3);
+      background: rgba(100,20,20,0.1); color: #d0d8f0;
+      border-color: rgba(100,20,20,0.3);
     }
 
-    /* Copy button inline */
     .btn-copy {
-      border: none; background: transparent; padding: 5px; margin-left: 10px;
-      cursor: pointer; color: var(--text-muted); transition: all 0.2s;
-      border-radius: var(--radius-sm);
+      border: none; background: transparent; padding: 5px; margin-left: 8px;
+      cursor: pointer; color: var(--text-muted); transition: all 0.15s;
+      border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
     }
-    .btn-copy:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .btn-copy:hover { color: var(--accent); background: rgba(0,102,255,0.08); }
+
+    /* helper text */
+    .helper-text {
+      color: var(--text-muted); font-size: 12.5px;
+      margin-top: 0; margin-bottom: 18px; line-height: 1.55; font-weight: 300;
+    }
+    .helper-text code {
+      background: rgba(0,102,255,0.08); color: var(--accent-light);
+      padding: 1px 5px; border-radius: 4px; font-size: 11.5px;
+      border: 1px solid rgba(0,102,255,0.14);
+    }
   </style>
 </head>
 
 <body class="{% if user.get('plan') in ['premium', 'pro'] %}premium{% endif %}">
 
-  <div class="noise-overlay"></div>
-  <div class="glow-spot"></div>
-  <div class="glow-spot-2"></div>
-  <div class="grid-overlay"></div>
-
   <aside>
     <a href="/dashboard" class="logo">
+      <svg version="1.0" xmlns="http://www.w3.org/2000/svg" width="800" height="803" viewBox="0 0 600 550" preserveAspectRatio="xMidYMid meet">
+        <g transform="translate(0.000000,603.000000) scale(0.100000,-0.100000)" stroke="none">
+          <path d="M1497 6023 c827 -2 2179 -2 3005 0 827 1 151 2 -1502 2 -1653 0 -2329 -1 -1503 -2z"/>
+          <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+          <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+          <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+          <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+          <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+          <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+        </g>
+      </svg>
       Gor://a
       <span class="premium-badge">PRO</span>
     </a>
 
     <nav>
       <a href="/dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
-        Projects
-      </a>
-      <a href="/docs/intro">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Docs
+        <i class="ph ph-squares-four"></i> Projects
       </a>
       <a href="/settings/skills">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>
-        Agent Skills
+        <i class="ph ph-brain"></i> Agent Skills
       </a>
       <a href="/settings" class="active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-        Settings
+        <i class="ph ph-gear"></i> Settings
+      </a>
+      <a href="/pricing">
+        <i class="ph ph-lightning"></i> Upgrade
+      </a>
+      <a href="/docs/intro">
+        <i class="ph ph-book"></i> Docs
+      </a>
+      <a href="/pricing/negotiate" class="nav-promo">
+        <div class="promo-icon">😎</div>
+        <div class="promo-text">
+          <strong>Haggle with Monke</strong>
+          <span>Negotiate your Pro plan down to $0.67/mo!</span>
+        </div>
+        <div class="promo-badge">HOT</div>
       </a>
     </nav>
 
@@ -378,6 +382,7 @@
           <span class="user-name">{% if user.get('email') %}{{ user.get('email').split('@')[0] }}{% else %}User{% endif %}</span>
           <span class="user-plan">{{ user.get('plan', 'free')|capitalize }} Plan</span>
         </div>
+        <i class="ph ph-caret-up" style="margin-left:auto; opacity:0.35; font-size:11px;"></i>
       </div>
     </div>
   </aside>
@@ -390,10 +395,9 @@
 
     <div class="settings-grid">
 
-      <!-- Profile -->
       <section class="settings-card animate-entry" style="animation-delay: 80ms;">
         <h2 class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <i class="ph-bold ph-user-circle"></i>
           Profile
         </h2>
         <div class="form-group">
@@ -404,41 +408,38 @@
         </div>
       </section>
 
-      <!-- API Key -->
       <section class="settings-card animate-entry" style="animation-delay: 160ms;">
         <h2 class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <i class="ph-bold ph-key"></i>
           Developer API Key
         </h2>
-        <p style="color: var(--text-muted); font-size: 13px; margin-top: 0; margin-bottom: 20px;">
-          This is your master <code style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:12px;">gb_live_</code> key used for programmatic access to the Gor://a proxy gateway. Hover to reveal.
+        <p class="helper-text">
+          Your master <code>gb_live_</code> key for programmatic access to the Gor://a proxy gateway. Hover to reveal.
         </p>
 
         <div class="form-group">
-          <div class="input-box" style="justify-content: space-between; padding: 10px 16px;">
+          <div class="input-box" style="justify-content: space-between;">
             <span class="api-key-display" id="api-key-text">{% if user.get('gorilla_api_key') %}{{ user.get('gorilla_api_key') }}{% else %}No Key Generated{% endif %}</span>
             <button type="button" class="btn-copy" onclick="copyApiKey('{{ user.get('gorilla_api_key', '') }}')">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              <i class="ph-bold ph-copy" style="font-size:16px;"></i>
             </button>
           </div>
         </div>
 
         <form method="POST" action="/api/user/regenerate-key" onsubmit="return confirm('Are you sure? Any existing apps using the old key will break.');">
-          <button type="submit" class="btn-save" style="background: rgba(255,255,255,0.06);">Regenerate Key</button>
+          <button type="submit" class="btn-save">Regenerate Key</button>
         </form>
       </section>
 
-      <!-- Connected Accounts -->
       <section class="settings-card animate-entry" style="animation-delay: 240ms;">
         <h2 class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 10 9 23"/></svg>
+          <i class="ph-bold ph-plugs-connected"></i>
           Connected Accounts
         </h2>
 
-        <!-- GitHub -->
         <div class="action-row">
           <div class="action-row-info">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted);"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
             <div class="action-row-text">
               <h4>GitHub Integration</h4>
               <p>{% if user.get('has_github') %}Connected and active{% else %}Required for Vercel 1-click deploys{% endif %}</p>
@@ -446,7 +447,7 @@
           </div>
           {% if user.get('has_github') %}
             <span class="connected-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <i class="ph-bold ph-check" style="font-size:14px;"></i>
               Connected
             </span>
           {% else %}
@@ -454,10 +455,15 @@
           {% endif %}
         </div>
 
-        <!-- Figma -->
         <div class="action-row">
           <div class="action-row-info">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"/><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"/><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"/><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"/><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"/></svg>
+            <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.7;">
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M16 16C16 13.7909 17.7909 12 20 12C22.2091 12 24 13.7909 24 16C24 18.2091 22.2091 20 20 20C17.7909 20 16 18.2091 16 16Z" fill="#1ABCFE"/>
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M8 24C8 21.7909 9.79086 20 12 20H16V24C16 26.2091 14.2091 28 12 28C9.79086 28 8 26.2091 8 24Z" fill="#0ACF83"/>
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M16 4V12H20C22.2091 12 24 10.2091 24 8C24 5.79086 22.2091 4 20 4H16Z" fill="#FF7262"/>
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M8 8C8 10.2091 9.79086 12 12 12H16V4H12C9.79086 4 8 5.79086 8 8Z" fill="#F24E1E"/>
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M8 16C8 18.2091 9.79086 20 12 20H16V12H12C9.79086 12 8 13.7909 8 16Z" fill="#A259FF"/>
+            </svg>
             <div class="action-row-text">
               <h4>Figma Account</h4>
               <p>{% if user.get('has_figma') %}Connected and active{% else %}Required for zero-shot compiler{% endif %}</p>
@@ -465,7 +471,7 @@
           </div>
           {% if user.get('has_figma') %}
             <span class="connected-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <i class="ph-bold ph-check" style="font-size:14px;"></i>
               Connected
             </span>
           {% else %}
@@ -473,10 +479,9 @@
           {% endif %}
         </div>
 
-        <!-- Supabase -->
         <div class="action-row">
           <div class="action-row-info">
-            <svg width="24" height="24" viewBox="0 0 109 113" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint0_linear)"/><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint1_linear)" fill-opacity="0.2"/><path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/><defs><linearGradient id="paint0_linear" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stop-color="#249361"/><stop offset="1" stop-color="#3ECF8E"/></linearGradient><linearGradient id="paint1_linear" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse"><stop/><stop offset="1" stop-opacity="0"/></linearGradient></defs></svg>
+            <svg width="22" height="22" viewBox="0 0 109 113" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.8;"><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sb0)"/><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sb1)" fill-opacity="0.2"/><path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/><defs><linearGradient id="sb0" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stop-color="#249361"/><stop offset="1" stop-color="#3ECF8E"/></linearGradient><linearGradient id="sb1" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse"><stop/><stop offset="1" stop-opacity="0"/></linearGradient></defs></svg>
             <div class="action-row-text">
               <h4>Supabase Database</h4>
               <p>{% if user.get('has_supabase') %}Connected and active{% else %}Required for Postgres provisioning{% endif %}</p>
@@ -484,7 +489,7 @@
           </div>
           {% if user.get('has_supabase') %}
             <span class="connected-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <i class="ph-bold ph-check" style="font-size:14px;"></i>
               Connected
             </span>
           {% else %}
@@ -493,10 +498,9 @@
         </div>
       </section>
 
-      <!-- Subscription -->
       <section class="settings-card animate-entry" style="animation-delay: 320ms;">
         <h2 class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+          <i class="ph-bold ph-credit-card"></i>
           Subscription
         </h2>
         <div class="form-group">
@@ -513,13 +517,12 @@
         {% endif %}
       </section>
 
-      <!-- Danger Zone -->
       <section class="settings-card danger-zone animate-entry" style="animation-delay: 400ms;">
         <h2 class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+          <i class="ph-bold ph-warning-octagon"></i>
           Danger Zone
         </h2>
-        <p style="color: var(--text-muted); font-size: 13px; margin-top: 0; margin-bottom: 20px;">
+        <p class="helper-text">
           Once you delete your account, there is no going back. All projects and files will be permanently wiped.
         </p>
         <button class="btn-danger" onclick="alert('Please contact support to delete your account.');">Delete Account</button>
@@ -529,20 +532,30 @@
   </main>
 
   <div id="toast" class="toast">
-    <span id="toast-message">Success!</span>
+    <i class="ph-fill ph-info"></i>
+    <span id="toast-message">Saved.</span>
   </div>
 
   <script>
     function copyApiKey(key) {
       if (!key || key === 'None') return showToast("No key to copy!", true);
-      navigator.clipboard.writeText(key).then(() => showToast("API Key copied to clipboard!"));
+      navigator.clipboard.writeText(key).then(() => showToast("API key copied to clipboard."));
     }
 
     function showToast(message, isError = false) {
       const toast = document.getElementById('toast');
       const msgEl = document.getElementById('toast-message');
       msgEl.innerText = message;
-      toast.classList.toggle('error', isError);
+      
+      const icon = toast.querySelector('i');
+      if (isError) {
+        icon.className = 'ph-fill ph-warning-circle';
+        toast.classList.add('error');
+      } else {
+        icon.className = 'ph-fill ph-check-circle';
+        toast.classList.remove('error');
+      }
+      
       toast.classList.add('show');
       setTimeout(() => toast.classList.remove('show'), 3000);
     }

@@ -4,63 +4,99 @@
 <meta charset="UTF-8" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <title>Deploy · {{ project.name if project else project_id }} · Gor://a Builder</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
 <style>
-/* --- THEME VARIABLES --- */
 :root {
-  --bg: #050508;
-  --panel: #0a0e17;
-  --border: rgba(255,255,255,.08);
-  --text: #fff;
-  --muted: rgba(255,255,255,.5);
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --accent-glow: rgba(59, 130, 246, 0.4);
-  --success: #10b981;
+  --bg: #000000;
+  --panel: rgba(4, 4, 12, 0.99);
+  --border: rgba(0, 120, 255, 0.07);
+  --border-hover: rgba(0, 120, 255, 0.3);
+  --text: #d0d8f0;
+  --text-muted: #2a3050;
+  --accent: #0066ff;
+  --accent-hover: #0055ee;
+  --accent-light: #3385ff;
+  --accent-glow: rgba(0, 102, 255, 0.4);
+  --success: #3a8a5a;
+  --success-glow: rgba(58, 138, 90, 0.3);
+  --radius: 8px;
+  --radius-sm: 5px;
+  --radius-lg: 10px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --shadow-paper:
+    0 1px 0 rgba(0,100,255,0.04) inset,
+    0 1px 3px rgba(0,0,0,0.8),
+    0 2px 8px rgba(0,0,0,0.7);
 }
 
 body.premium {
-  --accent: #ffd700;
-  --accent-hover: #e6c200;
-  --accent-glow: rgba(255, 215, 0, 0.3);
+  --accent: #3385ff;
+  --accent-hover: #1a73f0;
+  --accent-glow: rgba(51, 133, 255, 0.4);
 }
 
-* { box-sizing: border-box; font-family: 'Funnel Display', system-ui, sans-serif; outline: none; }
-body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+* { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; }
+
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  min-height: 100vh; display: flex; flex-direction: column;
+  font-weight: 300;
+}
 
 /* Subtle Background Grid */
 body::before {
   content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image: 
-    linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-image:
+    linear-gradient(to right, rgba(0,102,255,0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0,102,255,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+}
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
 }
 
 .wrap { max-width: 600px; margin: 60px auto; padding: 0 22px; width: 100%; flex: 1; }
 
-/* Header */
+/* --- HEADER --- */
 .top {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 48px;
 }
-.title h1 { font-size: 24px; margin: 0 0 4px; font-weight: 600; }
-.title .sub { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.title h1 {
+  font-size: 24px; margin: 0 0 4px; font-weight: 300;
+  letter-spacing: -0.4px; color: var(--text);
+}
+.title .sub {
+  font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;
+  font-weight: 300;
+}
+.title .sub i { color: var(--accent); }
 
 .btn-back {
-  background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #fff;
-  padding: 8px 16px; border-radius: 12px; text-decoration: none; font-size: 13px; font-weight: 600;
-  transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 9px 14px; border-radius: var(--radius);
+  text-decoration: none; font-size: 12.5px; font-weight: 300;
+  transition: all 0.2s var(--ease-out);
+  display: flex; align-items: center; gap: 7px;
+  box-shadow: var(--shadow-paper);
 }
-.btn-back:hover { background: rgba(255,255,255,0.08); transform: translateX(-2px); }
+.btn-back:hover {
+  border-color: rgba(0,102,255,0.2);
+  color: var(--text);
+  transform: translateX(-2px);
+}
 
-/* --- SOLID HORIZONTAL STEPPER --- */
+/* --- STEPPER --- */
 .stepper-container {
   position: relative;
   width: 100%;
@@ -68,27 +104,24 @@ body::before {
   margin: 0 auto 48px auto;
 }
 
-/* Background Track */
 .stepper-track-bg {
   position: absolute;
-  top: 20px; /* Aligns with center of 44px node */
-  left: 22px;
-  right: 22px;
-  height: 3px;
-  background: rgba(255,255,255,0.1);
+  top: 20px;
+  left: 22px; right: 22px;
+  height: 2px;
+  background: rgba(0,102,255,0.08);
   z-index: 1;
 }
 
-/* Animated Active Track */
 .stepper-track-fill {
   position: absolute;
   top: 20px;
   left: 22px;
-  height: 3px;
+  height: 2px;
   background: var(--accent);
   box-shadow: 0 0 12px var(--accent-glow);
   z-index: 2;
-  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.6s var(--ease-out);
 }
 
 .step-nodes {
@@ -99,130 +132,229 @@ body::before {
 }
 
 .step-node {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
   width: 70px;
 }
 
 .step-circle {
   width: 44px; height: 44px;
-  background: var(--bg); /* Covers the line behind it */
-  border: 2px solid rgba(255,255,255,0.15);
+  background: var(--bg);
+  border: 1.5px solid rgba(0,102,255,0.15);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.3);
+  font-size: 14px; font-weight: 400; color: var(--text-muted);
   transition: all 0.4s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.6);
 }
 
 .step-label {
-  font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.4);
-  text-transform: uppercase; letter-spacing: 0.5px;
+  font-size: 9px; font-weight: 400; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 1.2px;
   transition: all 0.4s ease; text-align: center;
 }
 
-/* Node States */
 .step-node.completed .step-circle {
   border-color: var(--success); color: var(--success);
-  box-shadow: 0 0 20px rgba(16,185,129,0.15);
+  box-shadow: 0 0 20px rgba(58, 138, 90, 0.2), 0 1px 3px rgba(0,0,0,0.6);
 }
-.step-node.completed .step-label { color: #fff; }
+.step-node.completed .step-label { color: var(--text); }
 
 .step-node.active .step-circle {
-  border-color: var(--accent); color: var(--accent);
-  box-shadow: 0 0 20px var(--accent-glow);
+  border-color: var(--accent); color: var(--accent-light);
+  box-shadow: 0 0 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.6);
 }
-.step-node.active .step-label { color: #fff; }
+.step-node.active .step-label { color: var(--text); }
 
-
-/* --- WIZARD CONTAINER --- */
+/* --- WIZARD CARD --- */
 .wizard-card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  box-shadow:
+    0 1px 0 rgba(0,102,255,0.04) inset,
+    0 20px 40px rgba(0,0,0,0.7),
+    0 4px 12px rgba(0,0,0,0.5);
 }
 
 .step-container {
   padding: 48px 40px;
   min-height: 380px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center; text-align: center;
 }
 
 .wizard-step { display: none; width: 100%; animation: fadeIn 0.4s ease-out forwards; }
 .wizard-step.active { display: block; }
 
 .step-icon {
-  width: 64px; height: 64px; border-radius: 16px;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  width: 60px; height: 60px; border-radius: var(--radius-lg);
+  background: rgba(0,102,255,0.05); border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 32px; color: var(--accent); margin: 0 auto 24px auto;
+  font-size: 28px; color: var(--accent); margin: 0 auto 24px auto;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 0 24px rgba(0,102,255,0.08);
 }
-.wizard-step h2 { margin: 0 0 12px; font-size: 24px; font-weight: 600; }
-.wizard-step p { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0 auto 32px auto; max-width: 400px; }
 
-/* --- CUSTOM VERCEL BUTTON --- */
+.wizard-step h2 {
+  margin: 0 0 12px; font-size: 22px; font-weight: 300;
+  letter-spacing: -0.3px; color: var(--text);
+}
+.wizard-step p {
+  color: var(--text-muted); font-size: 13.5px; line-height: 1.6;
+  margin: 0 auto 32px auto; max-width: 400px; font-weight: 300;
+}
+.wizard-step p code {
+  background: rgba(0,102,255,0.07); color: var(--accent-light);
+  padding: 1px 6px; border-radius: 4px; font-size: 11.5px;
+  border: 1px solid rgba(0,102,255,0.12);
+  font-family: 'Courier New', monospace;
+}
+
+/* --- VERCEL BUTTON --- */
 .btn-vercel {
-  background: #000; color: #fff; border: 1px solid #333;
+  background: #000;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.15);
   display: inline-flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 14px 28px; border-radius: 12px; font-size: 16px; font-weight: 600;
+  padding: 13px 28px; border-radius: var(--radius);
+  font-size: 14px; font-weight: 400;
   text-decoration: none; transition: all 0.2s ease;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 8px 16px rgba(0,0,0,0.7),
+    0 2px 6px rgba(0,0,0,0.5);
   width: 100%; max-width: 320px; margin: 0 auto;
+  font-family: 'DM Sans', sans-serif;
 }
 .btn-vercel:hover {
-  background: #111; border-color: #666; transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(0,0,0,0.6), 0 0 15px rgba(255,255,255,0.05);
+  background: #0a0a0a;
+  border-color: rgba(255,255,255,0.3);
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.08) inset,
+    0 12px 24px rgba(0,0,0,0.85),
+    0 4px 8px rgba(0,0,0,0.6),
+    0 0 20px rgba(255,255,255,0.06);
 }
 
-/* --- OTHER BUTTONS --- */
+/* --- MAIN ACTION BUTTON --- */
 .btn-3d {
-  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
-  color: #fff; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-  padding: 16px 32px; border-radius: 12px; border: none; cursor: pointer; text-decoration: none;
-  box-shadow: 0 6px 0px rgba(0,0,0,0.4), 0 6px 0px var(--accent-hover), 0 15px 25px var(--accent-glow);
-  transition: transform 0.1s, box-shadow 0.1s;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px; font-weight: 400;
+  letter-spacing: 0.4px; text-transform: uppercase;
+  padding: 14px 28px; border-radius: var(--radius);
+  border: none; cursor: pointer; text-decoration: none;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.08) inset,
+    0 4px 14px rgba(0,0,0,0.6),
+    0 2px 12px var(--accent-glow);
+  transition: all 0.18s var(--ease-out);
   width: 100%; max-width: 300px; margin: 0 auto;
+  font-family: 'DM Sans', sans-serif;
 }
-body.premium .btn-3d { color: #000; }
 
-.btn-3d:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 8px 0px rgba(0,0,0,0.4), 0 8px 0px var(--accent-hover), 0 20px 30px var(--accent-glow); }
-.btn-3d:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0px rgba(0,0,0,0.4), 0 2px 0px var(--accent-hover), 0 5px 10px var(--accent-glow); }
-.btn-3d:disabled { background: #333; box-shadow: 0 6px 0px #1a1a1a; color: #888; cursor: not-allowed; }
+.btn-3d:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.1) inset,
+    0 8px 20px rgba(0,0,0,0.7),
+    0 4px 20px var(--accent-glow);
+}
+.btn-3d:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.05) inset,
+    0 1px 4px rgba(0,0,0,0.5),
+    0 1px 6px var(--accent-glow);
+}
+.btn-3d:disabled {
+  background: rgba(0,102,255,0.1);
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
 
-.btn-github { background: linear-gradient(180deg, #2ea44f 0%, #22863a 100%); box-shadow: 0 6px 0px rgba(0,0,0,0.4), 0 6px 0px #175d28, 0 15px 25px rgba(46, 164, 79, 0.3); }
-.btn-github:hover:not(:disabled) { box-shadow: 0 8px 0px rgba(0,0,0,0.4), 0 8px 0px #175d28, 0 20px 30px rgba(46, 164, 79, 0.4); }
-.btn-github:active:not(:disabled) { box-shadow: 0 2px 0px rgba(0,0,0,0.4), 0 2px 0px #175d28, 0 5px 10px rgba(46, 164, 79, 0.4); }
+/* GitHub button — green tint matching success */
+.btn-github {
+  background: linear-gradient(180deg, #2c8a4d 0%, #1f6e3b 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.08) inset,
+    0 4px 14px rgba(0,0,0,0.6),
+    0 2px 12px rgba(46, 138, 77, 0.3);
+}
+.btn-github:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2e9450 0%, #237a40 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.1) inset,
+    0 8px 20px rgba(0,0,0,0.7),
+    0 4px 20px rgba(46, 138, 77, 0.4);
+}
+.btn-github:active:not(:disabled) {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.05) inset,
+    0 1px 4px rgba(0,0,0,0.5),
+    0 1px 6px rgba(46, 138, 77, 0.4);
+}
 
-.loader { display: none; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
-body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
+/* --- LOADER --- */
+.loader {
+  display: none;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
 
-.error-text { color: #fca5a5; font-size: 13px; margin-top: 20px; display: none; background: rgba(239, 68, 68, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); }
+/* --- ERROR --- */
+.error-text {
+  color: #b05050; font-size: 12.5px; margin-top: 20px;
+  display: none; background: rgba(100, 20, 20, 0.06);
+  padding: 12px 14px; border-radius: var(--radius);
+  border: 1px solid rgba(100, 20, 20, 0.2);
+  font-weight: 300;
+}
 
-/* Final Step Specifics */
+/* --- LIFTOFF --- */
 .liftoff-icon {
-  width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 24px auto;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-  display: flex; align-items: center; justify-content: center; font-size: 32px; color: var(--success);
-  box-shadow: inset 0 0 20px rgba(16,185,129,0.05);
+  width: 60px; height: 60px; border-radius: var(--radius-lg);
+  margin: 0 auto 24px auto;
+  background: rgba(58, 138, 90, 0.05);
+  border: 1px solid rgba(58, 138, 90, 0.18);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: var(--success);
+  box-shadow:
+    inset 0 0 20px rgba(58, 138, 90, 0.08),
+    0 1px 3px rgba(0,0,0,0.6),
+    0 0 20px rgba(58, 138, 90, 0.15);
 }
 
 .env-instructions {
-  background: rgba(0, 0, 0, 0.4); border: 1px dashed rgba(255,255,255,0.15);
-  border-radius: 12px; padding: 20px; margin: 0 auto 32px auto; display: inline-block; text-align: left;
+  background: rgba(2, 2, 8, 0.6);
+  border: 1px dashed rgba(0,102,255,0.15);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  margin: 0 auto 32px auto;
+  display: inline-block; text-align: left;
 }
-.env-instructions h4 { margin: 0 0 8px 0; font-size: 14px; display: flex; align-items: center; gap: 8px; color: #fff; }
-.env-instructions p { margin: 0; font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.5; max-width: 400px; }
+.env-instructions h4 {
+  margin: 0 0 8px; font-size: 12.5px; font-weight: 400;
+  display: flex; align-items: center; gap: 8px; color: var(--text);
+}
+.env-instructions p {
+  margin: 0; font-size: 12px; color: var(--text-muted);
+  line-height: 1.55; max-width: 400px; font-weight: 300;
+}
 
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 </style>
 </head>
 
@@ -243,21 +375,24 @@ body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
 {% endif %}
 
 <div class="wrap">
-  
+
   <div class="top">
     <div class="title">
       <h1>Deployment Pipeline</h1>
       <div class="sub"><i class="ph-fill ph-rocket-launch"></i> {{ project.name if project else project_id }}</div>
     </div>
-    <a class="btn-back" href="/projects/{{ project_id }}/editor"><i class="ph-bold ph-arrow-left"></i> Back to Editor</a>
+    <a class="btn-back" href="/projects/{{ project_id }}/editor">
+      <i class="ph-bold ph-arrow-left"></i>
+      Back to Editor
+    </a>
   </div>
 
   <div class="stepper-container">
     <div class="stepper-track-bg"></div>
     <div class="stepper-track-fill" id="stepFill" style="width: {{ fill_width }};"></div>
-    
+
     <div class="step-nodes">
-      
+
       <div class="step-node {% if current_step > 1 %}completed{% elif current_step == 1 %}active{% endif %}" id="node1">
         <div class="step-circle">{% if current_step > 1 %}<i class="ph-bold ph-check"></i>{% else %}1{% endif %}</div>
         <div class="step-label">Connect</div>
@@ -288,7 +423,10 @@ body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
         <div class="step-icon"><i class="ph-fill ph-github-logo"></i></div>
         <h2>Link GitHub</h2>
         <p>Connect your GitHub account to create a secure, private repository for your source code.</p>
-        <a href="/auth/github" class="btn-3d btn-github">Connect Account</a>
+        <a href="/auth/github" class="btn-3d btn-github">
+          <i class="ph-fill ph-github-logo"></i>
+          Connect Account
+        </a>
       </div>
 
       <div class="wizard-step {% if current_step == 2 %}active{% endif %}" id="step2">
@@ -308,7 +446,7 @@ body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
         <p>Commit your fully optimized, production-ready codebase to a brand new private repository on your GitHub account.</p>
         <button class="btn-3d" id="btn-push" onclick="pushToGithub()">
           <div class="loader" id="loader-push"></div>
-          <span>Create & Push</span>
+          <span>Create &amp; Push</span>
         </button>
         <div class="error-text" id="err-push"></div>
       </div>
@@ -317,21 +455,21 @@ body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
         <div class="liftoff-icon"><i class="ph-fill ph-rocket-launch"></i></div>
         <h2>Ready for Liftoff</h2>
         <p style="margin-bottom: 24px;">Your codebase is safely stored in a private repository and ready to deploy to the edge.</p>
-        
+
         <div class="env-instructions">
-          <h4><i class="ph-fill ph-lock-key" style="color: var(--success);"></i> Zero-Config Security</h4>
+          <h4><i class="ph-fill ph-lock-key" style="color: var(--success); font-size:13px;"></i> Zero-Config Security</h4>
           <p>We securely injected your API keys directly into the build environment. Vercel will ask for permission to read your private repo. Just click deploy.</p>
         </div>
 
         <div>
           <a href="{% if project.github_repo_url %}https://vercel.com/new/import?s={{ project.github_repo_url | urlencode }}{% else %}javascript:void(0);{% endif %}" target="_blank" id="vercel-link" class="btn-vercel">
-            <svg viewBox="0 0 76 65" height="14" style="margin-right: 4px;"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="#ffffff"/></svg>
+            <svg viewBox="0 0 76 65" height="13" style="margin-right: 4px;"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="#ffffff"/></svg>
             Deploy to Vercel
           </a>
         </div>
-        
+
         <div style="margin-top: 32px;">
-          <a href="{{ project.github_repo_url }}" target="_blank" id="repo-link" style="color: var(--muted); font-size: 14px; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--muted)'">
+          <a href="{{ project.github_repo_url }}" target="_blank" id="repo-link" style="color: var(--text-muted); font-size: 13px; text-decoration: none; font-weight: 300; display: inline-flex; align-items: center; gap: 7px; transition: color 0.2s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'">
             <i class="ph-fill ph-github-logo"></i> View Source Code
           </a>
         </div>
@@ -347,10 +485,10 @@ body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
 
   function advanceProgress(stepNum, percent) {
     document.getElementById("stepFill").style.width = percent;
-    
+
     for(let i=1; i<=4; i++) {
       const node = document.getElementById("node" + i);
-      
+
       if (i < stepNum) {
         node.className = "step-node completed";
         node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check"></i>';
@@ -382,7 +520,7 @@ body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
     try {
       const res = await fetch(`/api/project/${projectId}/deploy-optimize`, { method: 'POST' });
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.detail || "Optimization failed");
 
       advanceProgress(3, "66%");
@@ -413,23 +551,22 @@ body.premium .loader { border-top-color: #000; border-color: rgba(0,0,0,0.3); }
     try {
       const res = await fetch(`/api/project/${projectId}/deploy-push`, { method: 'POST' });
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.detail || "Push failed");
 
       // 🛑 THE BULLETPROOF URL FIX
-      // If the backend fails to send vercel_url, we manually build the import URL here using the raw repo_url
-      const repoUrl = data.repo_url || data.url; 
+      const repoUrl = data.repo_url || data.url;
       const encodedRepoUrl = encodeURIComponent(repoUrl);
       const vercelUrl = data.vercel_url ? data.vercel_url : `https://vercel.com/new/import?s=${encodedRepoUrl}`;
 
       document.getElementById("vercel-link").href = vercelUrl;
       document.getElementById("repo-link").href = repoUrl;
-      
+
       advanceProgress(4, "100%");
       setTimeout(() => {
         showStep("step4");
       }, 500);
-      
+
     } catch (err) {
       btn.disabled = false;
       loader.style.display = "none";

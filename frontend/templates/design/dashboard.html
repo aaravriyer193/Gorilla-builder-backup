@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gorilla Design</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <style>
+    :root {
+      --bg: #000000;
+      --sidebar-bg: #03030a;
+      --panel-bg: rgba(4,4,12,0.99);
+      --border: rgba(0,120,255,0.07);
+      --border-hover: rgba(0,120,255,0.3);
+      --accent: #0066ff;
+      --accent-light: #3385ff;
+      --text: #d0d8f0;
+      --text-muted: #2a3050;
+      --radius: 8px;
+      --radius-lg: 10px;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'DM Sans', sans-serif; outline: none; }
+
+    body {
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; font-weight: 300;
+    }
+
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── SIDEBAR ── */
+    aside {
+      width: 240px; background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 24px 12px;
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 10;
+    }
+
+    .logo {
+      font-size: 18px; font-weight: 350; color: var(--text);
+      display: flex; align-items: center; gap: 10px; margin-bottom: 32px;
+      padding-left: 8px; letter-spacing: -0.4px; text-decoration: none;
+    }
+    .logo svg { width: 20px; height: 20px; }
+    .logo svg path { fill: var(--text); }
+    .logo-sub { font-size: 10px; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 400; margin-left: 2px; }
+
+    nav { display: flex; flex-direction: column; gap: 1px; }
+    nav a {
+      color: var(--text-muted); text-decoration: none; padding: 8px 10px;
+      border-radius: var(--radius); font-size: 13px;
+      transition: all 0.15s var(--ease-out);
+      display: flex; align-items: center; gap: 10px;
+      border: 1px solid transparent; font-weight: 300;
+    }
+    nav a:hover { background: rgba(0,102,255,0.06); color: var(--text); border-color: rgba(0,102,255,0.1); }
+    nav a.active { background: rgba(0,102,255,0.09); color: var(--text); border-color: rgba(0,102,255,0.16); font-weight: 400; }
+    nav a i { font-size: 15px; opacity: 0.4; }
+    nav a:hover i, nav a.active i { opacity: 1; color: var(--accent); }
+
+    .nav-sep { height: 1px; background: var(--border); margin: 10px 0; }
+
+    .profile {
+      margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; padding: 12px 8px;
+      border-radius: var(--radius); cursor: default;
+    }
+    .avatar {
+      width: 32px; height: 32px; background: var(--accent);
+      border-radius: var(--radius); display: flex; align-items: center;
+      justify-content: center; font-size: 13px; font-weight: 500; color: #fff;
+    }
+    .user-info { display: flex; flex-direction: column; }
+    .user-name { font-size: 12px; color: var(--text); font-weight: 400; }
+    .user-plan { font-size: 10px; color: var(--text-muted); text-transform: capitalize; }
+
+    /* ── MAIN ── */
+    main { flex: 1; margin-left: 240px; padding: 48px 60px; position: relative; z-index: 1; }
+
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    .anim { animation: slideUp 0.5s var(--ease-out) forwards; opacity: 0; }
+
+    .page-header { margin-bottom: 40px; }
+    .page-header h1 { font-size: 32px; font-weight: 300; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .page-header p { color: var(--text-muted); font-size: 14px; font-weight: 300; }
+
+    /* ── NEW DESIGN CARD ── */
+    .new-card {
+      background: rgba(0,102,255,0.04); border: 1px dashed rgba(0,102,255,0.2);
+      border-radius: var(--radius-lg); padding: 32px; text-align: center;
+      cursor: pointer; transition: all 0.2s var(--ease-out); margin-bottom: 32px;
+      max-width: 680px;
+    }
+    .new-card:hover { border-color: rgba(0,102,255,0.4); background: rgba(0,102,255,0.07); transform: translateY(-1px); }
+    .new-card-icon { font-size: 32px; color: var(--accent); opacity: 0.4; margin-bottom: 12px; }
+    .new-card-title { font-size: 16px; font-weight: 400; color: var(--text); margin-bottom: 6px; }
+    .new-card-desc { font-size: 13px; color: var(--text-muted); font-weight: 300; }
+
+    /* ── DESIGN GRID ── */
+    .designs-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px; max-width: 960px;
+    }
+
+    .design-card {
+      background: rgba(4,4,12,0.99); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden;
+      transition: all 0.2s var(--ease-out); cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.8);
+      text-decoration: none; display: block;
+    }
+    .design-card:hover {
+      border-color: rgba(0,102,255,0.2);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.85), 0 0 0 0 rgba(0,102,255,0.1);
+      transform: translateY(-2px);
+    }
+
+    .design-card-preview {
+      height: 160px; background: #0a0a12;
+      display: flex; align-items: center; justify-content: center;
+      border-bottom: 1px solid var(--border); position: relative; overflow: hidden;
+    }
+    .design-card-preview-placeholder {
+      font-size: 40px; opacity: 0.06; color: var(--accent);
+    }
+    .design-card-preview-tokens {
+      position: absolute; inset: 0; padding: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .token-swatch-row { display: flex; gap: 4px; }
+    .token-swatch { width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); }
+    .token-type-preview {
+      font-size: 11px; font-weight: 400; margin-top: 4px; opacity: 0.5;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .design-card-body { padding: 16px; }
+    .design-card-name { font-size: 14px; font-weight: 400; color: var(--text); margin-bottom: 4px; }
+    .design-card-meta { font-size: 11px; color: var(--text-muted); font-weight: 300; }
+    .design-card-actions {
+      display: flex; gap: 6px; margin-top: 12px;
+    }
+    .card-btn {
+      flex: 1; height: 28px; border-radius: 5px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-muted); font-size: 11px;
+      cursor: pointer; transition: all 0.1s; font-family: 'DM Sans', sans-serif;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      text-decoration: none;
+    }
+    .card-btn:hover { border-color: rgba(0,102,255,0.3); color: var(--text); background: rgba(0,102,255,0.06); }
+    .card-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .card-btn.primary:hover { background: #0055ee; border-color: #0055ee; }
+    .card-btn i { font-size: 12px; }
+
+    /* ── MODAL ── */
+    .modal-bg {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9000; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-bg.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--panel-bg); border: 1px solid rgba(0,102,255,0.15);
+      border-radius: 16px; padding: 32px; min-width: 380px; max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+      transform: translateY(20px); transition: transform 0.25s var(--ease-out);
+    }
+    .modal-bg.open .modal { transform: none; }
+    .modal h3 { font-size: 20px; font-weight: 400; margin-bottom: 8px; letter-spacing: -0.3px; }
+    .modal p { font-size: 13px; color: var(--text-muted); font-weight: 300; margin-bottom: 20px; line-height: 1.6; }
+
+    .modal-input {
+      width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text); padding: 11px 14px;
+      font-size: 13px; font-weight: 300; margin-bottom: 10px;
+      font-family: 'DM Sans', sans-serif; transition: border-color 0.2s;
+    }
+    .modal-input:focus { border-color: rgba(0,102,255,0.4); outline: none; }
+    .modal-input::placeholder { color: rgba(208,216,240,0.2); }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+    .btn-modal-primary {
+      flex: 1; padding: 11px; background: var(--accent); border: none;
+      border-radius: var(--radius); color: #fff; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 3px 12px rgba(0,102,255,0.35);
+    }
+    .btn-modal-primary:hover { background: #0055ee; transform: translateY(-1px); }
+    .btn-modal-cancel {
+      padding: 11px 20px; background: transparent; border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text-muted); font-size: 13px;
+      cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif;
+    }
+    .btn-modal-cancel:hover { border-color: var(--border-hover); color: var(--text); }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center; padding: 60px 0; color: var(--text-muted);
+    }
+    .empty-state i { font-size: 40px; opacity: 0.15; margin-bottom: 16px; display: block; color: var(--accent); }
+    .empty-state p { font-size: 14px; font-weight: 300; }
+  </style>
+</head>
+
+<body>
+  <aside>
+    <a href="/design" class="logo">
+      <svg version="1.0" xmlns="http://www.w3.org/2000/svg" width="800" height="803" viewBox="0 0 600 550" preserveAspectRatio="xMidYMid meet">
+        <g transform="translate(0.000000,603.000000) scale(0.100000,-0.100000)" stroke="none">
+          <path d="M1497 6023 c827 -2 2179 -2 3005 0 827 1 151 2 -1502 2 -1653 0 -2329 -1 -1503 -2z"/>
+          <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+          <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+          <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+          <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+          <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+          <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+        </g>
+      </svg>
+      <div>
+        Gor://a
+        <div class="logo-sub">Design</div>
+      </div>
+    </a>
+
+    <nav>
+      <a href="/design" class="active"><i class="ph ph-palette"></i>Designs</a>
+      <a href="/dashboard"><i class="ph ph-squares-four"></i>Builder</a>
+      <div class="nav-sep"></div>
+      <a href="/settings"><i class="ph ph-gear"></i>Settings</a>
+      <a href="/docs/figma-overview"><i class="ph ph-book"></i>Docs</a>
+    </nav>
+
+    <div class="profile">
+      <div class="avatar">
+        {% if user.get('email') %}{{ user.get('email')[0]|upper }}{% else %}U{% endif %}
+      </div>
+      <div class="user-info">
+        <span class="user-name">{% if user.get('email') %}{{ user.get('email').split('@')[0] }}{% endif %}</span>
+        <span class="user-plan">{{ user.get('plan', 'free')|capitalize }}</span>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="page-header anim" style="animation-delay:0ms;">
+      <h1>Designs</h1>
+      <p>Create and manage your design systems, landing pages, and brand assets.</p>
+    </div>
+
+    <!-- NEW DESIGN CTA -->
+    <div class="new-card anim" style="animation-delay:60ms;" onclick="openNewModal()">
+      <div class="new-card-icon"><i class="ph ph-plus-circle"></i></div>
+      <div class="new-card-title">New Design</div>
+      <div class="new-card-desc">Generate a design system, import from Figma, or start from a blank canvas.</div>
+    </div>
+
+    <!-- DESIGNS GRID -->
+    {% if designs %}
+    <div class="designs-grid anim" style="animation-delay:120ms;">
+      {% for design in designs %}
+      <div class="design-card">
+        <div class="design-card-preview">
+          {% if design.tokens and design.tokens.colors %}
+          <div class="design-card-preview-tokens">
+            <div class="token-swatch-row">
+              {% for key, val in design.tokens.colors.items() %}
+              {% if loop.index <= 8 %}
+              <div class="token-swatch" style="background:{{ val }};"></div>
+              {% endif %}
+              {% endfor %}
+            </div>
+            <div class="token-type-preview" style="color:{{ design.tokens.colors.get('text-secondary', '#888') }};">
+              {{ design.tokens.typography.fontFamily.split(',')[0] if design.tokens.typography else 'No font' }}
+            </div>
+          </div>
+          {% else %}
+          <i class="ph ph-palette design-card-preview-placeholder"></i>
+          {% endif %}
+        </div>
+        <div class="design-card-body">
+          <div class="design-card-name">{{ design.name or 'Untitled' }}</div>
+          <div class="design-card-meta">
+            Updated {{ design.updated_at[:10] if design.updated_at else 'never' }}
+            {% if design.hosted_slug %} · <span style="color:var(--accent);">Hosted</span>{% endif %}
+          </div>
+          <div class="design-card-actions">
+            <a href="/design/editor/{{ design.id }}" class="card-btn primary">
+              <i class="ph ph-pencil-simple"></i> Edit
+            </a>
+            <a href="/design/viewer/{{ design.id }}" class="card-btn">
+              <i class="ph ph-eye"></i> View
+            </a>
+            {% if design.hosted_slug %}
+            <a href="/design/hosted/{{ design.hosted_slug }}" target="_blank" class="card-btn">
+              <i class="ph ph-globe"></i>
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state anim" style="animation-delay:120ms;">
+      <i class="ph ph-palette"></i>
+      <p>No designs yet. Create one above.</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <!-- NEW DESIGN MODAL -->
+  <div class="modal-bg" id="new-modal">
+    <div class="modal">
+      <h3>New Design</h3>
+      <p>Give your design a name to get started. You'll be taken to the editor where you can generate your design system or import from Figma.</p>
+      <input class="modal-input" id="new-name" placeholder="My Brand Design System" maxlength="80">
+      <div class="modal-actions">
+        <button class="btn-modal-cancel" onclick="closeNewModal()">Cancel</button>
+        <button class="btn-modal-primary" onclick="createDesign()">
+          <i class="ph ph-arrow-right"></i> Create
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openNewModal() {
+      document.getElementById('new-modal').classList.add('open');
+      setTimeout(() => document.getElementById('new-name').focus(), 100);
+    }
+    function closeNewModal() {
+      document.getElementById('new-modal').classList.remove('open');
+    }
+    document.getElementById('new-name').addEventListener('keydown', e => {
+      if (e.key === 'Enter') createDesign();
+      if (e.key === 'Escape') closeNewModal();
+    });
+
+    async function createDesign() {
+      const name = document.getElementById('new-name').value.trim() || 'Untitled Design';
+      try {
+        const resp = await fetch('/api/design/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Failed');
+        window.location.href = `/design/editor/${data.id}`;
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    document.getElementById('new-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeNewModal();
+    });
+  </script>
+</body>
+</html>

@@ -17,7 +17,7 @@
 
 <ol>
   <li>Your React frontend sends the user's input to your Node.js backend.</li>
-  <li>Your Express route forwards the request to <code>https://app.gorillabuilder.dev/v1/chat/completions</code> using your <code>gb_live_</code> key.</li>
+  <li>Your Express route forwards the request to <code>https://app.gorillabuilder.dev/api/v1/chat/completions</code> using your <code>gb_live_</code> key.</li>
   <li>Our gateway authenticates you, securely proxies the request to OpenRouter (using high-performance models like LLaMA 3.2 or DeepSeek), and streams the response back to your app.</li>
 </ol>
 
@@ -30,7 +30,7 @@ const router = express.Router();
 
 router.post('/chat', async (req, res) => {
   try {
-    const response = await fetch('https://app.gorillabuilder.dev/v1/chat/completions', {
+    const response = await fetch('https://app.gorillabuilder.dev/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.GORILLA_API_KEY}`,

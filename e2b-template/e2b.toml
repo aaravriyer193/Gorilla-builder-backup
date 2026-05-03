@@ -1,0 +1,17 @@
+# This is a config for E2B sandbox template.
+# You can use template ID (gbz0yi37nhpjb1lxfks7) or template name (gorilla) to create a sandbox:
+
+# Python SDK
+# from e2b import Sandbox, AsyncSandbox
+# sandbox = Sandbox.create("gorilla") # Sync sandbox
+# sandbox = await AsyncSandbox.create("gorilla") # Async sandbox
+
+# JS SDK
+# import { Sandbox } from 'e2b'
+# const sandbox = await Sandbox.create('gorilla')
+
+memory_mb = 2_048
+cpu_count = 2
+dockerfile = "e2b.Dockerfile"
+template_name = "gorilla"
+template_id = "gbz0yi37nhpjb1lxfks7"

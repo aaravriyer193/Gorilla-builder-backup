@@ -5,138 +5,226 @@
 <title>Project Settings · {{ project.name if project else project_id }} · Gor://a Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
 
 <style>
+  :root {
+    --bg: #000000;
+    --panel: rgba(4, 4, 12, 0.99);
+    --border: rgba(0, 120, 255, 0.07);
+    --border-hover: rgba(0, 120, 255, 0.3);
+    --accent: #0066ff;
+    --accent-light: #3385ff;
+    --accent-glow: rgba(0, 102, 255, 0.2);
+    --text: #d0d8f0;
+    --text-muted: #2a3050;
+    --radius: 8px;
+    --radius-sm: 5px;
+    --radius-lg: 10px;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
+    --shadow-paper:
+      0 1px 0 rgba(0,100,255,0.04) inset,
+      0 1px 3px rgba(0,0,0,0.8),
+      0 2px 8px rgba(0,0,0,0.7);
+    --shadow-paper-hover:
+      0 1px 0 rgba(0,100,255,0.07) inset,
+      0 4px 16px rgba(0,0,0,0.85),
+      0 2px 6px rgba(0,102,255,0.12);
+  }
 
-/* --- THEME VARIABLES --- */
-:root {
-  --bg: #0b1020;
-  --panel: #0f1530;
-  --border: rgba(255,255,255,.10);
-  --text: #fff;
-  --muted: rgba(255,255,255,.65);
-  --accent: #3b6cff;
-  --btn-text: #fff;
-}
+  /* Premium override keeps the same dark look but adds a subtle glow tint */
+  body.premium {
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(0, 102, 255, 0.05) 0%, transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(0, 102, 255, 0.04) 0%, transparent 40%) !important;
+  }
 
-/* PREMIUM OVERRIDES */
-body.premium {
-  --bg: #050810;
-  --panel: #121214;
-  --accent: #ffd700;
-  --btn-text: #000;
-  
-  background-image: 
-    radial-gradient(circle at 15% 10%, rgba(255, 215, 0, 0.05) 0%, transparent 40%),
-    radial-gradient(circle at 85% 90%, rgba(147, 51, 234, 0.08) 0%, transparent 40%) !important;
-}
+  * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; }
 
-*{box-sizing:border-box;font-family:'Funnel Display',system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
-body{margin:0;background:var(--bg);color:var(--text);min-height:100vh}
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    min-height: 100vh; font-weight: 300; position: relative;
+  }
 
-.wrap{max-width:700px;margin:0 auto;padding:22px} /* Narrowed for single column */
+  body::before {
+    content: '';
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
 
-.top{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:14px 16px;border:1px solid var(--border);border-radius:16px;
-  background:rgba(255,255,255,.03);
-}
-.title{display:flex;flex-direction:column;gap:4px}
-.title h1{font-size:16px;margin:0}
-.title .sub{font-size:12px;color:var(--muted)}
+  .wrap { max-width: 700px; margin: 0 auto; padding: 40px 22px; position: relative; z-index: 1; }
 
-.btn{
-  border:1px solid var(--border);
-  background:rgba(255,255,255,.04);
-  color:#fff;
-  border-radius:12px;
-  padding:10px 12px;
-  cursor:pointer;
-  text-decoration:none;
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  font-size:12px;
-  transition: all 0.2s;
-}
-.btn:hover { background: rgba(255,255,255,.08); }
+  /* --- HEADER STRIP --- */
+  .top {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--panel); box-shadow: var(--shadow-paper);
+    transition: all 0.18s var(--ease-out);
+  }
+  .top:hover { box-shadow: var(--shadow-paper-hover); }
 
-.btn.primary{
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--btn-text);
-  font-weight: 600;
-}
-.btn.primary:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-}
+  .title { display: flex; flex-direction: column; gap: 4px; }
+  .title h1 {
+    font-size: 16px; margin: 0; font-weight: 400; color: var(--text);
+    letter-spacing: -0.2px;
+  }
+  .title .sub {
+    font-size: 11px; color: var(--text-muted); font-weight: 300;
+    font-family: 'Courier New', monospace; letter-spacing: 0.3px;
+  }
 
-.card{
-  border:1px solid var(--border);
-  background:rgba(255,255,255,.03);
-  border-radius:16px;
-  padding:24px;
-  margin-top:14px;
-}
-.card h2{font-size:13px;margin:0 0 16px 0;color:rgba(255,255,255,.85); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
+  /* --- BUTTONS --- */
+  .btn {
+    border: 1px solid var(--border);
+    background: rgba(4,4,12,0.99);
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    padding: 9px 14px;
+    cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; font-weight: 300;
+    transition: all 0.15s var(--ease-out);
+    box-shadow: var(--shadow-paper);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn:hover {
+    border-color: rgba(0,102,255,0.2);
+    color: var(--text);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-paper-hover);
+  }
+  .btn:active { transform: translateY(0); }
 
-label{font-size:12px;color:var(--muted);display:block;margin:16px 0 8px}
+  .btn.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff; font-weight: 400;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.4);
+  }
+  .btn.primary:hover {
+    background: #0055ee; border-color: #0055ee; color: #fff;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.55);
+  }
 
-input[type="text"], textarea, select{
-  width:100%;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(0,0,0,.2);
-  color:#fff;
-  border-radius:8px;
-  padding:12px;
-  outline:none;
-  font-size:14px;
-  transition: border-color 0.2s;
-}
-input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  /* --- CARD --- */
+  .card {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    margin-top: 16px;
+    box-shadow: var(--shadow-paper);
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: rgba(0,102,255,0.14); }
+  .card h2 {
+    font-size: 10px; margin: 0 0 22px; color: var(--text-muted);
+    font-weight: 400; text-transform: uppercase; letter-spacing: 2px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid;
+    border-image: linear-gradient(90deg, var(--border), transparent 70%) 1;
+  }
 
-/* File Input Styling */
-input[type="file"] {
-  width:100%;
-  color: var(--muted);
-  font-size: 13px;
-  padding: 8px 0;
-}
-input[type="file"]::file-selector-button {
-  background: rgba(255,255,255,.04);
-  border: 1px solid var(--border);
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  margin-right: 12px;
-  transition: all 0.2s;
-}
-input[type="file"]::file-selector-button:hover {
-  background: rgba(255,255,255,.08);
-}
+  label {
+    font-size: 10px; color: var(--text-muted); display: block;
+    margin: 18px 0 7px; font-weight: 400;
+    text-transform: uppercase; letter-spacing: 1.2px;
+  }
 
-textarea{min-height:120px;resize:vertical}
+  /* --- INPUTS --- */
+  input[type="text"], textarea, select {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: rgba(2,2,8,1);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    outline: none;
+    font-size: 13.5px; font-weight: 300;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s var(--ease-out);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.6) inset;
+  }
+  input[type="text"]:focus, textarea:focus, select:focus {
+    border-color: rgba(0,102,255,0.35);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.7) inset, 0 0 0 3px rgba(0,102,255,0.07);
+  }
+  input::placeholder, textarea::placeholder { color: rgba(208,216,240,0.18); }
 
-.image-preview {
-  width: 100%;
-  max-width: 300px;
-  height: auto;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  margin-bottom: 12px;
-  display: block;
-  background: #000;
-  aspect-ratio: 16/9;
-  object-fit: cover;
-}
+  /* --- FILE INPUT --- */
+  input[type="file"] {
+    width: 100%;
+    color: var(--text-muted);
+    font-size: 12.5px; font-weight: 300;
+    padding: 8px 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+  input[type="file"]::file-selector-button {
+    background: rgba(4,4,12,0.99);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    margin-right: 12px;
+    font-size: 12px; font-weight: 300;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s var(--ease-out);
+    box-shadow: var(--shadow-paper);
+  }
+  input[type="file"]::file-selector-button:hover {
+    border-color: rgba(0,102,255,0.2);
+    background: rgba(0,102,255,0.05);
+  }
 
-.footer{display:flex;justify-content:flex-end;gap:10px;margin-top:24px; padding-top: 16px; border-top: 1px solid var(--border);}
-.small{font-size:12px;color:rgba(255,255,255,.55)}
+  textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+
+  /* --- IMAGE PREVIEW --- */
+  .image-preview {
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+    display: block;
+    background: rgba(2,2,8,1);
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  }
+  .image-preview-empty {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 11.5px; font-weight: 300;
+    text-transform: uppercase; letter-spacing: 1.2px;
+    flex-direction: column; gap: 8px;
+  }
+  .image-preview-empty i { font-size: 28px; opacity: 0.25; }
+
+  /* --- ERROR CARD --- */
+  .card.error {
+    border-color: rgba(100, 20, 20, 0.25);
+    background: linear-gradient(180deg, rgba(100,20,20,0.04), var(--panel));
+  }
+  .card.error h2 {
+    color: #b05050;
+    border-image: linear-gradient(90deg, rgba(100,20,20,0.2), transparent 70%) 1;
+  }
+
+  /* --- FOOTER --- */
+  .footer {
+    display: flex; justify-content: flex-end; gap: 10px;
+    margin-top: 28px; padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  .small {
+    font-size: 12.5px; color: var(--text-muted); font-weight: 300; line-height: 1.55;
+  }
 </style>
 </head>
 
@@ -149,25 +237,31 @@ textarea{min-height:120px;resize:vertical}
       <div class="sub">{{ project_id }}</div>
     </div>
     <div style="display:flex;gap:10px">
-      <a class="btn" href="/projects/{{ project_id }}/editor">← Back to editor</a>
+      <a class="btn" href="/projects/{{ project_id }}/editor">
+        <i class="ph-bold ph-arrow-left" style="font-size:13px;"></i>
+        Back to editor
+      </a>
     </div>
   </div>
 
   {% if error %}
-  <div class="card" style="margin-top:14px;border-color:rgba(255,77,109,.45)">
-    <h2 style="color:rgba(255,77,109,.95)">Error</h2>
+  <div class="card error">
+    <h2><i class="ph-fill ph-warning-circle" style="font-size:14px; vertical-align:middle; margin-right:6px;"></i> Error</h2>
     <div class="small">{{ error }}</div>
   </div>
   {% endif %}
 
   <form class="card" method="post" action="/projects/{{ project_id }}/settings" enctype="multipart/form-data">
     <h2>General Info</h2>
-    
+
     <label>Project Snapshot Image</label>
     {% if project and project.snapshot_b64 %}
       <img src="{{ project.snapshot_b64 }}" class="image-preview" alt="Project Snapshot" />
     {% else %}
-      <div class="image-preview" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;">No image uploaded</div>
+      <div class="image-preview image-preview-empty">
+        <i class="ph-thin ph-image"></i>
+        No image uploaded
+      </div>
     {% endif %}
     <input type="file" name="snapshot" accept="image/png, image/jpeg, image/webp" />
 
@@ -178,7 +272,10 @@ textarea{min-height:120px;resize:vertical}
     <textarea name="description" placeholder="What does this project do?">{{ project.description if project else '' }}</textarea>
 
     <div class="footer">
-      <button class="btn primary" type="submit">Save Changes</button>
+      <button class="btn primary" type="submit">
+        <i class="ph-bold ph-check" style="font-size:13px;"></i>
+        Save Changes
+      </button>
     </div>
   </form>
 
