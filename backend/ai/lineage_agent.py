@@ -44,6 +44,7 @@ from __future__ import annotations
 import os
 import re
 import time
+import asyncio
 import hashlib
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -323,30 +324,17 @@ Ubuntu 22 / Node 20 / Python 3.11 / CWD: `/home/user/app`
 
 Binaries: node, npm, npx, git, curl, jq, unzip, tar, find, grep, sed, awk, python3
 
-Pre-installed packages: react, react-dom, react-router-dom, vite, @vitejs/plugin-react, typescript, tailwindcss, postcss, autoprefixer, clsx, tailwind-merge, class-variance-authority, @radix-ui/*, lucide-react, @supabase/supabase-js, express, cors, body-parser, dotenv, concurrently
+Pre-installed packages: react, react-dom, react-router-dom, vite, @vitejs/plugin-react, typescript, tailwindcss, postcss, autoprefixer, clsx, tailwind-merge, class-variance-authority, @radix-ui/*, lucide-react, express, cors, body-parser, dotenv, concurrently
 
 Dev server: `npm run dev` → Vite on :8080 (frontend) + Express on :3000 (API)
 
-Env vars in `.gorilla_env`: $GORILLA_API_KEY, $VITE_GORILLA_AUTH_ID, $VITE_SUPABASE_URL, $VITE_SUPABASE_ANON_KEY, $SUPABASE_MGMT_TOKEN, $SUPABASE_PROJECT_REF
+Env vars in `.gorilla_env`: $GORILLA_API_KEY, $VITE_GORILLA_AUTH_ID
 
 Layout: src/ (React), src/components/ui/ (shadcn), src/utils/auth.ts (DO NOT TOUCH), routes/ (Express), public/generated/ (AI images)
 
 ## File batching rules  ← KEY FOR SPEED
 
-You MUST batch file writes to minimise turns:
-
-BATCH these together (up to 3 files per bash block):
-  - New files that don't yet import each other
-  - Pure UI components written at the same time (Navbar + Footer + Hero)
-  - Multiple new page components before wiring
-  - Utility/helper files alongside a component that uses them
-
-NEVER batch these (always solo, always their own bash block):
-  - Edits to EXISTING files (App.tsx, server.js, index.css, etc.)
-  - Any command that starts the dev server
-  - Any verification/curl command
-  - npm install
-  - Database migrations
+You should try to batch file writes to minimise turns (no more than 3-4 files a turn), IF YOU RECIEVE A COMMAND TO TAKE YOUR TIME, MAKE THE APP TRULY EXTRAVAGANT AND BATCH FILES LESS OFTEN.
 
 ORDERING RULE — always build in this order:
   1. Read existing files (one cat block, can read multiple files at once)
@@ -385,7 +373,7 @@ useEffect(() => onAuthStateChanged(setUser), []);
 ```
 
 ## AI proxy (backend only, uses $GORILLA_API_KEY)
-Base URL: {GORILLA_PROXY}
+Base URL: {GORILLA_PROXY} ALWAYS USE GORILLA_API_KEY In request
 - LLM chat:    POST {GORILLA_PROXY}/api/v1/chat/completions  (omit model field)
 - Image gen:   POST {GORILLA_PROXY}/api/v1/images/generations (omit model field)
 - STT:         POST {GORILLA_PROXY}/api/v1/audio/transcriptions
@@ -403,7 +391,12 @@ Critical reminders:
 """
 
 SUPABASE_ADDON = r"""
+
 Supabase is active
+
+These .env vars are present: $VITE_SUPABASE_URL, $VITE_SUPABASE_ANON_KEY, $SUPABASE_MGMT_TOKEN, $SUPABASE_PROJECT_REF
+And supabase/@supabase-js is installed
+
 Client:
 ```ts
 import { createClient } from '@supabase/supabase-js';
@@ -788,6 +781,8 @@ def _is_safe(cmd: str) -> bool:
 #  LLM call
 # ═══════════════════════════════════════════════════════════════════════════
 
+# REPLACE the existing _call_llm function body with this:
+
 async def _call_llm(
     messages: list, model: str = MODEL, temperature: float = 0.6
 ) -> Tuple[str, int]:
@@ -808,10 +803,22 @@ async def _call_llm(
         "HTTP-Referer": SITE_URL,
         "X-Title": SITE_NAME,
     }
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        resp = await client.post(OPENROUTER_URL, json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+    data = None
+    for attempt in range(5):
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            resp = await client.post(OPENROUTER_URL, json=payload, headers=headers)
+            if resp.status_code == 429:
+                wait = 10 * (attempt + 1)
+                log_agent("agent", f"429 rate limit — waiting {wait}s (attempt {attempt + 1}/5)")
+                await asyncio.sleep(wait)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            break
+
+    if data is None:
+        raise RuntimeError("LLM call failed after 5 attempts (persistent 429)")
+
     content = data["choices"][0]["message"]["content"]
     u = data.get("usage", {})
     p = u.get("prompt_tokens", 0)
@@ -825,7 +832,6 @@ async def _call_llm(
     else:
         weight = p * 0.3 + c * 1.2
     return content, int(weight)
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Agent Skills helpers

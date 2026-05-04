@@ -370,8 +370,15 @@ class E2BSandboxManager:
                 shell_lines = "\n".join(f'export {k}="{v}"' for k, v in env_vars.items() if v)
                 await asyncio.to_thread(
                     sbx.commands.run,
-                    f"cat > {APP_DIR}/.env << 'GORILLA_EOF'\n{env_lines}\nGORILLA_EOF && "
+                    f"cat > {APP_DIR}/.env << 'GORILLA_EOF'\n{env_lines}\nGORILLA_EOF",
+                )
+                await asyncio.to_thread(
+                    sbx.commands.run,
                     f"cat > {APP_DIR}/.gorilla_env << 'GORILLA_EOF'\n{shell_lines}\nGORILLA_EOF",
+                )
+                await asyncio.to_thread(
+                    sbx.commands.run,
+                    f"set -a && source {APP_DIR}/.env && set +a",
                 )
             except Exception as e:
                 self._emit_log(project_id, "sandbox", f"env write warning: {e}")

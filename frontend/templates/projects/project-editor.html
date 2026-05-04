@@ -240,6 +240,40 @@
       color: #6070a0; max-height: 140px; overflow-y: auto;
     }
 
+    /* ─── AGENT THINKING CARD ─── */
+    .agent-thinking {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid rgba(0,102,255,0.18);
+      border-radius: var(--radius);
+      background: rgba(0,102,255,0.05);
+      font-size: 12px; color: var(--text-mid);
+      animation: fadeUp 0.3s var(--ease);
+      position: sticky; bottom: 0;
+      backdrop-filter: blur(4px);
+    }
+    .thinking-orb {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(0,102,255,0.6);
+      animation: orbPulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes orbPulse {
+      0%,100% { transform: scale(1); opacity: 1; box-shadow: 0 0 8px rgba(0,102,255,0.6); }
+      50% { transform: scale(1.5); opacity: 0.7; box-shadow: 0 0 20px rgba(0,102,255,0.9); }
+    }
+    .thinking-label { flex: 1; font-weight: 400; color: var(--text-mid); }
+    .thinking-dots { display: flex; gap: 3px; align-items: center; }
+    .thinking-dots span {
+      width: 3px; height: 3px; border-radius: 50%;
+      background: var(--accent-light);
+      animation: dotBounce 1.2s ease-in-out infinite;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dotBounce { 0%,100%{transform:translateY(0);opacity:0.3;} 50%{transform:translateY(-4px);opacity:1;} }
+
     /* ─── INPUT ─── */
     .input-area {
       padding: 12px 14px;
@@ -380,6 +414,33 @@
     }
     .preview-empty i { font-size: 28px; color: var(--text-muted); }
     .preview-empty p { font-size: 13px; color: var(--text-muted); max-width: 240px; line-height: 1.5; }
+
+    /* ─── PREVIEW WAITING ─── */
+    .preview-waiting {
+      display: none; flex: 1; align-items: center; justify-content: center;
+      flex-direction: column; gap: 20px; background: #01010a;
+    }
+    .preview-waiting.visible { display: flex; }
+    .preview-spinner {
+      width: 48px; height: 48px; position: relative;
+    }
+    .preview-spinner::before, .preview-spinner::after {
+      content: ''; position: absolute; inset: 0; border-radius: 50%;
+      border: 1.5px solid transparent;
+    }
+    .preview-spinner::before {
+      border-top-color: var(--accent);
+      animation: spin 1s linear infinite;
+    }
+    .preview-spinner::after {
+      border-bottom-color: rgba(0,102,255,0.3);
+      animation: spin 1.8s linear infinite reverse;
+    }
+    .preview-waiting-text {
+      font-size: 12px; color: var(--text-muted); letter-spacing: 0.5px;
+      animation: breathe 2s ease-in-out infinite;
+    }
+    @keyframes breathe { 0%,100%{opacity:0.4;} 50%{opacity:1;} }
 
     /* ─── LOADER ─── */
     #editor-loading-overlay {
@@ -528,6 +589,11 @@
         allow="clipboard-write; clipboard-read; microphone; camera; display-capture"
         referrerpolicy="no-referrer">
       </iframe>
+      <!-- Shown while sandbox is booting / port not yet ready -->
+      <div class="preview-waiting" id="previewWaiting">
+        <div class="preview-spinner"></div>
+        <p class="preview-waiting-text" id="previewWaitingText">Starting sandbox…</p>
+      </div>
       <div class="preview-empty" id="previewEmpty">
         <i class="ph ph-timer"></i>
         <p>Preview will appear once the sandbox is live.</p>
@@ -564,10 +630,17 @@ const INITIAL_PROMPT = "{{ initial_prompt or '' }}";
 const HAS_SUPABASE = {{ 'true' if has_supabase else 'false' }};
 const PROJECT_HAS_DB = {{ 'true' if project_has_db else 'false' }};
 
+// E2B "port not ready" signal strings — served as HTML but mean the port is closed
+const E2B_PORT_CLOSED_SIGNALS = [
+  "closed port", "port closed", "no service running",
+  "err_empty_response", "tunnel not found", "service unavailable",
+  "connection refused", "bad gateway"
+];
+
 window.isAgentWorking = false;
 let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
 let es = null, saveTimer = null, sandboxUrl = null, currentAttachedImage = null;
-let currentGroup = null;
+let currentGroup = null, portCheckInterval = null;
 const activityRefs = new Map();
 
 const $ = id => document.getElementById(id);
@@ -668,6 +741,26 @@ function endActivity(id, ok) {
   ref.cardEl.classList.add(ok ? 'done' : 'failed');
 }
 
+// ─── AGENT THINKING CARD ───
+function showThinkingCard() {
+  removeThinkingCard();
+  const card = document.createElement('div');
+  card.id = 'agent-thinking-card';
+  card.className = 'agent-thinking';
+  card.innerHTML = `
+    <div class="thinking-orb"></div>
+    <span class="thinking-label">Gorilla is working</span>
+    <div class="thinking-dots"><span></span><span></span><span></span></div>
+  `;
+  chat.appendChild(card);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function removeThinkingCard() {
+  const existing = $('agent-thinking-card');
+  if (existing) existing.remove();
+}
+
 function loadChatHistory() {
   try {
     const hist = {{ chat_history | safe }};
@@ -692,12 +785,15 @@ function setInputState(locked) {
   if (b) b.disabled = locked;
   const ed = $("editor");
   if (ed) { ed.style.opacity = locked ? "0.4" : "1"; ed.style.pointerEvents = locked ? "none" : "auto"; }
+
   if (locked) {
     if (p) p.placeholder = "Gorilla is thinking...";
     if (b) b.innerHTML = '<i class="ph ph-spinner" style="animation:spin 0.9s linear infinite;"></i>';
+    showThinkingCard();
   } else {
     if (p) p.placeholder = "What shall we build?";
     if (b) b.innerHTML = '<i class="ph-fill ph-paper-plane-tilt"></i>';
+    removeThinkingCard();
   }
 }
 
@@ -865,18 +961,94 @@ if (upInput) upInput.onchange = (e) => {
   reader.readAsText(file);
 };
 
+// ─── PREVIEW WAITING STATE ───
+function showPreviewWaiting(text) {
+  $("previewWaiting").classList.add("visible");
+  $("previewWaitingText").textContent = text || "Starting sandbox…";
+  $("preview").style.display = "none";
+  $("previewEmpty").style.display = "none";
+}
+
+function hidePreviewWaiting() {
+  $("previewWaiting").classList.remove("visible");
+}
+
+// ─── PORT CHECK: probes URL and inspects body for E2B "port closed" HTML ───
+async function isPortReady(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    // E2B serves 200 OK even when port is closed — must check body text
+    const text = await res.text();
+    const lower = text.toLowerCase();
+    for (const sig of E2B_PORT_CLOSED_SIGNALS) {
+      if (lower.includes(sig)) return false;
+    }
+    return true;
+  } catch {
+    // Network / timeout = still booting
+    return false;
+  }
+}
+
+function clearPortCheck() {
+  if (portCheckInterval) { clearInterval(portCheckInterval); portCheckInterval = null; }
+}
+
+function startPortCheck(url) {
+  clearPortCheck();
+  let attempts = 0;
+  const MAX_ATTEMPTS = 40; // ~80s max
+
+  showPreviewWaiting("Server is starting up…");
+
+  portCheckInterval = setInterval(async () => {
+    attempts++;
+    const ready = await isPortReady(url);
+    if (ready) {
+      clearPortCheck();
+      hidePreviewWaiting();
+      const iframe = $("preview");
+      iframe.src = url;
+      iframe.style.display = "block";
+    } else if (attempts >= MAX_ATTEMPTS) {
+      clearPortCheck();
+      hidePreviewWaiting();
+      $("previewEmpty").style.display = "flex";
+      $("previewEmpty").innerHTML = `<i class="ph ph-warning-circle"></i><p>Server didn't respond in time. Try refreshing the preview.</p>`;
+    } else {
+      // Update waiting text with attempt info
+      const secs = attempts * 2;
+      $("previewWaitingText").textContent = `Server starting… (${secs}s)`;
+    }
+  }, 2000);
+}
+
 function switchTab(tab) {
   if (tab === "preview") {
     $("tabPreview").classList.add("active"); $("tabCode").classList.remove("active");
     $("editor").style.display = "none"; $("imageViewer").style.display = "none";
     document.querySelector(".files").style.display = "none";
-    if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
-      $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
-    } else { $("preview").style.display = "none"; $("previewEmpty").style.display = "flex"; bootSandboxIfNeeded(); }
+
+    const statusText = $("sandboxStatus").textContent.toLowerCase();
+    const isLive = statusText.includes("live");
+
+    if (sandboxUrl && isLive) {
+      // If we have a URL but not sure if port is ready, always probe first
+      if (!portCheckInterval) {
+        startPortCheck(sandboxUrl);
+      }
+    } else {
+      $("preview").style.display = "none";
+      hidePreviewWaiting();
+      $("previewEmpty").style.display = "flex";
+      bootSandboxIfNeeded();
+    }
   } else {
     $("tabCode").classList.add("active"); $("tabPreview").classList.remove("active");
     document.querySelector(".files").style.display = "flex";
-    $("preview").style.display = "none"; $("previewEmpty").style.display = "none";
+    $("preview").style.display = "none";
+    $("previewEmpty").style.display = "none";
+    hidePreviewWaiting();
     if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png'))) {
       $("editor").style.display = "none"; $("imageViewer").style.display = "flex";
     } else { $("editor").style.display = "block"; $("imageViewer").style.display = "none"; }
@@ -886,18 +1058,22 @@ $("tabCode").onclick = () => switchTab("code");
 $("tabPreview").onclick = () => switchTab("preview");
 
 async function bootSandboxIfNeeded() {
-  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { $("preview").src = sandboxUrl; return; }
+  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
+    startPortCheck(sandboxUrl);
+    return;
+  }
   updateSandboxStatus("Booting");
+  showPreviewWaiting("Booting sandbox…");
   try {
     const res = await fetch(`/api/project/${PROJECT_ID}/sandbox/start`, { method: 'POST' });
     const data = await res.json();
     if (data.url) {
       sandboxUrl = data.url; updateSandboxStatus("Live");
       if ($("tabPreview").classList.contains("active")) {
-        $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
+        startPortCheck(sandboxUrl);
       }
-    } else updateSandboxStatus("Error");
-  } catch (e) { updateSandboxStatus("Error"); }
+    } else { updateSandboxStatus("Error"); hidePreviewWaiting(); $("previewEmpty").style.display = "flex"; }
+  } catch (e) { updateSandboxStatus("Error"); hidePreviewWaiting(); $("previewEmpty").style.display = "flex"; }
 }
 
 function startStream() {
@@ -912,27 +1088,23 @@ function startStream() {
       if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) {
         updateSandboxStatus("Live");
         if (sandboxUrl && $("tabPreview").classList.contains("active")) {
-          setTimeout(() => { $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none"; }, 600);
+          startPortCheck(sandboxUrl);
         }
       }
-      if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
+      if (/Sandbox Offline/i.test(m.text)) {
+        sandboxUrl = null;
+        updateSandboxStatus("Offline");
+        clearPortCheck();
+        hidePreviewWaiting();
+      }
     }
     else if (m.type === "progress") setProgress(m.text, m.pct);
     else if (m.type === "sandbox_url") {
-      sandboxUrl = m.url; updateSandboxStatus("Live");
+      sandboxUrl = m.url;
+      updateSandboxStatus("Live");
+      // Always start port check — never flash the raw iframe immediately
       if ($("tabPreview").classList.contains("active")) {
-        const iframe = $("preview");
-        iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
-        const checkPort = setInterval(async () => {
-          try {
-            const res = await fetch(sandboxUrl); const text = await res.text();
-            if (!text.includes("Closed Port Error") && !text.includes("no service running on port")) {
-              clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
-            }
-          } catch (err) {
-            clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
-          }
-        }, 2000);
+        startPortCheck(sandboxUrl);
       }
     }
     else if (m.type === "narration") await addNarration(m.text, true);
