@@ -2831,6 +2831,7 @@ from backend.design.design import (
     generate_design, edit_design,
     design_to_html, get_hosted_html, generate_slug, to_figma_clipboard,
 )
+import json # Ensure json is imported for the compat shims
 
 @app.get("/design", response_class=HTMLResponse)
 async def design_dashboard(request: Request):
@@ -2839,7 +2840,8 @@ async def design_dashboard(request: Request):
     user["tokens"] = {"used": used, "limit": limit, "remaining": max(0, limit - used)}
 
     try:
-        res = supabase.table("designs").select("*").eq("owner_id", user["id"]).order("updated_at", desc=True).execute()
+        # OPTIMIZED: Only fetching lightweight list data, skipping massive JSON blobs
+        res = supabase.table("designs").select("id, name, updated_at, created_at, hosted_slug").eq("owner_id", user["id"]).order("updated_at", desc=True).execute()
         designs = res.data if res and res.data else []
     except Exception:
         designs = []
@@ -2876,7 +2878,8 @@ async def create_design(request: Request):
 async def design_editor(request: Request, design_id: str):
     user = get_current_user(request)
     try:
-        res = supabase.table("designs").select("*").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        # OPTIMIZED: Explicit column selection, avoiding hosted_html if not strictly needed here
+        res = supabase.table("designs").select("id, name, figma_json, tokens, chat_history, updated_at").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
         design = res.data
     except Exception:
         raise HTTPException(404, "Design not found")
@@ -2896,7 +2899,8 @@ async def design_editor(request: Request, design_id: str):
 async def design_viewer(request: Request, design_id: str):
     user = get_current_user_safe(request)
     try:
-        res = supabase.table("designs").select("*").eq("id", design_id).single().execute()
+        # OPTIMIZED: Only grab the fields needed to view
+        res = supabase.table("designs").select("id, name, figma_json, hosted_html").eq("id", design_id).single().execute()
         design = res.data
     except Exception:
         raise HTTPException(404, "Design not found")
@@ -2912,6 +2916,7 @@ async def design_viewer(request: Request, design_id: str):
 @app.get("/design/hosted/{slug}", response_class=HTMLResponse)
 async def design_hosted(slug: str):
     try:
+        # Already optimized: Only selects hosted_html
         res = supabase.table("designs").select("hosted_html").eq("hosted_slug", slug).single().execute()
         design = res.data
     except Exception:
@@ -3006,8 +3011,6 @@ async def generate_design_endpoint(request: Request, design_id: str, background_
             except Exception:
                 pass
 
-    # Use asyncio.create_task for true concurrency — multiple designs
-    # can generate simultaneously without blocking each other or other requests
     import asyncio
     asyncio.create_task(_generate_bg(design_id, brief, user["id"]))
     return JSONResponse({"status": "generating", "design_id": design_id})
@@ -3067,7 +3070,8 @@ async def edit_design_endpoint(request: Request, design_id: str):
         raise HTTPException(400, "Instruction required")
 
     try:
-        res = supabase.table("designs").select("figma_json, tokens").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        # OPTIMIZED: Fetches everything needed in ONE database call instead of two
+        res = supabase.table("designs").select("figma_json, tokens, chat_history").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
         design = res.data
     except Exception:
         raise HTTPException(404, "Design not found")
@@ -3088,16 +3092,12 @@ async def edit_design_endpoint(request: Request, design_id: str):
         # Store raw HTML back
         updated_tree["_raw_html"] = html
 
-        # Append to chat history
-        try:
-            res2 = supabase.table("designs").select("chat_history").eq("id", design_id).single().execute()
-            history = res2.data.get("chat_history") or []
-            history.append({"role": "user", "content": instruction})
-            history.append({"role": "assistant", "content": narration})
-            if len(history) > 100:
-                history = history[-100:]
-        except Exception:
-            history = []
+        # OPTIMIZED: Use the history we already fetched above
+        history = design.get("chat_history") or []
+        history.append({"role": "user", "content": instruction})
+        history.append({"role": "assistant", "content": narration})
+        if len(history) > 100:
+            history = history[-100:]
 
         supabase.table("designs").update({
             "figma_json": updated_tree,
@@ -3197,7 +3197,8 @@ async def export_html(request: Request, design_id: str):
 async def export_host(request: Request, design_id: str):
     user = get_current_user(request)
     try:
-        res = supabase.table("designs").select("*").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
+        # OPTIMIZED: Stop pulling chat history and tokens here
+        res = supabase.table("designs").select("figma_json, name, hosted_slug, hosted_html").eq("id", design_id).eq("owner_id", user["id"]).single().execute()
         design = res.data
     except Exception:
         raise HTTPException(404, "Design not found")
@@ -3221,8 +3222,6 @@ async def export_host(request: Request, design_id: str):
     }).eq("id", design_id).execute()
 
     return JSONResponse({"url": f"{site_url}/design/hosted/{slug}", "slug": slug})
-
-
 
 
 # ── EXPORT: Figma clipboard (paste directly into Figma) ───────────────────

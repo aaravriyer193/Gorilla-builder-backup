@@ -240,40 +240,6 @@
       color: #6070a0; max-height: 140px; overflow-y: auto;
     }
 
-    /* ─── AGENT THINKING CARD ─── */
-    .agent-thinking {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px;
-      border: 1px solid rgba(0,102,255,0.18);
-      border-radius: var(--radius);
-      background: rgba(0,102,255,0.05);
-      font-size: 12px; color: var(--text-mid);
-      animation: fadeUp 0.3s var(--ease);
-      position: sticky; bottom: 0;
-      backdrop-filter: blur(4px);
-    }
-    .thinking-orb {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 8px rgba(0,102,255,0.6);
-      animation: orbPulse 2s ease-in-out infinite;
-      flex-shrink: 0;
-    }
-    @keyframes orbPulse {
-      0%,100% { transform: scale(1); opacity: 1; box-shadow: 0 0 8px rgba(0,102,255,0.6); }
-      50% { transform: scale(1.5); opacity: 0.7; box-shadow: 0 0 20px rgba(0,102,255,0.9); }
-    }
-    .thinking-label { flex: 1; font-weight: 400; color: var(--text-mid); }
-    .thinking-dots { display: flex; gap: 3px; align-items: center; }
-    .thinking-dots span {
-      width: 3px; height: 3px; border-radius: 50%;
-      background: var(--accent-light);
-      animation: dotBounce 1.2s ease-in-out infinite;
-    }
-    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dotBounce { 0%,100%{transform:translateY(0);opacity:0.3;} 50%{transform:translateY(-4px);opacity:1;} }
-
     /* ─── INPUT ─── */
     .input-area {
       padding: 12px 14px;
@@ -408,39 +374,52 @@
     #editor { flex: 1; height: 100%; overflow: hidden; }
     #preview { width: 100%; height: 100%; border: 0; display: none; background: #fff; }
 
-    .preview-empty {
-      display: none; flex: 1; align-items: center; justify-content: center;
-      flex-direction: column; gap: 12px; color: var(--text-muted); text-align: center; padding: 40px;
-    }
-    .preview-empty i { font-size: 28px; color: var(--text-muted); }
-    .preview-empty p { font-size: 13px; color: var(--text-muted); max-width: 240px; line-height: 1.5; }
-
-    /* ─── PREVIEW WAITING ─── */
+    /* ─── PREVIEW WAITING STATE ─── */
     .preview-waiting {
       display: none; flex: 1; align-items: center; justify-content: center;
-      flex-direction: column; gap: 20px; background: #01010a;
+      flex-direction: column; gap: 20px; text-align: center; padding: 40px;
+      background: #01010a;
     }
     .preview-waiting.visible { display: flex; }
-    .preview-spinner {
-      width: 48px; height: 48px; position: relative;
+
+    .preview-url-card {
+      background: rgba(4,4,14,0.95);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 28px;
+      display: flex; flex-direction: column; gap: 8px;
+      align-items: center; max-width: 400px; width: 100%;
     }
-    .preview-spinner::before, .preview-spinner::after {
-      content: ''; position: absolute; inset: 0; border-radius: 50%;
-      border: 1.5px solid transparent;
+    .preview-url-label {
+      font-size: 10px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--text-muted);
     }
-    .preview-spinner::before {
-      border-top-color: var(--accent);
-      animation: spin 1s linear infinite;
+    .preview-url-text {
+      font-family: 'DM Mono', monospace; font-size: 13px;
+      color: var(--accent-light); letter-spacing: -0.2px;
     }
-    .preview-spinner::after {
-      border-bottom-color: rgba(0,102,255,0.3);
-      animation: spin 1.8s linear infinite reverse;
+    .preview-url-bar {
+      width: 100%; height: 1.5px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 2px; overflow: hidden; margin-top: 4px;
     }
-    .preview-waiting-text {
-      font-size: 12px; color: var(--text-muted); letter-spacing: 0.5px;
-      animation: breathe 2s ease-in-out infinite;
+    .preview-url-bar-fill {
+      height: 100%; width: 30%;
+      background: var(--accent);
+      border-radius: 2px;
+      animation: sweep 2s ease-in-out infinite;
     }
-    @keyframes breathe { 0%,100%{opacity:0.4;} 50%{opacity:1;} }
+    @keyframes sweep {
+      0%   { width: 0%;   margin-left: 0%; }
+      50%  { width: 40%;  margin-left: 30%; }
+      100% { width: 0%;   margin-left: 100%; }
+    }
+    .preview-waiting-msg {
+      font-size: 12px; color: var(--text-muted); line-height: 1.5;
+    }
+    .preview-waiting-msg strong {
+      color: var(--text-mid); font-weight: 400;
+    }
 
     /* ─── LOADER ─── */
     #editor-loading-overlay {
@@ -480,7 +459,6 @@
 
 <div class="shell">
 
-<!-- ──────────────── LEFT PANEL ──────────────── -->
 <aside class="left">
 
   <div class="topbar">
@@ -533,7 +511,6 @@
 
 </aside>
 
-<!-- ──────────────── MAIN AREA ──────────────── -->
 <section class="main">
 
   <div class="main-topbar">
@@ -544,6 +521,12 @@
 
     <div class="right-actions">
       <span class="badge" id="sandboxStatus">Sandbox Offline</span>
+      {% if user and user.tokens %}
+      <span class="badge" title="Tokens used">
+        <i class="ph ph-lightning" style="font-size:11px;"></i>
+        <span id="tokenDisplay">{{ "{:,}".format(user.tokens.used) }}</span>
+      </span>
+      {% endif %}
       <span class="badge" id="saveStatus">Saved</span>
 
       <a class="pill-btn" href="/dashboard" title="Dashboard"><i class="ph ph-squares-four"></i></a>
@@ -585,18 +568,21 @@
       <div id="imageViewer" style="display:none;flex:1;align-items:center;justify-content:center;overflow:auto;background:#01010a;padding:20px;"></div>
       <iframe
         id="preview"
+        src="/projects/{{ project_id }}/game"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads allow-pointer-lock allow-top-navigation-by-user-activation allow-presentation"
         allow="clipboard-write; clipboard-read; microphone; camera; display-capture"
         referrerpolicy="no-referrer">
       </iframe>
-      <!-- Shown while sandbox is booting / port not yet ready -->
+
       <div class="preview-waiting" id="previewWaiting">
-        <div class="preview-spinner"></div>
-        <p class="preview-waiting-text" id="previewWaitingText">Starting sandbox…</p>
-      </div>
-      <div class="preview-empty" id="previewEmpty">
-        <i class="ph ph-timer"></i>
-        <p>Preview will appear once the sandbox is live.</p>
+        <div class="preview-url-card">
+          <span class="preview-url-label">Your project</span>
+          <span class="preview-url-text" id="previewUrlDisplay">/projects/{{ project_id }}/game</span>
+          <div class="preview-url-bar"><div class="preview-url-bar-fill"></div></div>
+        </div>
+        <p class="preview-waiting-msg" id="previewWaitingMsg">
+          <strong>Gorilla is building…</strong><br>Preview will unlock when it's done.
+        </p>
       </div>
     </div>
   </div>
@@ -630,17 +616,13 @@ const INITIAL_PROMPT = "{{ initial_prompt or '' }}";
 const HAS_SUPABASE = {{ 'true' if has_supabase else 'false' }};
 const PROJECT_HAS_DB = {{ 'true' if project_has_db else 'false' }};
 
-// E2B "port not ready" signal strings — served as HTML but mean the port is closed
-const E2B_PORT_CLOSED_SIGNALS = [
-  "closed port", "port closed", "no service running",
-  "err_empty_response", "tunnel not found", "service unavailable",
-  "connection refused", "bad gateway"
-];
-
 window.isAgentWorking = false;
 let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
 let es = null, saveTimer = null, sandboxUrl = null, currentAttachedImage = null;
-let currentGroup = null, portCheckInterval = null;
+let currentGroup = null;
+// Track whether the gorilla has finished at least once (preview unlock gate)
+// SET TO TRUE BY DEFAULT to immediately show /game
+let previewUnlocked = true; 
 const activityRefs = new Map();
 
 const $ = id => document.getElementById(id);
@@ -741,26 +723,6 @@ function endActivity(id, ok) {
   ref.cardEl.classList.add(ok ? 'done' : 'failed');
 }
 
-// ─── AGENT THINKING CARD ───
-function showThinkingCard() {
-  removeThinkingCard();
-  const card = document.createElement('div');
-  card.id = 'agent-thinking-card';
-  card.className = 'agent-thinking';
-  card.innerHTML = `
-    <div class="thinking-orb"></div>
-    <span class="thinking-label">Gorilla is working</span>
-    <div class="thinking-dots"><span></span><span></span><span></span></div>
-  `;
-  chat.appendChild(card);
-  chat.scrollTop = chat.scrollHeight;
-}
-
-function removeThinkingCard() {
-  const existing = $('agent-thinking-card');
-  if (existing) existing.remove();
-}
-
 function loadChatHistory() {
   try {
     const hist = {{ chat_history | safe }};
@@ -778,6 +740,20 @@ function loadChatHistory() {
   } catch(e) {}
 }
 
+// ─── PREVIEW GATE ───
+// Update the waiting message based on current state
+function updatePreviewWaitingMsg() {
+  const msg = $("previewWaitingMsg");
+  if (!msg) return;
+  if (window.isAgentWorking) {
+    msg.innerHTML = '<strong>Gorilla is building…</strong><br>Preview will unlock when it\'s done.';
+  } else if (!sandboxUrl) {
+    msg.innerHTML = '<strong>Sandbox is starting…</strong><br>Preview will appear once it\'s live.';
+  } else {
+    msg.innerHTML = '<strong>Almost there…</strong><br>Loading your project.';
+  }
+}
+
 function setInputState(locked) {
   window.isAgentWorking = locked;
   const p = $("prompt"), b = $("runAgent");
@@ -785,16 +761,19 @@ function setInputState(locked) {
   if (b) b.disabled = locked;
   const ed = $("editor");
   if (ed) { ed.style.opacity = locked ? "0.4" : "1"; ed.style.pointerEvents = locked ? "none" : "auto"; }
-
   if (locked) {
     if (p) p.placeholder = "Gorilla is thinking...";
     if (b) b.innerHTML = '<i class="ph ph-spinner" style="animation:spin 0.9s linear infinite;"></i>';
-    showThinkingCard();
   } else {
     if (p) p.placeholder = "What shall we build?";
     if (b) b.innerHTML = '<i class="ph-fill ph-paper-plane-tilt"></i>';
-    removeThinkingCard();
+    // Agent just finished — unlock preview if sandbox is ready
+    previewUnlocked = true;
+    if ($("tabPreview").classList.contains("active")) {
+      switchTab("preview");
+    }
   }
+  if ($("tabPreview").classList.contains("active")) updatePreviewWaitingMsg();
 }
 
 $("prompt").addEventListener('input', function() {
@@ -959,68 +938,6 @@ if (upInput) upInput.onchange = (e) => {
     await refreshFiles(); upInput.value = "";
   };
   reader.readAsText(file);
-};
-
-// ─── PREVIEW WAITING STATE ───
-function showPreviewWaiting(text) {
-  $("previewWaiting").classList.add("visible");
-  $("previewWaitingText").textContent = text || "Starting sandbox…";
-  $("preview").style.display = "none";
-  $("previewEmpty").style.display = "none";
-}
-
-function hidePreviewWaiting() {
-  $("previewWaiting").classList.remove("visible");
-}
-
-// ─── PORT CHECK: probes URL and inspects body for E2B "port closed" HTML ───
-async function isPortReady(url) {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-    // E2B serves 200 OK even when port is closed — must check body text
-    const text = await res.text();
-    const lower = text.toLowerCase();
-    for (const sig of E2B_PORT_CLOSED_SIGNALS) {
-      if (lower.includes(sig)) return false;
-    }
-    return true;
-  } catch {
-    // Network / timeout = still booting
-    return false;
-  }
-}
-
-function clearPortCheck() {
-  if (portCheckInterval) { clearInterval(portCheckInterval); portCheckInterval = null; }
-}
-
-function startPortCheck(url) {
-  clearPortCheck();
-  let attempts = 0;
-  const MAX_ATTEMPTS = 40; // ~80s max
-
-  showPreviewWaiting("Server is starting up…");
-
-  portCheckInterval = setInterval(async () => {
-    attempts++;
-    const ready = await isPortReady(url);
-    if (ready) {
-      clearPortCheck();
-      hidePreviewWaiting();
-      const iframe = $("preview");
-      iframe.src = url;
-      iframe.style.display = "block";
-    } else if (attempts >= MAX_ATTEMPTS) {
-      clearPortCheck();
-      hidePreviewWaiting();
-      $("previewEmpty").style.display = "flex";
-      $("previewEmpty").innerHTML = `<i class="ph ph-warning-circle"></i><p>Server didn't respond in time. Try refreshing the preview.</p>`;
-    } else {
-      // Update waiting text with attempt info
-      const secs = attempts * 2;
-      $("previewWaitingText").textContent = `Server starting… (${secs}s)`;
-    }
-  }, 2000);
 }
 
 function switchTab(tab) {
@@ -1029,26 +946,21 @@ function switchTab(tab) {
     $("editor").style.display = "none"; $("imageViewer").style.display = "none";
     document.querySelector(".files").style.display = "none";
 
-    const statusText = $("sandboxStatus").textContent.toLowerCase();
-    const isLive = statusText.includes("live");
-
-    if (sandboxUrl && isLive) {
-      // If we have a URL but not sure if port is ready, always probe first
-      if (!portCheckInterval) {
-        startPortCheck(sandboxUrl);
-      }
+    // Strictly embed the required path rather than the complex Sandbox wait cycle
+    if (previewUnlocked) {
+      $("preview").src = `/projects/${PROJECT_ID}/game`;
+      $("preview").style.display = "block";
+      $("previewWaiting").classList.remove("visible");
     } else {
       $("preview").style.display = "none";
-      hidePreviewWaiting();
-      $("previewEmpty").style.display = "flex";
-      bootSandboxIfNeeded();
+      $("previewWaiting").classList.add("visible");
+      updatePreviewWaitingMsg();
     }
   } else {
     $("tabCode").classList.add("active"); $("tabPreview").classList.remove("active");
     document.querySelector(".files").style.display = "flex";
     $("preview").style.display = "none";
-    $("previewEmpty").style.display = "none";
-    hidePreviewWaiting();
+    $("previewWaiting").classList.remove("visible");
     if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png'))) {
       $("editor").style.display = "none"; $("imageViewer").style.display = "flex";
     } else { $("editor").style.display = "block"; $("imageViewer").style.display = "none"; }
@@ -1058,22 +970,16 @@ $("tabCode").onclick = () => switchTab("code");
 $("tabPreview").onclick = () => switchTab("preview");
 
 async function bootSandboxIfNeeded() {
-  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
-    startPortCheck(sandboxUrl);
-    return;
-  }
+  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { return; }
   updateSandboxStatus("Booting");
-  showPreviewWaiting("Booting sandbox…");
   try {
     const res = await fetch(`/api/project/${PROJECT_ID}/sandbox/start`, { method: 'POST' });
     const data = await res.json();
     if (data.url) {
       sandboxUrl = data.url; updateSandboxStatus("Live");
-      if ($("tabPreview").classList.contains("active")) {
-        startPortCheck(sandboxUrl);
-      }
-    } else { updateSandboxStatus("Error"); hidePreviewWaiting(); $("previewEmpty").style.display = "flex"; }
-  } catch (e) { updateSandboxStatus("Error"); hidePreviewWaiting(); $("previewEmpty").style.display = "flex"; }
+      if ($("tabPreview").classList.contains("active")) switchTab("preview");
+    } else updateSandboxStatus("Error");
+  } catch (e) { updateSandboxStatus("Error"); }
 }
 
 function startStream() {
@@ -1084,27 +990,30 @@ function startStream() {
     const m = JSON.parse(e.data);
     if (m.type === "status") {
       setProgress(m.text);
-      if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
-      if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) {
-        updateSandboxStatus("Live");
-        if (sandboxUrl && $("tabPreview").classList.contains("active")) {
-          startPortCheck(sandboxUrl);
+      if (/Done|Ready|Error/i.test(m.text)) {
+        resetGroup();
+        setInputState(false);
+        if (/Done/i.test(m.text)) {
+          previewUnlocked = true;
+          if ($("tabPreview").classList.contains("active")) switchTab("preview");
         }
       }
-      if (/Sandbox Offline/i.test(m.text)) {
-        sandboxUrl = null;
-        updateSandboxStatus("Offline");
-        clearPortCheck();
-        hidePreviewWaiting();
+      if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) {
+        updateSandboxStatus("Live");
+        if (sandboxUrl && previewUnlocked && $("tabPreview").classList.contains("active")) {
+          switchTab("preview");
+        }
       }
+      if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
     }
     else if (m.type === "progress") setProgress(m.text, m.pct);
     else if (m.type === "sandbox_url") {
-      sandboxUrl = m.url;
-      updateSandboxStatus("Live");
-      // Always start port check — never flash the raw iframe immediately
-      if ($("tabPreview").classList.contains("active")) {
-        startPortCheck(sandboxUrl);
+      sandboxUrl = m.url; updateSandboxStatus("Live");
+      // Trigger the embed view directly
+      if (previewUnlocked && $("tabPreview").classList.contains("active")) {
+        switchTab("preview");
+      } else if ($("tabPreview").classList.contains("active")) {
+        updatePreviewWaitingMsg();
       }
     }
     else if (m.type === "narration") await addNarration(m.text, true);
@@ -1122,6 +1031,9 @@ function startStream() {
 async function triggerAgent(promptText) {
   if (!promptText && !currentAttachedImage) return;
   resetGroup();
+  previewUnlocked = false;
+  if ($("tabPreview").classList.contains("active")) switchTab("preview");
+
   const dbKeywords = /\b(db|database|supabase|postgres|sql)\b/i;
   const isDbReq = dbKeywords.test(promptText);
   const formData = new FormData();

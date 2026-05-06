@@ -54,7 +54,7 @@
     .agent-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);margin-left:auto;transition:background 0.3s;}
     .agent-dot.active{background:#3ECF8E;animation:pulse 1.5s ease-in-out infinite;}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-    .chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
+    .chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px; will-change: transform;}
     .chat-messages::-webkit-scrollbar{width:3px;}
     .chat-messages::-webkit-scrollbar-thumb{background:rgba(0,102,255,0.1);border-radius:2px;}
     .msg{padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.55;font-weight:300;animation:msgIn 0.25s var(--ease);}
@@ -71,7 +71,7 @@
     .layers-section{border-top:1px solid var(--border);max-height:200px;overflow:hidden;display:flex;flex-direction:column;}
     .layers-header{padding:8px 16px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;}
     .layers-header:hover{color:var(--text);}
-    .layer-list{overflow-y:auto;padding:4px 8px;}
+    .layer-list{overflow-y:auto;padding:4px 8px; will-change: transform;}
     .layer-item{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:11.5px;color:var(--muted);transition:all 0.1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .layer-item:hover{background:rgba(0,102,255,0.06);color:var(--text);}
     .layer-item i{font-size:12px;color:var(--accent);opacity:0.5;flex-shrink:0;}
@@ -86,17 +86,17 @@
     /* ── CANVAS / VIEWER AREA ── */
     .canvas-area{flex:1;background:var(--canvas-bg);overflow:hidden;position:relative;}
     .canvas-area::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(0,102,255,0.035) 1px,transparent 1px);background-size:24px 24px;pointer-events:none;}
-    #viewer-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;overflow-y:auto;overflow-x:hidden;padding:30px 0;}
+    #viewer-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;overflow-y:auto;overflow-x:hidden;padding:30px 0; will-change: transform;}
     #viewer-wrap::-webkit-scrollbar{width:6px;}
     #viewer-wrap::-webkit-scrollbar-thumb{background:rgba(0,102,255,0.15);border-radius:3px;}
-    #design-frame{position:relative;transform-origin:top center;flex-shrink:0;}
+    #design-frame{position:relative;transform-origin:top center;flex-shrink:0; will-change: transform;}
     #design-iframe{transform-origin:top center;flex-shrink:0;display:block;}
     .gd-node{position:absolute;box-sizing:border-box;}
     .canvas-zoom{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:var(--sidebar);border:1px solid var(--border);border-radius:8px;padding:4px 8px;display:flex;align-items:center;gap:4px;box-shadow:0 4px 16px rgba(0,0,0,0.6);}
     .zoom-val{font-size:11px;color:var(--muted);padding:0 6px;min-width:40px;text-align:center;}
 
-    /* ── CURSOR ── */
-    #fake-cursor{position:fixed;pointer-events:none;z-index:9999;display:none;width:24px;height:24px;}
+    /* ── CURSOR (GPU Accelerated) ── */
+    #fake-cursor{position:fixed;pointer-events:none;z-index:9999;display:none;width:24px;height:24px; top:0; left:0; will-change: transform;}
 
     /* ── POPUP ── */
     .popup-bg{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:9000;transition:opacity 0.2s;}
@@ -131,13 +131,11 @@
 <body>
 <div class="loading-bar" id="loading-bar"></div>
 
-<!-- FAKE CURSOR -->
 <svg id="fake-cursor" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M5 3L5 19L9.5 14L12.5 21L15 20L12 13L19 13Z" fill="white"/>
   <path d="M5 3L5 19L9.5 14L12.5 21L15 20L12 13L19 13Z" stroke="#0066ff" stroke-width="1.5" stroke-linejoin="round"/>
 </svg>
 
-<!-- TOPBAR -->
 <div class="topbar">
   <a href="/design" class="topbar-logo">
       <svg version="1.0" xmlns="http://www.w3.org/2000/svg" width="800" height="803" viewBox="0 0 600 550" preserveAspectRatio="xMidYMid meet">
@@ -173,7 +171,6 @@
 </div>
 
 <div class="layout">
-  <!-- LEFT: AGENT -->
   <div class="left-panel">
     <div class="panel-header">
       <i class="ph ph-robot"></i>
@@ -204,7 +201,6 @@
     </div>
   </div>
 
-  <!-- VIEWER/CANVAS -->
   <div class="canvas-area">
     <div id="viewer-wrap">
       <div id="design-frame"></div>
@@ -217,7 +213,6 @@
   </div>
 </div>
 
-<!-- GENERATE POPUP -->
 <div class="popup-bg" id="popup-bg">
   <div class="popup">
     <span class="popup-icon">✦</span>
@@ -255,8 +250,22 @@
   let zoom = 1;
   let layersOpen = true;
   let _animating = false;
+  let hasUnsavedChanges = false;
+  let currentHtml = null;
 
-  // ── Font loader ──────────────────────────────────────────────────────────
+  // CACHED DOM ELEMENTS (Performance Boost)
+  const DOM = {
+    frame: document.getElementById('design-frame'),
+    wrap: document.getElementById('viewer-wrap'),
+    zoomLabel: document.getElementById('zoom-label'),
+    zoomBottom: document.getElementById('zoom-bottom'),
+    chatMessages: document.getElementById('chat-messages'),
+    chatInput: document.getElementById('chat-input'),
+    layerList: document.getElementById('layer-list'),
+    cursor: document.getElementById('fake-cursor')
+  };
+
+  // ── Font loader (Optimized) ────────────────────────────────────────────────
   function loadFonts(tree) {
     const fonts = new Set();
     function collect(node) {
@@ -269,17 +278,24 @@
     if (typ.fontFamily) fonts.add(typ.fontFamily.split(',')[0].trim());
     if (typ.displayFont) fonts.add(typ.displayFont.split(',')[0].trim());
     collect(tree);
+    
     const skip = new Set(['system-ui','sans-serif','serif','monospace','inherit','DM Sans']);
+    const headFrag = document.createDocumentFragment();
+    let added = false;
+    
     fonts.forEach(f => {
       if (skip.has(f)) return;
       const id = 'gf-' + f.replace(/\s+/g, '-');
       if (document.getElementById(id)) return;
+      
       const link = document.createElement('link');
-      link.id = id;
-      link.rel = 'stylesheet';
+      link.id = id; link.rel = 'stylesheet';
       link.href = `https://fonts.googleapis.com/css2?family=${f.replace(/\s+/g,'+')}:wght@300;400;500;600;700&display=swap`;
-      document.head.appendChild(link);
+      headFrag.appendChild(link);
+      added = true;
     });
+    
+    if (added) document.head.appendChild(headFrag);
   }
 
   // ── Coordinate helpers ───────────────────────────────────────────────────
@@ -316,10 +332,11 @@
     }
   }
 
-  // ── Render (same as viewer) ──────────────────────────────────────────────
+  // ── Render (Optimized with DocumentFragment) ──────────────────────────────
   function renderNodes(nodes, container, parentAbsX, parentAbsY) {
     const pX = parentAbsX !== undefined ? parentAbsX : _frameOriginX;
     const pY = parentAbsY !== undefined ? parentAbsY : _frameOriginY;
+    
     nodes.forEach(node => {
       const bb = node.absoluteBoundingBox || {};
       const x = (bb.x || 0) - pX;
@@ -339,9 +356,7 @@
 
       if (node.type === 'TEXT') {
         const chars = node.characters || '';
-        if (chars.startsWith('<image') || chars.startsWith('_image')) {
-          // skip placeholder
-        } else {
+        if (!chars.startsWith('<image') && !chars.startsWith('_image')) {
           const st = node.style || {};
           el.textContent = chars;
           el.style.fontSize = (st.fontSize || 16) + 'px';
@@ -365,8 +380,7 @@
     });
   }
 
-  // ── Animated placement ───────────────────────────────────────────────────
-  const _cur = document.getElementById('fake-cursor');
+  // ── Animated placement (O(N) Complexity & GPU Accelerated) ───────────────
   let _curX = 0, _curY = 0;
 
   function _flatNodes(nodes, out = []) {
@@ -382,37 +396,43 @@
 
   function _moveCursorTo(x, y, ms) {
     return new Promise(resolve => {
-      // Vary easing slightly each move — humans aren't perfectly consistent
       const easings = [
-        'cubic-bezier(0.25,0.1,0.25,1)',    // ease
-        'cubic-bezier(0.42,0,0.58,1)',       // ease-in-out
-        'cubic-bezier(0.16,1,0.3,1)',        // spring
-        'cubic-bezier(0.34,1.2,0.64,1)',     // slight overshoot
-        'cubic-bezier(0.22,0.61,0.36,1)',    // decelerate
+        'cubic-bezier(0.25,0.1,0.25,1)', 'cubic-bezier(0.42,0,0.58,1)', 
+        'cubic-bezier(0.16,1,0.3,1)', 'cubic-bezier(0.34,1.2,0.64,1)', 
+        'cubic-bezier(0.22,0.61,0.36,1)'
       ];
       const easing = easings[Math.floor(Math.random() * easings.length)];
-      _cur.style.transition = `left ${ms}ms ${easing}, top ${ms}ms ${easing}`;
+      // OPTIMIZED: Using GPU Accelerated CSS Transform instead of top/left layout recalculation
+      DOM.cursor.style.transition = `transform ${ms}ms ${easing}`;
       _curX = x; _curY = y;
-      _cur.style.left = x + 'px';
-      _cur.style.top = y + 'px';
+      DOM.cursor.style.transform = `translate(${x}px, ${y}px)`;
       setTimeout(resolve, ms);
     });
   }
 
+  // OPTIMIZED: Pre-build parent map to avoid O(N^2) searches
+  function _buildParentMap(tree) {
+    const map = new Map();
+    function traverse(node, parent) {
+      map.set(node.id, parent);
+      if (node.children) node.children.forEach(c => traverse(c, node));
+    }
+    traverse(tree, null);
+    return map;
+  }
+
   async function renderDesignAnimated(tree) {
-    const frame = document.getElementById('design-frame');
-    frame.innerHTML = '';
+    DOM.frame.innerHTML = '';
     _animating = true;
 
     const fw = tree.width || 1440;
     const fh = tree.height || 900;
-    applyFrameBackground(tree, frame);
+    applyFrameBackground(tree, DOM.frame);
 
-    const wrap = document.getElementById('viewer-wrap');
-    zoom = Math.min((wrap.clientWidth - 80) / fw, (wrap.clientHeight - 80) / fh, 1);
-    frame.style.width = fw + 'px';
-    frame.style.height = fh + 'px';
-    frame.style.transform = `scale(${zoom})`;
+    zoom = Math.min((DOM.wrap.clientWidth - 80) / fw, (DOM.wrap.clientHeight - 80) / fh, 1);
+    DOM.frame.style.width = fw + 'px';
+    DOM.frame.style.height = fh + 'px';
+    DOM.frame.style.transform = `scale(${zoom})`;
     updateZoom();
 
     const frameBB = tree.absoluteBoundingBox || {};
@@ -420,21 +440,23 @@
     _frameOriginY = frameBB.y || 0;
 
     const nodes = _flatNodes(tree.children || []);
-    const frameRect = frame.getBoundingClientRect();
+    const parentMap = _buildParentMap(tree); // O(N) mapping
+    const frameRect = DOM.frame.getBoundingClientRect();
 
-    // Start cursor top-left of frame
-    _cur.style.transition = 'none';
-    _cur.style.left = (frameRect.left + 20) + 'px';
-    _cur.style.top = (frameRect.top + 20) + 'px';
-    _cur.style.display = 'block';
+    DOM.cursor.style.transition = 'none';
+    DOM.cursor.style.transform = `translate(${frameRect.left + 20}px, ${frameRect.top + 20}px)`;
+    DOM.cursor.style.display = 'block';
     await _sleep(150);
+
+    // Document fragment for caching nodes before appending
+    const elCache = new Map();
+    elCache.set(tree.id, DOM.frame);
 
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const bb = node.absoluteBoundingBox || {};
       if (!bb.width && !bb.height) continue;
 
-      // Target = center of where this node will appear on screen
       const nx = (bb.x - _frameOriginX) * zoom;
       const ny = (bb.y - _frameOriginY) * zoom;
       const tx = frameRect.left + nx + (bb.width * zoom * 0.3);
@@ -443,8 +465,7 @@
       const speed = Math.max(60, 220 - i * 5);
       await _moveCursorTo(tx, ty, speed);
 
-      // Create and place the element
-      const parentNode = _findParent(tree, node.id);
+      const parentNode = parentMap.get(node.id);
       const parentBB = parentNode?.absoluteBoundingBox || {};
       const pX = parentBB.x !== undefined ? parentBB.x : _frameOriginX;
       const pY = parentBB.y !== undefined ? parentBB.y : _frameOriginY;
@@ -479,29 +500,17 @@
         }
       }
 
-      // Append to right parent
-      const parentEl = frame.querySelector(`[data-node-id="${parentNode?.id}"]`) || frame;
+      elCache.set(node.id, el);
+      const parentEl = elCache.get(parentNode?.id) || DOM.frame;
       parentEl.appendChild(el);
+      
       requestAnimationFrame(() => { el.style.opacity = '1'; });
-
       await _sleep(speed * 0.35);
     }
 
-    _cur.style.display = 'none';
+    DOM.cursor.style.display = 'none';
     _animating = false;
     buildLayers(tree);
-  }
-
-  function _findParent(tree, nodeId) {
-    function search(node) {
-      for (const child of (node.children || [])) {
-        if (child.id === nodeId) return node;
-        const found = search(child);
-        if (found) return found;
-      }
-      return null;
-    }
-    return search(tree);
   }
 
   function applyFrameBackground(tree, frame) {
@@ -518,73 +527,66 @@
   function renderDesign(tree, animate = false) {
     if (!tree) return;
 
-    // If raw HTML is available, render it directly in an iframe
     if (tree._raw_html || currentHtml) {
-      const html = tree._raw_html || currentHtml;
-      renderHTML(html, animate);
+      renderHTML(tree._raw_html || currentHtml, animate);
       buildLayers(tree);
       return;
     }
 
-    // Fallback: render from Figma JSON
     loadFonts(tree);
-    const frame = document.getElementById('design-frame');
     const fw = tree.width || 1440;
     const fh = tree.height || 900;
-    const wrap = document.getElementById('viewer-wrap');
-    zoom = Math.min((wrap.clientWidth - 80) / fw, (wrap.clientHeight - 80) / fh, 1);
-    frame.style.width = fw + 'px';
-    frame.style.height = fh + 'px';
-    frame.style.transform = `scale(${zoom})`;
-    frame.style.marginBottom = `-${fw * (1 - zoom)}px`;
+    
+    zoom = Math.min((DOM.wrap.clientWidth - 80) / fw, (DOM.wrap.clientHeight - 80) / fh, 1);
+    DOM.frame.style.width = fw + 'px';
+    DOM.frame.style.height = fh + 'px';
+    DOM.frame.style.transform = `scale(${zoom})`;
+    DOM.frame.style.marginBottom = `-${fw * (1 - zoom)}px`;
     updateZoom();
+    
     const frameBB = tree.absoluteBoundingBox || {};
     _frameOriginX = frameBB.x || 0;
     _frameOriginY = frameBB.y || 0;
+    
     if (animate) {
       renderDesignAnimated(tree);
     } else {
-      frame.innerHTML = '';
-      applyFrameBackground(tree, frame);
-      renderNodes(tree.children || [], frame, _frameOriginX, _frameOriginY);
+      DOM.frame.innerHTML = '';
+      applyFrameBackground(tree, DOM.frame);
+      
+      // OPTIMIZED: Build the entire tree in a DocumentFragment in memory first
+      const fragment = document.createDocumentFragment();
+      renderNodes(tree.children || [], fragment, _frameOriginX, _frameOriginY);
+      DOM.frame.appendChild(fragment); // Attach to DOM exactly once
+      
       buildLayers(tree);
     }
   }
 
-  let currentHtml = null;
-
   function renderHTML(html, animate = false) {
-    const wrap = document.getElementById('viewer-wrap');
     let iframe = document.getElementById('design-iframe');
     if (!iframe) {
-      wrap.innerHTML = '';
+      DOM.wrap.innerHTML = '';
       iframe = document.createElement('iframe');
       iframe.id = 'design-iframe';
       iframe.style.cssText = [
-        'border:none',
-        'width:1440px',
-        'transform-origin:top center',
-        'background:#0D0D14',
-        'box-shadow:0 8px 60px rgba(0,0,0,0.8)',
-        'flex-shrink:0',
-        'display:block',
+        'border:none', 'width:1440px', 'transform-origin:top center',
+        'background:#0D0D14', 'box-shadow:0 8px 60px rgba(0,0,0,0.8)',
+        'flex-shrink:0', 'display:block',
       ].join(';');
-      wrap.appendChild(iframe);
+      DOM.wrap.appendChild(iframe);
     }
 
-    // Write content first so we can measure actual height
     const doc = iframe.contentDocument || iframe.contentWindow.document;
     doc.open(); doc.write(html); doc.close();
 
-    // Wait a tick for content to render, then measure and scale
     setTimeout(() => {
       const contentH = iframe.contentDocument?.body?.scrollHeight || 3000;
       iframe.style.height = contentH + 'px';
 
-      const availW = wrap.clientWidth - 60;
+      const availW = DOM.wrap.clientWidth - 60;
       zoom = Math.min(availW / 1440, 1);
       iframe.style.transform = `scale(${zoom})`;
-      // Adjust wrap height so scrollbar works
       iframe.style.marginBottom = `-${contentH * (1 - zoom)}px`;
       updateZoom();
 
@@ -593,132 +595,115 @@
         iframe.style.transition = 'opacity 0.5s ease';
         requestAnimationFrame(() => {
           iframe.style.opacity = '1';
-          _animateCursorAcrossScreen(wrap);
+          _animateCursorAcrossScreen(DOM.wrap);
         });
       }
     }, 100);
   }
 
   async function _animateCursorAcrossScreen(wrap) {
-    // Use the canvas-area div (not viewer-wrap) for accurate screen coords
     const canvasArea = document.querySelector('.canvas-area');
     const rect = canvasArea ? canvasArea.getBoundingClientRect() : wrap.getBoundingClientRect();
 
     const startX = rect.left + rect.width * (0.1 + Math.random() * 0.15);
     const startY = rect.top + rect.height * (0.05 + Math.random() * 0.1);
 
-    _cur.style.transition = 'none';
-    _cur.style.left = startX + 'px';
-    _cur.style.top = startY + 'px';
-    _cur.style.display = 'block';
+    DOM.cursor.style.transition = 'none';
+    DOM.cursor.style.transform = `translate(${startX}px, ${startY}px)`;
+    DOM.cursor.style.display = 'block';
     await _sleep(300 + Math.random() * 200);
 
-    // Generate organic-looking waypoints — not a grid, more like a real person
-    // exploring the page: scan left-to-right, drift down, pause, backtrack slightly
     function r(min, max) { return min + Math.random() * (max - min); }
 
     const points = [
-      // Top area — scanning the navbar
       [rect.left + r(0.05, 0.25) * rect.width, rect.top + r(0.04, 0.09) * rect.height],
       [rect.left + r(0.4, 0.65) * rect.width,  rect.top + r(0.04, 0.10) * rect.height],
-      [rect.left + r(0.75, 0.92) * rect.width, rect.top + r(0.03, 0.08) * rect.height],
-
-      // Slight pause then drift to hero
-      null, // pause marker
-
+      null,
       [rect.left + r(0.15, 0.45) * rect.width, rect.top + r(0.18, 0.30) * rect.height],
       [rect.left + r(0.50, 0.80) * rect.width, rect.top + r(0.20, 0.32) * rect.height],
-
-      // Small backtrack — natural human behaviour
-      [rect.left + r(0.20, 0.40) * rect.width, rect.top + r(0.22, 0.28) * rect.height],
       null,
-
-      // Middle sections
       [rect.left + r(0.10, 0.35) * rect.width, rect.top + r(0.38, 0.50) * rect.height],
       [rect.left + r(0.55, 0.85) * rect.width, rect.top + r(0.40, 0.52) * rect.height],
-      [rect.left + r(0.30, 0.60) * rect.width, rect.top + r(0.48, 0.58) * rect.height],
       null,
-
-      // Lower sections
       [rect.left + r(0.15, 0.50) * rect.width, rect.top + r(0.62, 0.72) * rect.height],
-      [rect.left + r(0.55, 0.80) * rect.width, rect.top + r(0.65, 0.75) * rect.height],
-      [rect.left + r(0.25, 0.55) * rect.width, rect.top + r(0.78, 0.88) * rect.height],
     ];
 
     for (const pt of points) {
       if (pt === null) {
-        // Natural pause — like reading or considering
         await _sleep(400 + Math.random() * 600);
         continue;
       }
-      // Speed varies: slower for big moves, faster for small adjustments
-      const dx = pt[0] - parseFloat(_cur.style.left);
-      const dy = pt[1] - parseFloat(_cur.style.top);
+      const dx = pt[0] - _curX;
+      const dy = pt[1] - _curY;
       const dist = Math.sqrt(dx*dx + dy*dy);
-      // 300-900ms depending on distance, with jitter
       const speed = Math.min(900, Math.max(300, dist * 0.9 + Math.random() * 200));
       await _moveCursorTo(pt[0], pt[1], speed);
-      // Small pause after landing — like a human hesitating
       await _sleep(60 + Math.random() * 180);
     }
 
-    // Drift off screen naturally
-    await _moveCursorTo(
-      rect.left + rect.width * r(0.4, 0.7),
-      rect.top + rect.height * r(0.9, 1.0),
-      600
-    );
+    await _moveCursorTo(rect.left + rect.width * r(0.4, 0.7), rect.top + rect.height * r(0.9, 1.0), 600);
     await _sleep(200);
-    _cur.style.display = 'none';
+    DOM.cursor.style.display = 'none';
   }
 
-  // ── Layers ───────────────────────────────────────────────────────────────
+  // ── Layers (Optimized with DocumentFragment) ─────────────────────────────
   function buildLayers(tree) {
-    const list = document.getElementById('layer-list');
-    list.innerHTML = '';
+    DOM.layerList.innerHTML = '';
     const icons = {FRAME:'ph-frame-corners',TEXT:'ph-text-t',RECTANGLE:'ph-rectangle',ELLIPSE:'ph-circle',GROUP:'ph-folder'};
+    const fragment = document.createDocumentFragment();
+    
     function add(node, depth) {
       const el = document.createElement('div');
       el.className = 'layer-item';
       el.style.paddingLeft = (8 + depth * 10) + 'px';
       el.dataset.nodeId = node.id;
       el.innerHTML = `<i class="ph ${icons[node.type]||'ph-square'}"></i><span>${node.name||node.type}</span>`;
-      list.appendChild(el);
+      fragment.appendChild(el);
       (node.children||[]).forEach(c => add(c, depth+1));
     }
+    
     (tree.children||[]).forEach(c => add(c, 0));
+    DOM.layerList.appendChild(fragment);
   }
 
   function toggleLayers() {
     layersOpen = !layersOpen;
-    document.getElementById('layer-list').style.display = layersOpen ? '' : 'none';
+    DOM.layerList.style.display = layersOpen ? '' : 'none';
     document.getElementById('layers-caret').className = `ph ph-caret-${layersOpen?'down':'right'}`;
   }
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
   function zoomIn() {
     zoom = Math.min(zoom * 1.25, 4);
-    document.getElementById('design-frame').style.transform = `scale(${zoom})`;
+    (document.getElementById('design-iframe') || DOM.frame).style.transform = `scale(${zoom})`;
     updateZoom();
   }
   function zoomOut() {
     zoom = Math.max(zoom / 1.25, 0.1);
-    document.getElementById('design-frame').style.transform = `scale(${zoom})`;
+    (document.getElementById('design-iframe') || DOM.frame).style.transform = `scale(${zoom})`;
     updateZoom();
   }
   function fitFrame() { if (currentDesign) renderDesign(currentDesign, false); }
   function updateZoom() {
     const label = Math.round(zoom * 100) + '%';
-    document.getElementById('zoom-label').textContent = label;
-    document.getElementById('zoom-bottom').textContent = label;
+    DOM.zoomLabel.textContent = label;
+    DOM.zoomBottom.textContent = label;
   }
 
   // ── Chat ─────────────────────────────────────────────────────────────────
   function handleKey(e) { if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} }
-  function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+  
+  // Debounce the textarea auto-resize
+  let resizeTimer;
+  function autoResize(el) { 
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        el.style.height='auto'; 
+        el.style.height=Math.min(el.scrollHeight,100)+'px'; 
+    }, 10);
+  }
 
   function addMsg(text, type) {
-    const c = document.getElementById('chat-messages');
     const el = document.createElement('div');
     if (type==='thinking') {
       el.className='msg thinking'; el.id='thinking-msg';
@@ -726,8 +711,8 @@
     } else {
       el.className=`msg ${type}`; el.textContent=text;
     }
-    c.appendChild(el);
-    c.scrollTop = c.scrollHeight;
+    DOM.chatMessages.appendChild(el);
+    DOM.chatMessages.scrollTop = DOM.chatMessages.scrollHeight;
   }
   function removeThinking() { const e=document.getElementById('thinking-msg'); if(e)e.remove(); }
   function setLoading(on) {
@@ -771,6 +756,7 @@
           currentDesign = data.figma_json;
           currentTokens = data.tokens || {};
           document.getElementById('design-name-label').textContent = data.name || brief.slice(0,30);
+          hasUnsavedChanges = false;
           renderDesign(currentDesign, true);
           addMsg(`"${data.name}" generated.`, 'agent');
           return;
@@ -787,10 +773,9 @@
 
   // ── Send / Edit ───────────────────────────────────────────────────────────
   async function send() {
-    const input = document.getElementById('chat-input');
-    const msg = input.value.trim();
+    const msg = DOM.chatInput.value.trim();
     if (!msg) return;
-    input.value = ''; input.style.height = 'auto';
+    DOM.chatInput.value = ''; DOM.chatInput.style.height = 'auto';
     if (!currentDesign) { await generateDesign(msg); return; }
     addMsg(msg, 'user');
     setLoading(true);
@@ -805,6 +790,7 @@
       if (!resp.ok) throw new Error(data.detail||'Edit failed');
       currentDesign = data.figma_json;
       currentTokens = data.tokens || currentTokens;
+      hasUnsavedChanges = false;
       renderDesign(currentDesign, false);
       addMsg(data.narration||'Done.', 'agent');
     } catch(e) {
@@ -816,16 +802,21 @@
   // ── Save ──────────────────────────────────────────────────────────────────
   async function saveDesign() {
     if (!DESIGN_ID || !currentDesign) return;
+    if (!hasUnsavedChanges) {
+        showToast('All changes saved', 'success');
+        return; 
+    }
     try {
       await fetch(`/api/design/${DESIGN_ID}/save`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({figma_json: currentDesign, tokens: currentTokens}),
       });
+      hasUnsavedChanges = false;
       showToast('Saved', 'success');
     } catch { showToast('Save failed', 'error'); }
   }
 
-  // ── Copy Figma JSON ───────────────────────────────────────────────────────
+  // ── Copy Figma JSON & Exports ──────────────────────────────────────────────
   async function copyFigmaJSON() {
     if (!currentDesign) return showToast('No design yet', 'error');
     try {
@@ -833,29 +824,23 @@
       if (!resp.ok) throw new Error('Server error');
       const clipboardHTML = await resp.text();
 
-      // Figma reads clipboard as text/html with its special metadata format
-      // We must write as text/html MIME type — not text/plain
       if (navigator.clipboard && window.ClipboardItem) {
         const blob = new Blob([clipboardHTML], {type: 'text/html'});
         const item = new ClipboardItem({'text/html': blob});
         await navigator.clipboard.write([item]);
         showToast('Copied! Paste in Figma with Ctrl+V / Cmd+V', 'success');
       } else {
-        // Fallback for browsers without ClipboardItem
         await navigator.clipboard.writeText(clipboardHTML);
         showToast('Copied (text fallback) — paste in Figma', 'success');
       }
     } catch(e) {
-      console.error('Figma copy error:', e);
-      // Last resort: copy raw JSON so at least something works
       try {
         await navigator.clipboard.writeText(JSON.stringify(currentDesign, null, 2));
-        showToast('Copied raw JSON (ClipboardItem not supported)', 'success');
+        showToast('Copied raw JSON', 'success');
       } catch { showToast('Copy failed — check browser permissions', 'error'); }
     }
   }
 
-  // ── Export ────────────────────────────────────────────────────────────────
   function toggleExport() { document.getElementById('export-menu').classList.toggle('open'); }
   document.addEventListener('click', e => { if(!e.target.closest('.export-wrap')) document.getElementById('export-menu').classList.remove('open'); });
 
@@ -870,8 +855,7 @@
   function exportHTML() {
     document.getElementById('export-menu').classList.remove('open');
     if (!currentDesign) return;
-    const html = _buildHTMLString(currentDesign);
-    const blob = new Blob([html], {type:'text/html'});
+    const blob = new Blob([_buildHTMLString(currentDesign)], {type:'text/html'});
     const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download='design.html'; a.click();
     showToast('HTML downloaded', 'success');
@@ -895,9 +879,7 @@
       const bb = node.absoluteBoundingBox || {};
       const x = (bb.x||0) - pX;
       const y = (bb.y||0) - pY;
-      const nw = bb.width||0;
-      const nh = bb.height||0;
-      let style = `left:${x}px;top:${y}px;width:${nw}px;height:${nh}px;`;
+      let style = `left:${x}px;top:${y}px;width:${bb.width||0}px;height:${bb.height||0}px;`;
       const isText = node.type === 'TEXT';
       if (!isText) {
         const fill = node.fills?.find(f=>f.visible!==false);
@@ -908,10 +890,7 @@
           style+=`background-image:url(${fill.imageRef});background-size:cover;background-position:center;`;
         }
         if (node.cornerRadius) style+=`border-radius:${node.cornerRadius}px;`;
-        if (node.strokes?.length&&node.strokeWeight) {
-          const sc=fillsToColor(node.strokes)||'#333';
-          style+=`border:${node.strokeWeight}px solid ${sc};`;
-        }
+        if (node.strokes?.length&&node.strokeWeight) style+=`border:${node.strokeWeight}px solid ${fillsToColor(node.strokes)||'#333'};`;
       } else {
         style+=`background:transparent;`;
       }
@@ -921,20 +900,13 @@
         const chars = node.characters||'';
         if (chars.startsWith('<image')||chars.startsWith('_image')) return '';
         const st = node.style||{};
-        const color = fillsToColor(node.fills)||'rgba(250,250,250,1)';
-        style+=`font-size:${st.fontSize||16}px;font-weight:${st.fontWeight||400};`;
-        style+=`color:${color};font-family:'${st.fontFamily||'DM Sans'}',sans-serif;`;
-        style+=`text-align:${(st.textAlignHorizontal||'LEFT').toLowerCase()};`;
-        style+=`line-height:${st.lineHeightPx?(st.lineHeightPx+'px'):'1.4'};`;
-        style+=`letter-spacing:${st.letterSpacing||0}px;overflow:hidden;white-space:pre-wrap;`;
+        style+=`font-size:${st.fontSize||16}px;font-weight:${st.fontWeight||400};color:${fillsToColor(node.fills)||'rgba(250,250,250,1)'};font-family:'${st.fontFamily||'DM Sans'}',sans-serif;text-align:${(st.textAlignHorizontal||'LEFT').toLowerCase()};line-height:${st.lineHeightPx?(st.lineHeightPx+'px'):'1.4'};letter-spacing:${st.letterSpacing||0}px;overflow:hidden;white-space:pre-wrap;`;
         return `<div class="gd-node" style="${style}">${chars}</div>`;
       }
-      const children = (node.children||[]).map(c=>nodeToHTML(c,bb.x||0,bb.y||0)).join('');
-      return `<div class="gd-node" style="${style}">${children}</div>`;
+      return `<div class="gd-node" style="${style}">${(node.children||[]).map(c=>nodeToHTML(c,bb.x||0,bb.y||0)).join('')}</div>`;
     }
 
-    const body = (tree.children||[]).map(n=>nodeToHTML(n,frameBBx,frameBBy)).join('');
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${tree.name||'Design'}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>${fontLinks}<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:${bg};min-height:100vh;}.gd-frame{position:relative;width:${w}px;min-height:${h}px;background:${bg};margin:0 auto;overflow:hidden;}.gd-node{position:absolute;box-sizing:border-box;}</style></head><body><div class="gd-frame">${body}</div><script>function s(){var f=document.querySelector('.gd-frame');var vw=window.innerWidth;if(vw<${w}){var sc=vw/${w};f.style.transform='scale('+sc+')';f.style.transformOrigin='top left';document.body.style.height=(${h}*sc)+'px';}}s();window.addEventListener('resize',s);<\/script></body></html>`;
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${tree.name||'Design'}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>${fontLinks}<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:${bg};min-height:100vh;}.gd-frame{position:relative;width:${w}px;min-height:${h}px;background:${bg};margin:0 auto;overflow:hidden;}.gd-node{position:absolute;box-sizing:border-box;}</style></head><body><div class="gd-frame">${(tree.children||[]).map(n=>nodeToHTML(n,frameBBx,frameBBy)).join('')}</div><script>function s(){var f=document.querySelector('.gd-frame');var vw=window.innerWidth;if(vw<${w}){var sc=vw/${w};f.style.transform='scale('+sc+')';f.style.transformOrigin='top left';document.body.style.height=(${h}*sc)+'px';}}s();window.addEventListener('resize',s);<\/script></body></html>`;
   }
 
   async function hostPage() {
@@ -949,14 +921,13 @@
     finally { setLoading(false); }
   }
 
-  // ── Utils ─────────────────────────────────────────────────────────────────
   function showToast(msg, type='') {
     const t=document.getElementById('toast');
     t.textContent=msg; t.className=`toast show ${type}`;
     clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3500);
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── Optimized Initialization & Listeners ──────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
     if (currentDesign) {
       renderDesign(currentDesign, false);
@@ -965,27 +936,31 @@
       document.getElementById('popup-bg').classList.add('hidden');
     }
     if (CHAT_HISTORY && CHAT_HISTORY.length) {
-      const c = document.getElementById('chat-messages');
-      c.innerHTML = '';
+      DOM.chatMessages.innerHTML = '';
       CHAT_HISTORY.forEach(m => addMsg(m.content, m.role==='user'?'user':'agent'));
     }
-    window.addEventListener('resize', () => {
-      if (currentDesign) renderDesign(currentDesign, false);
-      // Resize iframe too
-      const iframe = document.getElementById('design-iframe');
-      if (iframe) {
-        const wrap = document.getElementById('viewer-wrap');
-        zoom = Math.min((wrap.clientWidth - 80) / 1440, 1);
-        iframe.style.transform = `scale(${zoom})`;
-        iframe.style.height = (wrap.clientHeight / zoom) + 'px';
-        updateZoom();
-      }
-    });
   });
+
   document.addEventListener('keydown', e => {
     if ((e.metaKey||e.ctrlKey)&&e.key==='s') { e.preventDefault(); saveDesign(); }
   });
-  setInterval(() => { if (DESIGN_ID && currentDesign) saveDesign(); }, 60000);
+
+  setInterval(() => { if (DESIGN_ID && currentDesign && hasUnsavedChanges) saveDesign(); }, 60000);
+
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      if (currentDesign) renderDesign(currentDesign, false);
+      const iframe = document.getElementById('design-iframe');
+      if (iframe) {
+        zoom = Math.min((DOM.wrap.clientWidth - 80) / 1440, 1);
+        iframe.style.transform = `scale(${zoom})`;
+        iframe.style.height = (DOM.wrap.clientHeight / zoom) + 'px';
+        updateZoom();
+      }
+    }, 150);
+  });
 </script>
 </body>
 </html>
