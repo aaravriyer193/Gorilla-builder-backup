@@ -1,48 +1,59 @@
 """
-Lineage Agent v12 — Smart Model Routing (Mimo v2.5 for hard turns)
-====================================================================
+Lineage Agent v15 — tool-call native, two-phase parallel write → run
+=====================================================================
 
-Architecture: mini-SWE-agent (ThoughtAction format, linear message history,
-bash execution, raw OBSERVATION feedback).
+Key changes in v15:
+  - TOOL-CALL PROTOCOL: Agent now receives proper OpenAI-format tool schemas
+    (write_file, run_bash, mark_done). MiniMax M2.7 and every other modern
+    model on OpenRouter returns structured tool_calls instead of
+    freetext + XML fallback. No more XML parsing hacks.
 
-New in v12:
-  #14 Smart model routing — _pick_model() selects Mimo v2.5 for hard turns
-       (turn 0 architecture, error recovery, debug spirals, auth/DB work)
-       and Deepseek V4 Flash for mechanical turns (file writes, reads,
-       boilerplate). ~80% of turns stay cheap, hard turns get intelligence.
+  - TWO-PHASE EXECUTION: The agent batches ALL file writes in one response
+    (parallel tool_calls), then issues a single run_bash for the server +
+    verification. This cuts a 10-step greenfield build from ~10 round-trips
+    to 3-4.  Write → observe nothing → Run → observe 200s → Done.
 
-New in v11:
-  #11 Multi-file turns — up to 3 independent NEW files per bash block,
-       cutting average turn count from ~25 to ~10-12.
-  #12 Improved planner — groups independent files into batched steps.
-  #13 Improved agent system prompt — batching rules, visual-first ordering.
+  - PARALLEL_TOOL_CALLS=True: Passed in every request payload. Models that
+    support it (MiniMax M2.7, Qwen, DeepSeek, etc.) will emit multiple
+    write_file calls in one response block.
 
-All v10 improvements retained:
+  - RESPONSE PARSER hardened: handles both tool_call responses AND legacy
+    freetext bash-block responses (graceful fallback for models that don't
+    speak tools — e.g. VISION_MODEL on first image turn).
+
+  - SYSTEM PROMPT updated to teach the tool-call workflow naturally. The
+    prose → bash shape is replaced with the write_file → run_bash shape.
+    Same judgment-framing philosophy from v14, new mechanical interface.
+
+  - TOOL RESULT FORMAT: tool results are sent back as role=tool messages
+    per the OpenAI spec. History compression handles them correctly.
+
+  - PROMPT CACHE FRIENDLY: system prompt is always message[0], never
+    mutated after session start, so Fireworks BYOK cache hits every turn.
+
+All prior v14 functionality preserved:
   #1  Prompt expander
   #2  Planner (todo.md)
   #3  Auto-kill ports (sandbox_manager)
   #4  Narration fix
   #5  Per-file specs
-  #6  Linter-in-the-loop (sandbox_manager)
+  #6  Linter-in-the-loop
   #7  Template starters
   #8  Silent success
   #9  History compression
-  #10 Reviewer (sandbox_manager)
-
-Speed fixes retained:
-  - Expander → planner sequential (planner gets full expanded spec)
-  - Token estimation cached by message count
-  - Reviewer gated on turn count + request type (sandbox_manager)
-  - File tree cached on session with 30s TTL (sandbox_manager)
-  - Tar upload in 500KB chunks (sandbox_manager)
-  - Log-polling instead of fixed sleep after npm run dev (sandbox_manager)
-  - Parallel port health checks (sandbox_manager)
+  #10 Reviewer
+  #11 Multi-file turns (now native via parallel tool_calls)
+  #12 Smart model routing
+  + Supabase / Debug / Skills addons
+  + Observation noise filter (_filter_observation)
+  + TokenSubstitution for blob compression
 """
 
 from __future__ import annotations
 
 import os
 import re
+import json
 import time
 import asyncio
 import hashlib
@@ -51,22 +62,22 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 # ---------------------------------------------------------------------------
-# Configdeepseek/deepseek-v4-flash
+# Config
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = os.getenv("LINEAGE_MODEL", "minimax/minimax-m2.7")
-SMART_MODEL = os.getenv("SMART_MODEL","minimax/minimax-m2.7")   # hard turns
-PLANNER_MODEL = os.getenv("PLANNER_MODEL", "xiaomi/mimo-v2.5")
-VISION_MODEL = os.getenv("VISION_MODEL", "xiaomi/mimo-v2.5")
+MODEL         = os.getenv("LINEAGE_MODEL",   "minimax/minimax-m2.7")
+SMART_MODEL   = os.getenv("SMART_MODEL",     "qwen/qwen3.6-plus")
+PLANNER_MODEL = os.getenv("PLANNER_MODEL",   "xiaomi/mimo-v2.5")
+VISION_MODEL  = os.getenv("VISION_MODEL",    "xiaomi/mimo-v2.5")
 OPENROUTER_URL = os.getenv(
     "OPENROUTER_URL",
     "https://openrouter.ai/api/v1/chat/completions",
 ).strip()
-SITE_URL = os.getenv("SITE_URL", "https://gorillabuilder.dev").strip()
+SITE_URL  = os.getenv("SITE_URL",  "https://gorillabuilder.dev").strip()
 SITE_NAME = os.getenv("SITE_NAME", "Gorilla Builder")
 
-MAX_CONTEXT_TOKENS = 190_000
-CHARS_PER_TOKEN = 4
+MAX_CONTEXT_TOKENS = 100_000
+CHARS_PER_TOKEN    = 4
 
 if not OPENROUTER_API_KEY:
     raise RuntimeError("OPENROUTER_API_KEY must be set")
@@ -87,9 +98,9 @@ def log_agent(role: str, message: str, project_id: str = "") -> None:
     prefix = f"[{project_id[:8]}]" if project_id else "[AGENT]"
     ts = time.strftime("%H:%M:%S")
     c = {
-        "agent": "\033[94m",
-        "llm": "\033[90m",
-        "system": "\033[97m",
+        "agent":    "\033[94m",
+        "llm":      "\033[90m",
+        "system":   "\033[97m",
         "debugger": "\033[91m",
     }.get(role.lower(), "\033[94m")
     print(
@@ -151,13 +162,13 @@ def clear_history(project_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Token substitution (for images/blobs in file tree)
+# Token substitution
 # ---------------------------------------------------------------------------
 class TokenSubstitution:
     THRESHOLD = 500
 
     def __init__(self):
-        self._vault: Dict[str, str] = {}
+        self._vault:   Dict[str, str] = {}
         self._reverse: Dict[str, str] = {}
         self._n = 0
 
@@ -182,16 +193,16 @@ class TokenSubstitution:
                     path.endswith(".b64")
                     or self._is_b64(content)
                     or (path.endswith(".json") and len(content) > 5000)
-                    or (path.endswith(".svg") and len(content) > 3000)
+                    or (path.endswith(".svg")  and len(content) > 3000)
                 ):
                     h = hashlib.md5(content[:200].encode()).hexdigest()
                     if h in self._reverse:
                         out[path] = self._reverse[h]
                     else:
                         pid = self._mk()
-                        self._vault[pid] = content
-                        self._reverse[h] = pid
-                        out[path] = pid
+                        self._vault[pid]   = content
+                        self._reverse[h]   = pid
+                        out[path]          = pid
                     continue
             out[path] = content
         return out
@@ -204,22 +215,102 @@ class TokenSubstitution:
 
 
 # ---------------------------------------------------------------------------
-# Context management (#9 — history compression)
+# Tool schemas — passed to OpenRouter on every request
 # ---------------------------------------------------------------------------
+AGENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "write_file",
+            "description": (
+                "Write content to a file in /home/user/app. "
+                "Call this multiple times in parallel to write several files at once. "
+                "Do NOT run anything — just write. Use run_bash afterwards."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Relative path from /home/user/app, e.g. src/components/Navbar.tsx",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Full file content to write.",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "One-line note about what this file does (shown to user).",
+                    },
+                },
+                "required": ["path", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_bash",
+            "description": (
+                "Run a bash command in the sandbox. "
+                "Use AFTER all write_file calls are done. "
+                "Prefer one compound command (&&-chained) over multiple calls. "
+                "Never use for file writes — use write_file for that."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The bash command to run.",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "One-line description of what this does.",
+                    },
+                },
+                "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mark_done",
+            "description": (
+                "Signal that the task is complete. "
+                "Only call after verifying both ports return 200. "
+                "Provide a short summary for the user."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": "What was built / what was fixed — 1-3 sentences.",
+                    },
+                },
+                "required": ["summary"],
+            },
+        },
+    },
+]
 
-# Cache: [message_count, estimated_tokens]
+
+# ---------------------------------------------------------------------------
+# Context management — history compression (tool-call aware)
+# ---------------------------------------------------------------------------
 _token_estimate_cache: List[Any] = []
 
 
 def _estimate_tokens(messages: list) -> int:
-    """Cached token estimator — avoids re-scanning full history every LLM call."""
     global _token_estimate_cache
     msg_count = len(messages)
     if _token_estimate_cache and _token_estimate_cache[0] == msg_count:
         return _token_estimate_cache[1]
-
     total = 0
     for m in messages:
+        role = m.get("role", "")
         c = m.get("content", "")
         if isinstance(c, str):
             total += len(c) // CHARS_PER_TOKEN
@@ -230,53 +321,77 @@ def _estimate_tokens(messages: list) -> int:
                         total += len(item.get("text", "")) // CHARS_PER_TOKEN
                     elif item.get("type") == "image_url":
                         total += 1000
+        # tool_calls in assistant messages
+        for tc in m.get("tool_calls", []):
+            args = tc.get("function", {}).get("arguments", "")
+            total += len(args) // CHARS_PER_TOKEN
+        # tool result messages
+        if role == "tool":
+            total += len(str(c)) // CHARS_PER_TOKEN
     _token_estimate_cache = [msg_count, total]
     return total
 
 
 def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> list:
     """
-    #9 — History compression.
-    Keep system prompt + first user message + last 10 messages.
-    Collapse earlier observations to one-line summaries.
+    Keep system + first user message + last 10 messages.
+    Collapse earlier tool results to one-line summaries.
     """
     if _estimate_tokens(messages) <= max_tokens:
         return messages
 
-    sys_msg = messages[0] if messages and messages[0].get("role") == "system" else None
-    first_user = messages[1] if len(messages) > 1 else None
+    sys_msg    = messages[0] if messages and messages[0].get("role") == "system" else None
+    first_user = None
+    for m in messages[1:]:
+        if m.get("role") == "user":
+            first_user = m
+            break
 
-    keep_full = 10
-    recent = messages[-keep_full:]
-
+    keep_full    = 10
+    recent       = messages[-keep_full:]
     middle_start = 2 if first_user else 1
-    middle_end = len(messages) - keep_full
-    compressed_middle = []
+    middle_end   = len(messages) - keep_full
+    compressed   = []
 
     for m in messages[middle_start:middle_end]:
         role = m.get("role", "")
-        content = m.get("content", "")
-        if isinstance(content, list):
-            text_parts = [p.get("text", "")[:100] for p in content if p.get("type") == "text"]
-            content = " ".join(text_parts)
-        if role == "user" and content.startswith("OBSERVATION:"):
-            first_line = content.split("\n")[1] if "\n" in content else content
-            compressed_middle.append(
-                {"role": "user", "content": f"OBSERVATION: {first_line[:120]}..."}
-            )
+        if role == "tool":
+            content_raw = m.get("content", "")
+            first_line  = str(content_raw).split("\n")[0][:120]
+            compressed.append({
+                "role":         "tool",
+                "tool_call_id": m.get("tool_call_id", ""),
+                "content":      f"[compressed] {first_line}...",
+            })
         elif role == "assistant":
-            lines = content.split("```")[0].strip().split("\n")
-            summary = lines[0][:120] if lines else "..."
-            compressed_middle.append({"role": "assistant", "content": summary})
+            # Keep tool_calls structure but drop verbose content
+            tc_names = [
+                tc.get("function", {}).get("name", "?")
+                for tc in m.get("tool_calls", [])
+            ]
+            if tc_names:
+                compressed.append({
+                    "role":    "assistant",
+                    "content": f"[called: {', '.join(tc_names)}]",
+                })
+            else:
+                text = str(m.get("content", ""))[:120]
+                compressed.append({"role": "assistant", "content": text})
+        elif role == "user":
+            c = m.get("content", "")
+            if isinstance(c, str) and c.startswith("OBSERVATION:"):
+                first_line = c.split("\n")[1] if "\n" in c else c
+                compressed.append({"role": "user", "content": f"OBSERVATION: {first_line[:120]}..."})
+            else:
+                compressed.append({"role": role, "content": str(c)[:200]})
         else:
-            compressed_middle.append({"role": role, "content": content[:200]})
+            compressed.append({"role": role, "content": str(m.get("content", ""))[:200]})
 
     result = []
-    if sys_msg:
-        result.append(sys_msg)
+    if sys_msg:    result.append(sys_msg)
     if first_user and first_user not in recent:
         result.append(first_user)
-    result.extend(compressed_middle)
+    result.extend(compressed)
     result.extend(recent)
 
     if _estimate_tokens(result) > max_tokens:
@@ -288,165 +403,164 @@ def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> l
     return result
 
 
+# ---------------------------------------------------------------------------
+# Observation noise filter
+# ---------------------------------------------------------------------------
+_VITE_NOISE_RE = re.compile(
+    r"""(
+        ^\s*(WARNING|warn)\b(?!.*\berror\b)     |
+        node_modules/.*warning                  |
+        Browserslist:.*outdated                 |
+        @vitejs/plugin-react.*preamble          |
+        vite\s+v\d                              |
+        VITE\s+v\d                              |
+        ^\s*→\s+Local:                          |
+        ^\s*➜\s+Local:                          |
+        ^\s*ready\s+in\s+\d+ms                  |
+        ^\s*hmr\s                               |
+        \[vite\]\s+(page reload|hot updated|connected)  |
+        ^\s*(\d+\s+)?modules?\s+transformed     |
+        eslint.*warning                         |
+        ^\s*\d+\s+warning
+    )""",
+    re.IGNORECASE | re.MULTILINE | re.VERBOSE,
+)
+
+_FATAL_SIGNALS = frozenset([
+    "error ts", "syntaxerror", "cannot find module", "could not be resolved",
+    "failed to compile", "exit code: 1", "exit code: -1", "enoent",
+    "typeerror", "referenceerror", "error:", "[error]",
+])
+
+
+def _filter_observation(raw: str) -> str:
+    if not raw:
+        return raw
+    lines       = raw.splitlines()
+    kept        = []
+    noise_count = 0
+    for line in lines:
+        low = line.lower()
+        if any(sig in low for sig in _FATAL_SIGNALS):
+            kept.append(line)
+            continue
+        if _VITE_NOISE_RE.search(line):
+            noise_count += 1
+            continue
+        kept.append(line)
+    result = "\n".join(kept).strip()
+    if noise_count > 5 and len(result) < 100:
+        result = (result + f"\n[{noise_count} Vite/lint warnings suppressed — no errors]").strip()
+    return result or raw
+
+
 # ═══════════════════════════════════════════════════════════════════════════
-#  SYSTEM PROMPT  (v13 — multi-file turns + visual-first ordering + xml tags)
+#  SYSTEM PROMPT  v15 — tool-call native, judgment-framed
 # ═══════════════════════════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = r"""<role>
-You are Gor://a, an elite autonomous software engineer. You work inside an Ubuntu sandbox with full control: write files, run commands, start servers, debug, verify.
-YOU NEVER BUILD UI MOCKUPS, YOU BUILD REAL FUNCTIONAL SAAS WITH REAL FEATURES, AND MAKE USE OF ALL THE TOOLS GIVE TO YOU. YOU INTEGRATE ALL THE ELEMENTS YOU HAVE MADE TOGETHER.
-</role>
+SYSTEM_PROMPT = r"""You are Gorilla, a senior full-stack engineer. You share one workspace with the user: an Ubuntu sandbox running React + Vite on port 8080 and Express on port 3000. Your job is to build real, working SaaS apps — not mockups — and stay with the work until it's genuinely done.
 
-<how_this_works>
-Each turn you provide:
-1. Your reasoning, and your course of action (speak naturally — never say "Discussion:" or "Working on it...") --> NEVER EVER TALK ABOUT LINT WARNINGS HERE.
-2. A single fenced bash block with the command(s) to run
-3. Never provide the bash inside `...`, put it in clear markdown like ```...```
+# How you work
 
-Example:
+You have three tools:
 
-File tree looks clean. Landing and Dashboard are fully independent at this stage, no shared state or cross-imports, so writing both in one bash block. Wiring comes after.
+- **write_file(path, content, reason?)** — write a file to disk. Call this in parallel for multiple independent files.
+- **run_bash(command, reason?)** — run shell commands. Use AFTER all writes are done. Chain related commands with &&.
+- **mark_done(summary)** — signal completion. Only call after verifying both ports return 200.
 
-```bash
-cat > src/pages/Landing.tsx << 'EOF'
-...full file content...
-EOF
+**The build flow:**
+1. Think briefly about the approach (plain text, no code block needed).
+2. Call write_file in parallel for all files you want to create or update.
+3. Call run_bash once to install deps / start the server / verify.
+4. Read the OBSERVATION. If both ports are 200 and the app is correct, call mark_done.
+5. Otherwise, call run_bash to read the log, then fix with targeted write_file calls.
 
-cat > src/pages/Dashboard.tsx << 'EOF'
-...full file content...
-EOF
-```
+The key insight: batch your writes. If you're creating Navbar + Footer + three pages, emit five write_file calls at once. The sandbox writes them all before running anything.
 
-I will show you the OBSERVATION. Then you respond with your next step.
+# Environment
 
-When finished and both :8080 and :3000 return HTTP 200, write GORILLA_DONE followed by a user-facing summary.
-</how_this_works>
+- Ubuntu 22 / Node 20 / Python 3.11 — working directory `/home/user/app`
+- Dev server: `npm run dev` starts Vite on :8080 and Express on :3000 concurrently.
+- Vite has HMR — frontend file writes hot-reload; no restart needed for `src/` changes.
+- Pre-installed: react, react-dom, react-router-dom, vite, @vitejs/plugin-react, typescript, tailwindcss, postcss, autoprefixer, clsx, tailwind-merge, class-variance-authority, @radix-ui/*, lucide-react, express, cors, body-parser, dotenv, concurrently
+- Source layout: `src/` (React), `src/components/ui/` (shadcn), `routes/` (Express), `public/generated/` (AI images)
+- Import alias `@/` → `src/`. Backend files use relative imports with `.js` extensions.
+- Files you must not modify: `vite.config.ts`, `.env`, `src/utils/auth.ts`
 
-<environment>
-Ubuntu 22 / Node 20 / Python 3.11 / CWD: `/home/user/app`
+# Auth
 
-Binaries: node, npm, npx, git, curl, jq, unzip, tar, find, grep, sed, awk, python3
-
-Pre-installed packages: react, react-dom, react-router-dom, vite, @vitejs/plugin-react, typescript, tailwindcss, postcss, autoprefixer, clsx, tailwind-merge, class-variance-authority, @radix-ui/*, lucide-react, express, cors, body-parser, dotenv, concurrently
-
-Dev server: `npm run dev` → Vite on :8080 (frontend) + Express on :3000 (API) --> vite HMR UPDATES SO DONT RESETART EVERY TIME
-
-Env vars in `.gorilla_env`: $GORILLA_API_KEY, $VITE_GORILLA_AUTH_ID
-
-Layout: src/ (React), src/components/ui/ (shadcn), src/utils/auth.ts (DO NOT TOUCH), routes/ (Express), public/generated/ (AI images)
-</environment>
-
-<file_batching_rules>
-You should try to batch file writes to minimise turns (no more than 3-4 files a turn), IF YOU RECIEVE A COMMAND TO TAKE YOUR TIME, MAKE THE APP TRULY EXTRAVAGANT AND BATCH FILES LESS OFTEN.
-
-ORDERING RULE — always build in this order:
-  1. Read existing files (one cat block, can read multiple files at once)
-  2. index.css + design tokens (so every subsequent component looks great immediately)
-  3. Shared components (Navbar, Footer, UI primitives) — batch these
-  4. Page components — batch independent pages together
-  5. Backend routes — batch independent route files together
-  6. Wire App.tsx (solo — it imports everything)
-  7. Wire server.js (solo — it imports everything)
-  8. Start server + verify
-
-VISUAL-FIRST RULE: The very first files you create must produce a stunning visual result.
-Write index.css with the full design system (colors, fonts, animations) before any component.
-The user sees a live preview — make it look incredible from turn 3 onward.
-</file_batching_rules>
-
-<rules>
-1. `npm install` before importing anything not in the pre-installed list above
-2. Always read an existing file before editing it
-3. Wire new components (import + render) and routes (import + app.use) — don't leave orphans
-4. Frontend: `@/` alias. Backend: relative paths with `.js` extension
-5. Never touch vite.config.ts, .env, src/utils/auth.ts directly
-6. Start server: `cd /home/user/app && npm run dev > /tmp/dev.log 2>&1 &`
-7. Verify: `sleep 3 && curl -so /dev/null -w '%{http_code}' http://localhost:8080 && curl -so /dev/null -w '%{http_code}' http://localhost:3000`
-8. MUST verify both ports return 200 before GORILLA_DONE
-9. On failure: read /tmp/dev.log, fix, restart, verify again
-10. NEVER say GORILLA_DONE before turn 5
-11. ALWAYS replace boilerplate index.tsx — go all out on the design
-12. Check .gorilla/todo.md every 8 turns and tick completed tasks
-</rules>
-
-<auth_gateway>
-USE THIS EXACT FORMAT
 ```tsx
 import { login, logout, onAuthStateChanged } from '@/utils/auth';
 useEffect(() => onAuthStateChanged(setUser), []);
 <button onClick={() => login('google')}>Sign in</button>
 ```
-</auth_gateway>
 
-<ai_proxy>
-Base URL: {GORILLA_PROXY} ALWAYS USE GORILLA_API_KEY In request
-- LLM chat:   POST {GORILLA_PROXY}/api/v1/chat/completions  (omit model field)
-- Image gen:   POST {GORILLA_PROXY}/api/v1/images/generations (omit model field)
-- STT:         POST {GORILLA_PROXY}/api/v1/audio/transcriptions
-- BG removal:  POST {GORILLA_PROXY}/api/v1/images/remove-background
-- TTS:         window.speechSynthesis (frontend only)
+# AI proxy
 
-Image generation → save as base64 to public/generated/, reference directly in src.
-</ai_proxy>
+Base URL: `{GORILLA_PROXY}` — pass `$GORILLA_API_KEY` as the Authorization Bearer token.
 
-<critical_reminders>
-- API keys live in app/.env — do not look elsewhere
-- Never wrap App.tsx routes in a second BrowserRouter inside main.tsx
-- React errors may be silent — always check /tmp/dev.log and the console error tunnel
-- Never Expect tools like supabase to be active unless specified later.
-- Try not mess around witht the config files too much, as that will bring trouble.
-- YOU HAVE BEEN GIVEN A MEANS TO ADD AI FEATURES, SO ADD REAL WORKING AI FEATURES WHERE THE PLAN TELLS YOU TOO.
-</critical_reminders>
+- LLM chat:     `POST {GORILLA_PROXY}/api/v1/chat/completions`  (omit the model field)
+- Image gen:    `POST {GORILLA_PROXY}/api/v1/images/generations` → save base64 to `public/generated/`
+- STT:          `POST {GORILLA_PROXY}/api/v1/audio/transcriptions`
+- BG removal:   `POST {GORILLA_PROXY}/api/v1/images/remove-background`
+
+# Engineering judgment
+
+You bring a senior engineer's judgment to each decision. When the spec is open, you choose conservatively and in sympathy with what's already in the codebase. You prefer established patterns and keep edits tightly scoped.
+
+**Greenfield build order** (write_file batches):
+1. `src/index.css` — complete design system (custom properties, dark palette, typography, Google Font)
+2. Shared components — Navbar, Footer, primitives — one parallel batch
+3. Page components — independent pages together
+4. Backend routes — one batch
+5. `src/App.tsx` — wire all routes, auth guards (solo write, it's always an edit)
+6. `server.js` — mount all routes (solo write)
+7. run_bash: npm install (if needed) → start → verify both 200s
+
+This order makes the live preview look good from the very first hot-reload.
+
+# Frontend quality
+
+Interfaces feel rich and domain-appropriate. A SaaS dashboard is quiet and work-focused; a game can be expressive. Use lucide-react icons, keep border-radius ≤ 8px, build tooltips for icon-only buttons, no decorative gradient orbs, ensure text fits all viewports.
+
+# When something goes wrong
+
+```bash
+cat /tmp/dev.log | tail -60
+```
+
+Read before touching anything. Make the smallest fix that addresses the root cause. Don't refactor on the way to a fix.
+
+# Verification before done
+
+```bash
+curl -so /dev/null -w '%{http_code}' http://localhost:8080 && \
+curl -so /dev/null -w '%{http_code}' http://localhost:3000
+```
+
+Both must return 200 before you call mark_done.
+
+# Autonomy
+
+Stay with the work until the task is handled end to end. Work through blockers rather than stopping and asking — unless something is genuinely impossible without user input.
+All the code is rendered as an iframe so you should not use browser popups unless physically impossible, and be thorough with your component design (there is never any rush).
 """
 
+# ---------------------------------------------------------------------------
+# Conditional addons
+# ---------------------------------------------------------------------------
+
 SUPABASE_ADDON = r"""
-<supabase>
-Supabase is active
+# Supabase
 
-These .env vars are present: $VITE_SUPABASE_URL, $VITE_SUPABASE_ANON_KEY, $SUPABASE_MGMT_TOKEN, $SUPABASE_PROJECT_REF
-And supabase/@supabase-js is installed
+Active. Env vars: `$VITE_SUPABASE_URL`, `$VITE_SUPABASE_ANON_KEY`, `$SUPABASE_MGMT_TOKEN`, `$SUPABASE_PROJECT_REF`. Package `@supabase/supabase-js` is installed.
 
-Client:
 ```ts
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 ```
-Migrations:
-```bash
-cat > /tmp/migration.sql << 'SQL'
-CREATE TABLE IF NOT EXISTS items (...);
-ALTER TABLE items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "own" ON items USING (auth.uid() = user_id);
-SQL
-curl -sS -X POST "[https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query](https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query)" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" -H "Content-Type: application/json" \
-  -d "$(cat /tmp/migration.sql | jq -Rs '{query: .}')"
-```
-</supabase>
-"""
 
-DEBUG_ADDON = r"""
-<debug_mode>
-Read the error. Find the file. Make the smallest fix. Restart server. Verify ports. GORILLA_DONE.
-Do NOT refactor, do NOT add features. Surgical fix only.
-</debug_mode>
-"""
-
-# ---------------------------------------------------------------------------
-# Supabase addons for expander + planner
-# ---------------------------------------------------------------------------
-
-EXPANDER_SUPABASE_ADDON = """
-## Supabase is linked and available
-Plan to use Supabase for data persistence when the app clearly benefits (user-saved content, shared data, multi-session state). Specify:
-- Tables, columns, and relationships
-- Which tables need Row Level Security
-- Whether realtime subscriptions add value
-Don't force Supabase on purely client-side or stateless apps."""
-
-PLANNER_SUPABASE_ADDON = """
-## Supabase is linked
-Include migration steps when the app genuinely stores user or shared data:
+Run migrations via run_bash:
 ```bash
 cat > /tmp/migration.sql << 'SQL'
 CREATE TABLE IF NOT EXISTS items (...);
@@ -456,60 +570,84 @@ SQL
 curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
   -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" -H "Content-Type: application/json" \
   -d "$(cat /tmp/migration.sql | jq -Rs '{query: .}')"
+```
+"""
+
+DEBUG_ADDON = r"""
+# Debug mode
+
+You are fixing a specific bug. Read the error first (run_bash: cat /tmp/dev.log | tail -60), find the file, write the smallest possible fix with write_file, restart if needed, verify both ports. Do not refactor. Do not add features.
+"""
+
+EXPANDER_SUPABASE_ADDON = """
+Supabase is available for data persistence. Plan to use it when users need to save data across sessions or share data between users. Specify tables, columns, and which need Row Level Security. Don't force it on purely client-side apps."""
+
+PLANNER_SUPABASE_ADDON = """
+Supabase is available. Include migrations when the app genuinely stores persistent data:
+```bash
+curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" -H "Content-Type: application/json" \
+  -d "$(echo 'CREATE TABLE IF NOT EXISTS items (...);' | jq -Rs '{query: .}')"
 ```"""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  #1 — Prompt Expander
+#  Prompt Expander
 # ═══════════════════════════════════════════════════════════════════════════
 
-EXPANDER_SYSTEM = """You are a product designer for Gorilla Builder — a platform that builds REAL working SaaS apps, not landing pages or brochures.
+def _build_expander_system(gorilla_proxy_url: str) -> str:
+    proxy = gorilla_proxy_url or "{GORILLA_PROXY}"
+    return f"""You are a product designer for Gorilla Builder — a platform that builds real working SaaS apps.
 
-Platform capabilities available to the developer:
-- **Auth gateway** — Google & GitHub login, zero setup, returns {id, email, name, avatar}
-- **AI proxy** — LLM chat, image generation, speech-to-text, background removal
-- **Express backend** — full API server, can store data, proxy AI, handle webhooks
-- **Supabase** (if linked) — postgres DB with RLS, realtime subscriptions
+The developer's sandbox has access to these capabilities — spec features that use them:
 
-The user will give you a short app idea. Expand it into a detailed product spec (200-350 words).
+**Auth gateway** (zero-setup login):
+```tsx
+import {{ login, logout, onAuthStateChanged }} from '@/utils/auth';
+<button onClick={{() => login('google')}}>Sign in with Google</button>
+```
+Use auth whenever the app saves per-user data or has a dashboard the user returns to.
 
-A GOOD spec describes a FUNCTIONAL APP:
-- What does the user DO after landing? (create, browse, interact, generate, save, share)
-- What data is stored and where?
-- What makes the AI features genuinely useful, not just bolted on?
-- Does it need auth? (if users save anything: yes)
+**AI proxy** (base URL: `{proxy}`, auth via `$GORILLA_API_KEY`):
+- LLM chat:       `POST {proxy}/api/v1/chat/completions`  — omit model field
+- Image gen:      `POST {proxy}/api/v1/images/generations` — returns base64, save to `public/generated/`
+- Speech-to-text: `POST {proxy}/api/v1/audio/transcriptions`
+- BG removal:     `POST {proxy}/api/v1/images/remove-background`
+
+Use these for features that genuinely benefit from AI — not as decorations.
+
+**Express backend**: full API server at port 3000, routes in `routes/`, can store data, proxy AI calls, handle logic.
+
+Take the user's short idea and expand it into a concrete product spec (200-350 words).
+
+A good spec describes a FUNCTIONAL APP — what does the user actually do? What gets created, saved, generated, or shared? Which AI capability makes the core feature work?
 
 Include:
 - App name (creative, memorable)
 - Color scheme (specific hex codes, dark mode preferred)
-- Typography (a distinctive Google Font — never Inter, never system-ui)
-- Pages (minimum 3): what the user SEES and DOES on each
-- Backend: API routes needed, what data is stored
-- AI integration: specific use of LLM/image gen/STT
-- Auth: which providers and why
+- Typography (a distinctive Google Font — not Inter, not system-ui)
+- 3+ pages: what the user sees and does on each
+- Backend: API routes, what data is stored
+- AI integration: which proxy endpoint, what it does, how the result is shown
+- Auth: which provider and why (only if the app genuinely needs it)
 
-GOOD example — "AI recipe generator":
-  → Landing (hero + demo), Generate page (enter ingredients → AI recipe + food image), Saved recipes dashboard (grid, filter by cuisine), auth via Google
+For minor tasks or bug fixes: restate the task in 1-2 sentences. No expansion needed.
 
-BAD example — "a website about coffee":
-  → Hero, About, Features, Contact form ← this is a brochure, not an app
+If an image is attached, treat it as a UI mockup — extract layout, palette, and flows.
 
-FOR MINOR TASKS OR DEBUGGING: just restate the task clearly in 1-2 sentences. Do not expand.
-
-If an image is provided, treat it as a UI mockup — extract layout, palette, components, and flows. Incorporate them into the spec.
-
-Output ONLY the spec. No preamble, no sign-off."""
+Output only the spec. No preamble."""
 
 
 async def expand_prompt(
     short_prompt: str,
     has_supabase: bool = False,
     image_b64: Optional[str] = None,
+    gorilla_proxy_url: str = "",
 ) -> str:
     if len(short_prompt) > 300:
         return short_prompt
 
-    system = EXPANDER_SYSTEM
+    system = _build_expander_system(gorilla_proxy_url)
     if has_supabase:
         system += "\n" + EXPANDER_SUPABASE_ADDON
 
@@ -520,7 +658,7 @@ async def expand_prompt(
             else f"data:image/jpeg;base64,{image_b64}"
         )
         user_content = [
-            {"type": "text", "text": short_prompt},
+            {"type": "text",      "text": short_prompt},
             {"type": "image_url", "image_url": {"url": img_url}},
         ]
     else:
@@ -528,7 +666,7 @@ async def expand_prompt(
 
     messages = [
         {"role": "system", "content": system},
-        {"role": "user", "content": user_content},
+        {"role": "user",   "content": user_content},
     ]
     try:
         model = VISION_MODEL if image_b64 else PLANNER_MODEL
@@ -544,88 +682,45 @@ async def expand_prompt(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  #2 + #5 + #12 — Planner (multi-file aware, visual-first ordering)
+#  Planner
 # ═══════════════════════════════════════════════════════════════════════════
 
-PLANNER_SYSTEM = """You are a project planner for Gorilla Builder — a platform that builds full-stack SaaS apps with React + Vite + Express.
+def _build_planner_system(gorilla_proxy_url: str) -> str:
+    proxy = gorilla_proxy_url or "{GORILLA_PROXY}"
+    return f"""You are a project planner for Gorilla Builder — React + Vite + Express full-stack apps.
 
-## Platform capabilities
+The agent uses three tools: write_file (parallel batch writes), run_bash (execute commands), mark_done.
 
-**Auth gateway** (only if the app needs login):
-```tsx
-import { login, logout, onAuthStateChanged } from '@/utils/auth';
-```
+Produce a markdown checklist. Each item = one agent action or batch.
 
-**AI proxy** (backend, $GORILLA_API_KEY):
-- LLM: POST /api/v1/chat/completions
-- Images: POST /api/v1/images/generations → save to public/generated/
-- STT: POST /api/v1/audio/transcriptions
-- BG removal: POST /api/v1/images/remove-background
+**Batching:** Independent NEW files should be grouped on the same checklist item — the agent writes them in parallel. Never batch: edits to existing files, server start, verification, npm install, migrations.
 
-**Express backend**: routes/ folder, mounted in server.js
+**Step order:**
+1. Read existing files — run_bash: cat src/App.tsx server.js src/index.css
+2. write_file: src/index.css — full design system, CSS vars, Google Font, animations
+3. write_file (batch): shared components — Navbar + Footer + primitives
+4. write_file (batch): page components — independent pages together
+5. write_file (batch): backend route files
+6. write_file: src/App.tsx — wire all routes, auth guards (solo edit)
+7. write_file: server.js — mount all routes (solo edit)
+8. run_bash: npm install (only if a package isn't pre-installed)
+9. run_bash: start dev server + verify both ports 200
 
-## Your job
-
-Output a markdown checklist where each item = ONE agent action.
-
-## CRITICAL: Multi-file batching
-
-The agent can write multiple NEW independent files in a single bash block.
-Your plan MUST group independent files together into single steps to minimise total turns.
-
-BATCH these (write together in one step):
-- Multiple new page components written at the same time
-- Multiple new UI components with no cross-imports
-- Multiple new backend route files
-- A component file + its types file
-
-NEVER batch these (each gets its own step):
-- Any edit to an existing file
-- Server start command
-- Verification/curl commands
-- npm install
-- Database migrations
-
-## Ordering (always follow this)
-
-1. Read existing files (cat App.tsx server.js index.css in ONE block)
-2. Update index.css with full design system (solo — existing file edit)
-3. Generate AI images if needed (curl, max 2-3)
-4. Create shared components in ONE batch (Navbar + Footer + any UI primitives)
-5. Create page components in batches (Landing + Hero in one, Dashboard + Settings in another)
-6. Create backend routes in a batch (independent route files together)
-7. Update App.tsx to wire all pages (solo — existing file)
-8. Update server.js to mount routes (solo — existing file)
-9. npm install (only if truly needed beyond pre-installed packages)
-10. Start dev server + verify both ports
-
-## Format
-
+**Format:**
 ```
 # Task: <short title>
 
-- [ ] Read existing structure — cat src/App.tsx server.js src/index.css
-- [ ] Update src/index.css — full dark design system, CSS vars, font imports, animations
-- [ ] Generate hero image — AI proxy curl with descriptive prompt
-- [ ] Create src/components/Navbar.tsx + src/components/Footer.tsx — dark nav with brand + auth, sticky footer
-- [ ] Create src/pages/Landing.tsx + src/pages/About.tsx — hero section with CTA, about page
-- [ ] Create src/pages/Dashboard.tsx + src/pages/Settings.tsx — main app grid, user settings
-- [ ] Create routes/api.js + routes/auth.js — POST /api/generate, GET /api/items
-- [ ] Update src/App.tsx — wire all routes, auth guard on dashboard
-- [ ] Update server.js — mount routes/api.js and routes/auth.js
-- [ ] Start dev server and verify both ports return 200
+- [ ] Read structure — run_bash: cat src/App.tsx server.js src/index.css
+- [ ] write_file: src/index.css — dark design system, CSS vars, Google Font
+- [ ] write_file (batch): Navbar.tsx + Footer.tsx
+- [ ] write_file (batch): Landing.tsx + About.tsx + Dashboard.tsx
+- [ ] write_file (batch): routes/api.js + routes/items.js
+- [ ] write_file: src/App.tsx — wire pages, auth guard on /dashboard
+- [ ] write_file: server.js — mount api and items routes
+- [ ] run_bash: start server + verify 200 200
 ```
 
-## Rules
-
-- First item: read existing files (always)
-- Last item: start server + verify
-- Group independent NEW files together — this is the most important rule
-- 6-14 items total (batching means fewer items than before)
-- For minor tasks or debug: max 3-4 items, no batching needed
-- Don't overspecify internals — the agent knows React
-- Include AI image generation only when visuals genuinely add value
-- Output ONLY the checklist, no preamble"""
+Rules: 6–12 items. First reads files. Last starts and verifies. For debug/minor tasks: 3–4 items. Output only the checklist."""
 
 
 async def generate_plan(
@@ -633,8 +728,9 @@ async def generate_plan(
     file_tree_summary: str,
     has_supabase: bool = False,
     image_b64: Optional[str] = None,
+    gorilla_proxy_url: str = "",
 ) -> Optional[str]:
-    system = PLANNER_SYSTEM
+    system = _build_planner_system(gorilla_proxy_url)
     if has_supabase:
         system += "\n" + PLANNER_SUPABASE_ADDON
 
@@ -647,7 +743,7 @@ async def generate_plan(
             else f"data:image/jpeg;base64,{image_b64}"
         )
         user_content = [
-            {"type": "text", "text": user_text},
+            {"type": "text",      "text": user_text},
             {"type": "image_url", "image_url": {"url": img_url}},
         ]
     else:
@@ -655,7 +751,7 @@ async def generate_plan(
 
     messages = [
         {"role": "system", "content": system},
-        {"role": "user", "content": user_content},
+        {"role": "user",   "content": user_content},
     ]
     try:
         model = VISION_MODEL if image_b64 else PLANNER_MODEL
@@ -671,19 +767,14 @@ async def generate_plan(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  #10 — Reviewer
+#  Reviewer
 # ═══════════════════════════════════════════════════════════════════════════
 
 REVIEWER_SYSTEM = """You are a code reviewer. A developer just finished building a web app. Review the file listing and recent build output for obvious mistakes only.
 
-Check for:
-- Components created but not imported/rendered anywhere (orphaned files)
-- Missing npm installs (import of a package not in node_modules)
-- Express routes created but not mounted in server.js
-- CSS files imported but not linked
-- TypeScript errors visible in logs
+Check for: components created but not imported anywhere, missing npm installs, Express routes not mounted in server.js, TypeScript errors in logs.
 
-Respond with ONLY one of:
+Respond with ONLY:
 - "LGTM" if everything looks correct
 - A numbered list of up to 3 specific, actionable fixes (no preamble)"""
 
@@ -709,63 +800,105 @@ async def review_output(file_tree_summary: str, last_output: str) -> Optional[st
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Response parser — ThoughtAction format
-#  Collects ALL bash blocks in a response, not just the first
+#  Response parser — handles BOTH tool_call responses AND legacy bash blocks
+#
+#  Priority:
+#    1. OpenAI tool_calls array in the response (structured, preferred)
+#    2. Legacy ```bash ... ``` blocks in text content (fallback for vision
+#       models or models that ignore the tools schema)
+#    3. GORILLA_DONE marker in text (v14 compatibility shim)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _parse_response(raw: str) -> Dict[str, Any]:
+def _parse_response(raw_text: str, tool_calls_raw: Optional[list] = None) -> Dict[str, Any]:
     """
-    Parse discussion + one or more ```bash``` blocks + optional GORILLA_DONE.
-
-    v11 change: returns all bash blocks concatenated with a newline separator
-    so the sandbox executor runs them as a single shell script. This supports
-    multi-file writes where the agent emits multiple heredoc blocks.
+    Returns:
+      {
+        "thought":      str,
+        "write_files":  [{"path": str, "content": str, "reason": str}],
+        "bash":         str,   # merged bash to run (from run_bash calls or legacy blocks)
+        "done":         bool,
+        "message":      str,
+        "tool_calls":   list,  # raw tool_calls for history (assistant message reconstruction)
+      }
     """
-    thought = ""
-    bash_blocks: List[str] = []
-    done = False
-    message = ""
+    result = {
+        "thought":     "",
+        "write_files": [],
+        "bash":        "",
+        "done":        False,
+        "message":     "",
+        "tool_calls":  [],
+    }
 
-    if not raw:
-        return {"thought": "", "bash": "", "done": False, "message": ""}
+    # ── Path 1: structured tool_calls ──────────────────────────────────────
+    if tool_calls_raw:
+        result["tool_calls"] = tool_calls_raw
+        bash_parts: List[str] = []
+
+        for tc in tool_calls_raw:
+            fn   = tc.get("function", {})
+            name = fn.get("name", "")
+            try:
+                args = json.loads(fn.get("arguments", "{}"))
+            except json.JSONDecodeError:
+                args = {}
+
+            if name == "write_file":
+                result["write_files"].append({
+                    "path":    args.get("path", ""),
+                    "content": args.get("content", ""),
+                    "reason":  args.get("reason", ""),
+                })
+            elif name == "run_bash":
+                bash_parts.append(args.get("command", ""))
+            elif name == "mark_done":
+                result["done"]    = True
+                result["message"] = args.get("summary", "Done.")
+
+        result["bash"] = "\n\n".join(bash_parts)
+
+        # Thought = any text content the model emitted alongside tool calls
+        if raw_text:
+            result["thought"] = raw_text.strip()
+            if not result["message"] and result["thought"]:
+                result["message"] = result["thought"].split("\n")[0][:300]
+
+        return result
+
+    # ── Path 2: legacy freetext bash blocks ────────────────────────────────
+    raw = raw_text or ""
 
     if "GORILLA_DONE" in raw:
-        done = True
-        parts = raw.split("GORILLA_DONE", 1)
-        body = parts[0]
-        message = parts[1].strip() if len(parts) > 1 else ""
-        blocks = re.findall(r"```(?:bash|sh|shell)?\n(.*?)```", body, re.DOTALL)
-        bash_blocks = [b.strip() for b in blocks if b.strip()]
-        first_block_pos = body.find("```")
-        thought = body[:first_block_pos].strip() if first_block_pos > 0 else body.strip()
-        if not message and thought:
-            message = thought.split("\n")[0][:300]
-        return {
+        result["done"] = True
+        parts   = raw.split("GORILLA_DONE", 1)
+        body    = parts[0]
+        summary = parts[1].strip() if len(parts) > 1 else ""
+        blocks  = re.findall(r"```(?:bash|sh|shell)?\n(.*?)```", body, re.DOTALL)
+        bash    = "\n\n".join(b.strip() for b in blocks if b.strip())
+        first_pos = body.find("```")
+        thought = body[:first_pos].strip() if first_pos > 0 else body.strip()
+        result.update({
             "thought": thought,
-            "bash": "\n\n".join(bash_blocks),
-            "done": done,
-            "message": message or "Done.",
-        }
+            "bash":    bash,
+            "message": summary or thought.split("\n")[0][:300] or "Done.",
+        })
+        return result
 
-    blocks = re.findall(r"```(?:bash|sh|shell)?\n(.*?)```", raw, re.DOTALL)
-    bash_blocks = [b.strip() for b in blocks if b.strip()]
+    blocks    = re.findall(r"```(?:bash|sh|shell)?\n(.*?)```", raw, re.DOTALL)
+    bash      = "\n\n".join(b.strip() for b in blocks if b.strip())
+    first_pos = raw.find("```")
+    thought   = raw[:first_pos].strip() if first_pos > 0 else raw.strip()
 
-    first_block_pos = raw.find("```")
-    thought = raw[:first_block_pos].strip() if first_block_pos > 0 else raw.strip()
-
-    if not bash_blocks:
+    if not blocks:
         thought = raw.strip()
 
+    message = ""
     if thought:
         sentences = re.split(r"(?<=[.!?])\s+", thought)
-        message = " ".join(sentences[:3])[:300]
+        message   = " ".join(sentences[:3])[:300]
 
-    return {
-        "thought": thought,
-        "bash": "\n\n".join(bash_blocks),
-        "done": done,
-        "message": message or "",
-    }
+    result.update({"thought": thought, "bash": bash, "message": message})
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -789,37 +922,56 @@ def _is_safe(cmd: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LLM call
+#  LLM call — tool-call aware
 # ═══════════════════════════════════════════════════════════════════════════
 
-# REPLACE the existing _call_llm function body with this:
-
 async def _call_llm(
-    messages: list, model: str = MODEL, temperature: float = 0.6
+    messages:     list,
+    model:        str   = MODEL,
+    temperature:  float = 0.6,
+    use_tools:    bool  = False,
 ) -> Tuple[str, int]:
+    """
+    Returns (text_content, weighted_token_count).
+
+    When use_tools=True:
+      - Injects AGENT_TOOLS into the payload
+      - Sets parallel_tool_calls=True
+      - Returns (text_content_or_empty, tokens) AND attaches
+        raw_tool_calls as an attribute on the returned tuple via a wrapper.
+    """
     messages = _compress_history(messages)
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": 16000,
+
+    payload: Dict[str, Any] = {
+        "model":       model,
+        "messages":    messages,
+        "max_tokens":  16000,
+        "temperature": temperature,
         "provider": {
-            "order": ["fireworks", "xiaomi", "xai"],
+            "order":           ["fireworks", "xiaomi", "xai", "alibaba"],
             "allow_fallbacks": False,
         },
     }
+
+    if use_tools:
+        payload["tools"]               = AGENT_TOOLS
+        payload["tool_choice"]         = "auto"
+        payload["parallel_tool_calls"] = True
+
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": SITE_URL,
-        "X-Title": SITE_NAME,
+        "Content-Type":  "application/json",
+        "HTTP-Referer":  SITE_URL,
+        "X-Title":       SITE_NAME,
     }
+
     data = None
     for attempt in range(5):
         async with httpx.AsyncClient(timeout=180.0) as client:
             resp = await client.post(OPENROUTER_URL, json=payload, headers=headers)
             if resp.status_code == 429:
                 wait = 0.5 * (attempt + 1)
-                log_agent("agent", f"429 rate limit — waiting {wait}s (attempt {attempt + 1}/25)")
+                log_agent("agent", f"429 — waiting {wait}s (attempt {attempt + 1}/5)")
                 await asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
@@ -829,19 +981,33 @@ async def _call_llm(
     if data is None:
         raise RuntimeError("LLM call failed after 5 attempts (persistent 429)")
 
-    content = data["choices"][0]["message"]["content"]
+    choice  = data["choices"][0]
+    msg     = choice["message"]
+    content = msg.get("content") or ""
+
+    # Attach raw tool_calls so the caller can pluck them
+    raw_tool_calls = msg.get("tool_calls") or []
+
     u = data.get("usage", {})
     p = u.get("prompt_tokens", 0)
     c = u.get("completion_tokens", 0)
     is_frontier = any(x in model for x in ["claude", "gpt-4", "gemini"])
-    is_mimo = "mimo" in model
+    is_mimo     = "mimo" in model
     if is_frontier:
         weight = p * 0.6 + c * 2.4
     elif is_mimo:
-        weight = p * 0.5 + c * 2
+        weight = p * 0.5 + c * 2.0
     else:
         weight = p * 0.3 + c * 1.2
-    return content, int(weight)
+
+    # Piggyback tool_calls on a wrapper so callers that need it can get it
+    class _Result(tuple):
+        pass
+
+    r = _Result((content, int(weight)))
+    r.tool_calls = raw_tool_calls  # type: ignore[attr-defined]
+    return r  # type: ignore[return-value]
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Agent Skills helpers
@@ -854,41 +1020,24 @@ def _build_skills_block(agent_skills: Optional[Dict[str, Any]]) -> str:
     if not enabled:
         return ""
     lines = "\n".join(f"- {skill}" for skill in enabled)
-    return (
-        f"\n\n## User-Enabled Agent Skills\n"
-        f"Respect these throughout the session:\n{lines}"
-    )
+    return f"\n\n# User preferences\n{lines}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  #14 — Smart model routing
+#  Smart model routing
 # ═══════════════════════════════════════════════════════════════════════════
 
 _HARD_OBSERVATION_SIGNALS = frozenset([
-    "error ts",
-    "syntaxerror",
-    "cannot find",
-    "could not be resolved",
-    "is not defined",
-    "is not a function",
-    "failed to compile",
-    "vite compile errors",
-    "lint errors",
-    "browser console errors",
-    "exit code: 1",
-    "exit code: -1",
-    "enoent",
-    "module not found",
-    "cannot read propert",
-    "typeerror",
-    "referenceerror",
+    "error ts", "syntaxerror", "cannot find", "could not be resolved",
+    "is not defined", "is not a function", "failed to compile",
+    "exit code: 1", "exit code: -1", "enoent", "module not found",
+    "cannot read propert", "typeerror", "referenceerror",
 ])
 
 _HARD_DOMAIN_SIGNALS = frozenset([
-    "auth", "supabase", "migration", "rls", "policy",
-    "realtime", "subscription", "webhook", "oauth",
-    "race condition", "async", "promise", "cors",
-    "jwt", "token", "session", "cookie",
+    "auth", "supabase", "migration", "rls", "policy", "realtime",
+    "subscription", "webhook", "oauth", "race condition", "async",
+    "promise", "cors", "jwt", "token", "session", "cookie",
     "database", "schema", "foreign key", "join",
 ])
 
@@ -900,13 +1049,11 @@ def _pick_model(
     is_debug: bool,
 ) -> str:
     obs = (previous_output or "").lower()
-    req = (user_request or "").lower()
+    req = (user_request    or "").lower()
 
     if turn == 0:
         return SMART_MODEL
     if any(sig in obs for sig in _HARD_OBSERVATION_SIGNALS):
-        return SMART_MODEL
-    if turn > 12 and any(sig in obs for sig in _HARD_OBSERVATION_SIGNALS):
         return SMART_MODEL
     if turn <= 4 and any(sig in req for sig in _HARD_DOMAIN_SIGNALS):
         return SMART_MODEL
@@ -917,37 +1064,32 @@ def _pick_model(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LineageAgent  v12
+#  LineageAgent  v15
 # ═══════════════════════════════════════════════════════════════════════════
 
 class LineageAgent:
     """
-    mini-SWE-agent with multi-file turn support and smart model routing.
+    Two-phase parallel agent:
+      Phase 1 — write_file (batched, parallel tool_calls) — no execution
+      Phase 2 — run_bash (one compound command) — execute + verify
 
-    v12 changes:
-      - _pick_model() routes each turn to Mimo v2.5 (hard) or Deepseek V4
-        Flash (mechanical). ~80% of turns stay cheap and fast. Hard turns
-        (architecture, error recovery, debug spirals, auth/DB) get Mimo.
+    Falls back to legacy bash-block parsing for vision models or models
+    that don't honor the tools schema.
 
-    v11 changes:
-      - System prompt teaches multi-file batching with clear rules
-      - Planner groups independent files into single steps
-      - Parser collects ALL bash blocks in a response (not just the first)
-      - Visual-first ordering: index.css + design tokens written before components
-
-    v10 speed fixes retained:
-      - Expander → planner sequential (planner gets full expanded spec)
-      - Token estimation cached by message count
+    Prompt cache: system prompt is message[0], immutable after session start.
+    Fireworks BYOK cache will hit on every turn after the first.
     """
 
     def __init__(self, project_id: str):
-        self.project_id = project_id
-        self.total_tokens = 0
-        self.token_sub = TokenSubstitution()
-        self.messages: List[Dict[str, Any]] = []
+        self.project_id         = project_id
+        self.total_tokens       = 0
+        self.token_sub          = TokenSubstitution()
+        self.messages:          List[Dict[str, Any]] = []
         self._system_prompt_set = False
-        self._plan_injected = False
-        self._prompt_expanded = False
+        self._plan_injected     = False
+        self._prompt_expanded   = False
+        self._gorilla_proxy_url: str  = ""
+        self._has_supabase:      bool = False
 
     def _ensure_system_prompt(
         self,
@@ -984,9 +1126,46 @@ class LineageAgent:
         if not raw:
             return None
         stripped = raw.strip()
-        if stripped.startswith("data:"):
-            return stripped
-        return f"data:image/jpeg;base64,{stripped}"
+        return stripped if stripped.startswith("data:") else f"data:image/jpeg;base64,{stripped}"
+
+    def _append_tool_results(
+        self,
+        parsed: Dict[str, Any],
+        write_observation: str = "",
+        bash_observation: str = "",
+    ) -> None:
+        """
+        After the sandbox executes the tool calls, feed results back in
+        OpenAI tool-result format so the model has full context.
+        """
+        for tc in parsed.get("tool_calls", []):
+            fn_name = tc.get("function", {}).get("name", "")
+            tc_id   = tc.get("id", "")
+
+            if fn_name == "write_file":
+                try:
+                    args = json.loads(tc.get("function", {}).get("arguments", "{}"))
+                    path = args.get("path", "?")
+                except Exception:
+                    path = "?"
+                self.messages.append({
+                    "role":         "tool",
+                    "tool_call_id": tc_id,
+                    "content":      f"wrote {path}",
+                })
+            elif fn_name == "run_bash":
+                filtered = _filter_observation(bash_observation)[:8000]
+                self.messages.append({
+                    "role":         "tool",
+                    "tool_call_id": tc_id,
+                    "content":      filtered or "ok",
+                })
+            elif fn_name == "mark_done":
+                self.messages.append({
+                    "role":         "tool",
+                    "tool_call_id": tc_id,
+                    "content":      "acknowledged",
+                })
 
     async def run(
         self,
@@ -1001,13 +1180,16 @@ class LineageAgent:
         previous_command_output: Optional[str] = None,
         agent_skills: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        import asyncio
+
+        if gorilla_proxy_url:
+            self._gorilla_proxy_url = gorilla_proxy_url
+        self._has_supabase = has_supabase
 
         self._ensure_system_prompt(gorilla_proxy_url, has_supabase, is_debug, agent_skills)
 
-        compressed = self.token_sub.compress_tree(file_tree)
+        compressed  = self.token_sub.compress_tree(file_tree)
         clean_paths = sorted(p for p in compressed if not p.endswith(".b64"))
-        tree_str = "\n".join(f"  {p}" for p in clean_paths)
+        tree_str    = "\n".join(f"  {p}" for p in clean_paths)
 
         pkg_snippet = ""
         if "package.json" in compressed:
@@ -1019,41 +1201,43 @@ class LineageAgent:
         if not previous_command_output:
             prompt_image_b64 = self._extract_prompt_image(file_tree)
             if prompt_image_b64:
-                log_agent("agent", "prompt_image.b64 found — threading to all stages", self.project_id)
+                log_agent("agent", "prompt_image.b64 found", self.project_id)
 
+        # ── Build the new user message ──────────────────────────────────────
         if previous_command_output:
-            user_content: Any = f"OBSERVATION:\n{previous_command_output[:8000]}"
-            self.messages.append({"role": "user", "content": user_content})
+            # Feed as a plain user OBSERVATION (tool-result messages were
+            # already appended by the sandbox via _append_tool_results).
+            # This path is for legacy/non-tool turns or extra context.
+            filtered = _filter_observation(previous_command_output)
+            self.messages.append({"role": "user", "content": f"OBSERVATION:\n{filtered[:8000]}"})
         else:
             effective_request = user_request
-            plan_text = ""
+            plan_text         = ""
 
-            # Sequential: expand first, then feed expanded prompt to planner.
-            # Planner needs the full expanded spec to produce good batching groups.
+            # Sequential: expand → plan
             if not is_debug and user_request:
-                needs_expand = not self._prompt_expanded
-                needs_plan = not self._plan_injected and bool(file_tree)
-
-                if needs_expand:
+                if not self._prompt_expanded:
                     effective_request = await expand_prompt(
                         user_request,
                         has_supabase=has_supabase,
                         image_b64=prompt_image_b64,
+                        gorilla_proxy_url=self._gorilla_proxy_url,
                     )
                     self._prompt_expanded = True
 
-                if needs_plan:
+                if not self._plan_injected and bool(file_tree):
                     plan = await generate_plan(
-                        effective_request,  # expanded spec, not raw prompt
+                        effective_request,
                         tree_str,
                         has_supabase=has_supabase,
                         image_b64=prompt_image_b64,
+                        gorilla_proxy_url=self._gorilla_proxy_url,
                     )
                     if plan:
                         plan_text = (
-                            "\n\nHere is your plan — follow it step by step. "
-                            "Respect the batching groups (files listed together on one line "
-                            "must be written in a single bash block):\n" + plan
+                            "\n\nHere's a plan — follow it step by step. "
+                            "Batch independent new files into single parallel write_file calls:\n"
+                            + plan
                         )
                         self._plan_injected = True
 
@@ -1073,7 +1257,7 @@ class LineageAgent:
                 if history_text:
                     parts.append(f"\nRecent conversation:\n{history_text}")
 
-            user_text = "\n".join(parts)
+            user_text        = "\n".join(parts)
             first_turn_image = image_b64 or prompt_image_b64
 
             if first_turn_image:
@@ -1084,18 +1268,22 @@ class LineageAgent:
                 self.messages.append({
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": user_text},
+                        {"type": "text",      "text": user_text},
                         {"type": "image_url", "image_url": {"url": img_url}},
                     ],
                 })
             else:
                 self.messages.append({"role": "user", "content": user_text})
 
+        # ── Model routing ───────────────────────────────────────────────────
         first_turn_has_image = bool(
             (image_b64 or prompt_image_b64) and not previous_command_output
         )
+        # Vision models don't reliably respect tool schemas — use legacy parse
+        use_tools = not first_turn_has_image
+
         if first_turn_has_image:
-            model = MODEL
+            model = VISION_MODEL
         else:
             turn_index = max(0, len(self.messages) // 2 - 1)
             model = _pick_model(
@@ -1104,47 +1292,94 @@ class LineageAgent:
                 user_request=user_request,
                 is_debug=is_debug,
             )
-        log_agent("agent", f"v12 ({model.split('/')[-1]}, turn={len(self.messages) // 2})", self.project_id)
+
+        log_agent(
+            "agent",
+            f"v15 model={model.split('/')[-1]} step={len(self.messages) // 2} tools={use_tools}",
+            self.project_id,
+        )
 
         try:
-            raw, tokens = await _call_llm(self.messages, model=model, temperature=0.6)
+            result_tuple = await _call_llm(
+                self.messages,
+                model=model,
+                temperature=0.6,
+                use_tools=use_tools,
+            )
+            raw_text: str  = result_tuple[0]
+            tokens:   int  = result_tuple[1]
+            raw_tool_calls = getattr(result_tuple, "tool_calls", [])
             self.total_tokens += tokens
         except Exception as e:
             log_agent("agent", f"LLM error: {e}", self.project_id)
             return {
-                "message": f"AI error: {str(e)[:150]}",
-                "commands": [],
-                "done": True,
-                "tokens": 0,
+                "message":     f"AI error: {str(e)[:150]}",
+                "write_files": [],
+                "commands":    [],
+                "done":        True,
+                "tokens":      0,
             }
 
-        self.messages.append({"role": "assistant", "content": raw})
-        parsed = _parse_response(raw)
+        # ── Record assistant message (with tool_calls if any) ───────────────
+        asst_msg: Dict[str, Any] = {"role": "assistant", "content": raw_text or ""}
+        if raw_tool_calls:
+            asst_msg["tool_calls"] = raw_tool_calls
+        self.messages.append(asst_msg)
+
+        # ── Parse response ──────────────────────────────────────────────────
+        parsed = _parse_response(raw_text, raw_tool_calls if raw_tool_calls else None)
 
         if parsed["thought"]:
             log_agent("agent", f"THOUGHT: {parsed['thought'][:300]}", self.project_id)
 
-        commands: List[str] = []
+        # ── Safety-check bash ───────────────────────────────────────────────
+        safe_bash = ""
         if parsed["bash"]:
             bash_content = self.token_sub.expand(parsed["bash"])
             if _is_safe(bash_content):
-                commands = [bash_content]
+                safe_bash = bash_content
             else:
                 log_agent("agent", "Blocked dangerous command", self.project_id)
 
+        # ── Expand blob tokens in file contents ─────────────────────────────
+        for wf in parsed["write_files"]:
+            wf["content"] = self.token_sub.expand(wf["content"])
+
         done = parsed["done"]
+        write_count = len(parsed["write_files"])
         log_agent(
             "agent",
-            f"{'DONE' if done else f'{len(commands)} cmd block'}, tok={self.total_tokens}",
+            f"{'DONE' if done else f'writes={write_count} bash={bool(safe_bash)}'} tok={self.total_tokens}",
             self.project_id,
         )
 
         return {
-            "message": parsed["message"],
-            "commands": commands,
-            "done": done,
-            "tokens": self.total_tokens,
+            "message":     parsed["message"],
+            "write_files": parsed["write_files"],    # NEW: list of {path, content, reason}
+            "commands":    [safe_bash] if safe_bash else [],  # legacy compat
+            "done":        done,
+            "tokens":      self.total_tokens,
+            "_parsed":     parsed,   # internal — lets sandbox call _append_tool_results
         }
+
+    def record_tool_results(
+        self,
+        parsed:            Dict[str, Any],
+        write_observation: str = "",
+        bash_observation:  str = "",
+    ) -> None:
+        """
+        Call this from the sandbox after executing the tool calls so the
+        next LLM turn has proper tool-result context.
+
+        sandbox_manager should call:
+            agent.record_tool_results(
+                result["_parsed"],
+                write_observation="all files written",
+                bash_observation=shell_stdout,
+            )
+        """
+        self._append_tool_results(parsed, write_observation, bash_observation)
 
 
 # ---------------------------------------------------------------------------
@@ -1171,4 +1406,6 @@ __all__ = [
     "expand_prompt",
     "generate_plan",
     "review_output",
+    "_filter_observation",
+    "AGENT_TOOLS",
 ]
