@@ -4005,7 +4005,7 @@ async def proxy_chat_completions(request: Request, auth=Depends(verify_gorilla_k
     payload = await request.json()
     
     # Force the model to OpenRouter's massive 120b model as requested
-    payload["model"] = "google/gemma-4-31b-it:free" # Replace with your exact OpenRouter model string
+    payload["model"] = "qwen/qwen3.5-flash-02-23" # Replace with your exact OpenRouter model string
     
     # Ask OpenRouter to send usage stats back even if it's a stream
     if "stream_options" not in payload:

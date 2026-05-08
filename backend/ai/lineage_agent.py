@@ -798,10 +798,10 @@ You are fixing a specific bug. Turn 1: run_bash to read the error log. Turn 2 (o
 """
 
 EXPANDER_SUPABASE_ADDON = """
-Supabase is available for data persistence. Plan to use it when users need to save data across sessions or share data between users. Specify tables, columns, and which need Row Level Security. Don't force it on purely client-side apps."""
+Supabase is available for data persistence. Plan to use it when users need to save data across sessions or share data between users. Specify tables, columns, and which need Row Level Security. Don't force it on purely client-side apps. YOU MUST SPECIFY TO USE IT UNLESS IT IS TRULY NOT REQUIRED."""
 
 PLANNER_SUPABASE_ADDON = """
-Supabase is available. Include migrations when the app genuinely stores persistent data."""
+Supabase is available. Include migrations when the app genuinely stores persistent data.YOU MUST SPECIFY TO USE IT UNLESS IT IS TRULY NOT REQUIRED."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
