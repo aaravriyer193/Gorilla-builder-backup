@@ -374,52 +374,12 @@
     #editor { flex: 1; height: 100%; overflow: hidden; }
     #preview { width: 100%; height: 100%; border: 0; display: none; background: #fff; }
 
-    /* ─── PREVIEW WAITING STATE ─── */
-    .preview-waiting {
+    .preview-empty {
       display: none; flex: 1; align-items: center; justify-content: center;
-      flex-direction: column; gap: 20px; text-align: center; padding: 40px;
-      background: #01010a;
+      flex-direction: column; gap: 12px; color: var(--text-muted); text-align: center; padding: 40px;
     }
-    .preview-waiting.visible { display: flex; }
-
-    .preview-url-card {
-      background: rgba(4,4,14,0.95);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 20px 28px;
-      display: flex; flex-direction: column; gap: 8px;
-      align-items: center; max-width: 400px; width: 100%;
-    }
-    .preview-url-label {
-      font-size: 10px; font-weight: 500; text-transform: uppercase;
-      letter-spacing: 1.2px; color: var(--text-muted);
-    }
-    .preview-url-text {
-      font-family: 'DM Mono', monospace; font-size: 13px;
-      color: var(--accent-light); letter-spacing: -0.2px;
-    }
-    .preview-url-bar {
-      width: 100%; height: 1.5px;
-      background: rgba(255,255,255,0.04);
-      border-radius: 2px; overflow: hidden; margin-top: 4px;
-    }
-    .preview-url-bar-fill {
-      height: 100%; width: 30%;
-      background: var(--accent);
-      border-radius: 2px;
-      animation: sweep 2s ease-in-out infinite;
-    }
-    @keyframes sweep {
-      0%   { width: 0%;   margin-left: 0%; }
-      50%  { width: 40%;  margin-left: 30%; }
-      100% { width: 0%;   margin-left: 100%; }
-    }
-    .preview-waiting-msg {
-      font-size: 12px; color: var(--text-muted); line-height: 1.5;
-    }
-    .preview-waiting-msg strong {
-      color: var(--text-mid); font-weight: 400;
-    }
+    .preview-empty i { font-size: 28px; color: var(--text-muted); }
+    .preview-empty p { font-size: 13px; color: var(--text-muted); max-width: 240px; line-height: 1.5; }
 
     /* ─── LOADER ─── */
     #editor-loading-overlay {
@@ -459,6 +419,7 @@
 
 <div class="shell">
 
+<!-- ──────────────── LEFT PANEL ──────────────── -->
 <aside class="left">
 
   <div class="topbar">
@@ -511,6 +472,7 @@
 
 </aside>
 
+<!-- ──────────────── MAIN AREA ──────────────── -->
 <section class="main">
 
   <div class="main-topbar">
@@ -568,21 +530,13 @@
       <div id="imageViewer" style="display:none;flex:1;align-items:center;justify-content:center;overflow:auto;background:#01010a;padding:20px;"></div>
       <iframe
         id="preview"
-        src="/projects/{{ project_id }}/game"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads allow-pointer-lock allow-top-navigation-by-user-activation allow-presentation"
         allow="clipboard-write; clipboard-read; microphone; camera; display-capture"
         referrerpolicy="no-referrer">
       </iframe>
-
-      <div class="preview-waiting" id="previewWaiting">
-        <div class="preview-url-card">
-          <span class="preview-url-label">Your project</span>
-          <span class="preview-url-text" id="previewUrlDisplay">/projects/{{ project_id }}/game</span>
-          <div class="preview-url-bar"><div class="preview-url-bar-fill"></div></div>
-        </div>
-        <p class="preview-waiting-msg" id="previewWaitingMsg">
-          <strong>Gorilla is building…</strong><br>Preview will unlock when it's done.
-        </p>
+      <div class="preview-empty" id="previewEmpty">
+        <i class="ph ph-timer"></i>
+        <p>Preview will appear once the sandbox is live.</p>
       </div>
     </div>
   </div>
@@ -620,9 +574,6 @@ window.isAgentWorking = false;
 let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
 let es = null, saveTimer = null, sandboxUrl = null, currentAttachedImage = null;
 let currentGroup = null;
-// Track whether the gorilla has finished at least once (preview unlock gate)
-// SET TO TRUE BY DEFAULT to immediately show /game
-let previewUnlocked = true; 
 const activityRefs = new Map();
 
 const $ = id => document.getElementById(id);
@@ -740,20 +691,6 @@ function loadChatHistory() {
   } catch(e) {}
 }
 
-// ─── PREVIEW GATE ───
-// Update the waiting message based on current state
-function updatePreviewWaitingMsg() {
-  const msg = $("previewWaitingMsg");
-  if (!msg) return;
-  if (window.isAgentWorking) {
-    msg.innerHTML = '<strong>Gorilla is building…</strong><br>Preview will unlock when it\'s done.';
-  } else if (!sandboxUrl) {
-    msg.innerHTML = '<strong>Sandbox is starting…</strong><br>Preview will appear once it\'s live.';
-  } else {
-    msg.innerHTML = '<strong>Almost there…</strong><br>Loading your project.';
-  }
-}
-
 function setInputState(locked) {
   window.isAgentWorking = locked;
   const p = $("prompt"), b = $("runAgent");
@@ -767,13 +704,7 @@ function setInputState(locked) {
   } else {
     if (p) p.placeholder = "What shall we build?";
     if (b) b.innerHTML = '<i class="ph-fill ph-paper-plane-tilt"></i>';
-    // Agent just finished — unlock preview if sandbox is ready
-    previewUnlocked = true;
-    if ($("tabPreview").classList.contains("active")) {
-      switchTab("preview");
-    }
   }
-  if ($("tabPreview").classList.contains("active")) updatePreviewWaitingMsg();
 }
 
 $("prompt").addEventListener('input', function() {
@@ -938,29 +869,20 @@ if (upInput) upInput.onchange = (e) => {
     await refreshFiles(); upInput.value = "";
   };
   reader.readAsText(file);
-}
+};
 
 function switchTab(tab) {
   if (tab === "preview") {
     $("tabPreview").classList.add("active"); $("tabCode").classList.remove("active");
     $("editor").style.display = "none"; $("imageViewer").style.display = "none";
     document.querySelector(".files").style.display = "none";
-
-    // Strictly embed the required path rather than the complex Sandbox wait cycle
-    if (previewUnlocked) {
-      $("preview").src = `/projects/${PROJECT_ID}/game`;
-      $("preview").style.display = "block";
-      $("previewWaiting").classList.remove("visible");
-    } else {
-      $("preview").style.display = "none";
-      $("previewWaiting").classList.add("visible");
-      updatePreviewWaitingMsg();
-    }
+    if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
+      $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
+    } else { $("preview").style.display = "none"; $("previewEmpty").style.display = "flex"; bootSandboxIfNeeded(); }
   } else {
     $("tabCode").classList.add("active"); $("tabPreview").classList.remove("active");
     document.querySelector(".files").style.display = "flex";
-    $("preview").style.display = "none";
-    $("previewWaiting").classList.remove("visible");
+    $("preview").style.display = "none"; $("previewEmpty").style.display = "none";
     if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png'))) {
       $("editor").style.display = "none"; $("imageViewer").style.display = "flex";
     } else { $("editor").style.display = "block"; $("imageViewer").style.display = "none"; }
@@ -970,14 +892,16 @@ $("tabCode").onclick = () => switchTab("code");
 $("tabPreview").onclick = () => switchTab("preview");
 
 async function bootSandboxIfNeeded() {
-  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { return; }
+  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { $("preview").src = sandboxUrl; return; }
   updateSandboxStatus("Booting");
   try {
     const res = await fetch(`/api/project/${PROJECT_ID}/sandbox/start`, { method: 'POST' });
     const data = await res.json();
     if (data.url) {
       sandboxUrl = data.url; updateSandboxStatus("Live");
-      if ($("tabPreview").classList.contains("active")) switchTab("preview");
+      if ($("tabPreview").classList.contains("active")) {
+        $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
+      }
     } else updateSandboxStatus("Error");
   } catch (e) { updateSandboxStatus("Error"); }
 }
@@ -990,18 +914,11 @@ function startStream() {
     const m = JSON.parse(e.data);
     if (m.type === "status") {
       setProgress(m.text);
-      if (/Done|Ready|Error/i.test(m.text)) {
-        resetGroup();
-        setInputState(false);
-        if (/Done/i.test(m.text)) {
-          previewUnlocked = true;
-          if ($("tabPreview").classList.contains("active")) switchTab("preview");
-        }
-      }
+      if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
       if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) {
         updateSandboxStatus("Live");
-        if (sandboxUrl && previewUnlocked && $("tabPreview").classList.contains("active")) {
-          switchTab("preview");
+        if (sandboxUrl && $("tabPreview").classList.contains("active")) {
+          setTimeout(() => { $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none"; }, 600);
         }
       }
       if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
@@ -1009,11 +926,19 @@ function startStream() {
     else if (m.type === "progress") setProgress(m.text, m.pct);
     else if (m.type === "sandbox_url") {
       sandboxUrl = m.url; updateSandboxStatus("Live");
-      // Trigger the embed view directly
-      if (previewUnlocked && $("tabPreview").classList.contains("active")) {
-        switchTab("preview");
-      } else if ($("tabPreview").classList.contains("active")) {
-        updatePreviewWaitingMsg();
+      if ($("tabPreview").classList.contains("active")) {
+        const iframe = $("preview");
+        iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
+        const checkPort = setInterval(async () => {
+          try {
+            const res = await fetch(sandboxUrl); const text = await res.text();
+            if (!text.includes("Closed Port Error") && !text.includes("no service running on port")) {
+              clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
+            }
+          } catch (err) {
+            clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
+          }
+        }, 2000);
       }
     }
     else if (m.type === "narration") await addNarration(m.text, true);
@@ -1031,9 +956,6 @@ function startStream() {
 async function triggerAgent(promptText) {
   if (!promptText && !currentAttachedImage) return;
   resetGroup();
-  previewUnlocked = false;
-  if ($("tabPreview").classList.contains("active")) switchTab("preview");
-
   const dbKeywords = /\b(db|database|supabase|postgres|sql)\b/i;
   const isDbReq = dbKeywords.test(promptText);
   const formData = new FormData();

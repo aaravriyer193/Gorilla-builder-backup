@@ -1756,11 +1756,10 @@ async def create_project(
                 )
  
         # BUG 4 FIX: build URL directly. No query_params list.
-        # Also: xmode dropped from target URL (no xmode route in e2b arch)
-        target_url = f"/projects/{pid}/editor"
+        # After
         if final_prompt:
-            target_url += f"?prompt={urllib.parse.quote(final_prompt)}"
-        return RedirectResponse(target_url, status_code=303)
+            request.session["editor_prompt"] = final_prompt
+        return RedirectResponse(f"/projects/{pid}/editor", status_code=303)
  
     except Exception as e:
         print(f"Create Error: {e}")
@@ -1801,6 +1800,7 @@ async def project_editor(request: Request, project_id: str, file: str = "index.h
     return templates.TemplateResponse(
         "projects/project-editor.html",
         {
+            "prompt": prompt,
             "request": request, 
             "project_id": project_id, 
             "project": project, 
@@ -4005,7 +4005,7 @@ async def proxy_chat_completions(request: Request, auth=Depends(verify_gorilla_k
     payload = await request.json()
     
     # Force the model to OpenRouter's massive 120b model as requested
-    payload["model"] = "deepseek/deepseek-v4-flash:nitro" # Replace with your exact OpenRouter model string
+    payload["model"] = "google/gemma-4-31b-it:free" # Replace with your exact OpenRouter model string
     
     # Ask OpenRouter to send usage stats back even if it's a stream
     if "stream_options" not in payload:
