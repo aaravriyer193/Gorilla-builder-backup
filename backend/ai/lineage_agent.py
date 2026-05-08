@@ -66,7 +66,7 @@ import httpx
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL         = os.getenv("LINEAGE_MODEL",   "minimax/minimax-m2.7")
-SMART_MODEL   = os.getenv("SMART_MODEL",     "qwen/qwen3.6-plus")
+SMART_MODEL   = os.getenv("SMART_MODEL",     "minimax/minimax-m2.7")
 PLANNER_MODEL = os.getenv("PLANNER_MODEL",   "xiaomi/mimo-v2.5")
 VISION_MODEL  = os.getenv("VISION_MODEL",    "xiaomi/mimo-v2.5")
 OPENROUTER_URL = os.getenv(
@@ -76,7 +76,7 @@ OPENROUTER_URL = os.getenv(
 SITE_URL  = os.getenv("SITE_URL",  "https://gorillabuilder.dev").strip()
 SITE_NAME = os.getenv("SITE_NAME", "Gorilla Builder")
 
-MAX_CONTEXT_TOKENS = 100_000
+MAX_CONTEXT_TOKENS = 230_000
 CHARS_PER_TOKEN    = 4
 
 if not OPENROUTER_API_KEY:
@@ -991,10 +991,10 @@ async def _call_llm(
     u = data.get("usage", {})
     p = u.get("prompt_tokens", 0)
     c = u.get("completion_tokens", 0)
-    is_frontier = any(x in model for x in ["claude", "gpt-4", "gemini"])
-    is_mimo     = "mimo" in model
+    is_frontier = any(x in model for x in ["mimo-v2.5-pro"])
+    is_mimo     = "mimo-v2.5" in model
     if is_frontier:
-        weight = p * 0.6 + c * 2.4
+        weight = p * 1 + c * 3
     elif is_mimo:
         weight = p * 0.5 + c * 2.0
     else:
