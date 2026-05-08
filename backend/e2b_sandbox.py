@@ -21,6 +21,12 @@ Changes vs previous version:
       * Vite ready-signal polling (no fixed sleep)
       * 500KB tar chunk upload
       * 30s file tree cache with explicit invalidation
+
+FIX (sync): Before the final post-agent sync, the SYNC_MARKER is reset to
+  epoch and content_hashes is cleared for all agent-written files. This
+  guarantees _sync_once's `find -newer` picks up every file the agent
+  wrote, even if they were written in earlier turns whose per-turn syncs
+  already ran and advanced the marker past those files.
 """
 
 from __future__ import annotations
@@ -183,6 +189,9 @@ class SandboxSession:
     _tree_cached_at: float          = field(default=0.0,          repr=False)
     # Whether the sandbox's E2B SDK supports the files API (vs bash fallback)
     _has_files_api: bool = field(default=False, repr=False)
+    # Tracks every relative path the agent has written this session,
+    # so the final sync can force-include them regardless of marker age.
+    _agent_written_paths: Set[str] = field(default_factory=set, repr=False)
 
 
 class E2BSandboxManager:
@@ -353,10 +362,6 @@ class E2BSandboxManager:
 
     # -----------------------------------------------------------
     # Native file write  (v15 — replaces heredoc for agent writes)
-    #
-    # Tries E2B files API first (one round-trip per file).
-    # Falls back to heredoc bash if the SDK doesn't have it.
-    # Called from _write_files_parallel() for batched agent writes.
     # -----------------------------------------------------------
     def _write_one_file_sync(self, sbx, rel_path: str, content: str) -> bool:
         """Synchronous — meant to be called via asyncio.to_thread."""
@@ -414,7 +419,6 @@ class E2BSandboxManager:
 
             # Emit activity card for this file write
             activity_id = self._next_activity_id(project_id)
-            label       = reason or rel
             self._emit_activity_start(
                 project_id, activity_id,
                 "edit", rel, f"Write {rel}",
@@ -426,6 +430,9 @@ class E2BSandboxManager:
                 # Update content hash so sync knows about this file
                 h = hashlib.md5(body.encode("utf-8", errors="replace")).hexdigest()
                 session.content_hashes[rel] = h
+                # ── FIX: track every path the agent writes so the final
+                #    sync can force-include it regardless of marker age.
+                session._agent_written_paths.add(rel)
                 log_agent("agent", f"wrote {rel}", project_id)
             else:
                 log_agent("agent", f"FAILED to write {rel}", project_id)
@@ -918,8 +925,6 @@ class E2BSandboxManager:
                 )
 
             # Build the OBSERVATION that the agent sees next turn.
-            # For write-only turns (no bash): short ack so it knows to proceed.
-            # For bash turns: full output.
             obs_parts: List[str] = []
             if write_obs:
                 obs_parts.append(write_obs)
@@ -970,13 +975,59 @@ class E2BSandboxManager:
             except Exception as e:
                 log_agent("agent", f"Reviewer error: {e}", project_id)
 
+        # -----------------------------------------------------------
+        # ── FIX: Before the final sync, reset the SYNC_MARKER to
+        #    epoch and evict all agent-written paths from content_hashes.
+        #
+        #    Why this is needed:
+        #      _sync_once uses `find -newer SYNC_MARKER` to discover
+        #      changed files.  SYNC_MARKER is advanced (touch'd) at the
+        #      end of every _sync_once call.  Files written in earlier
+        #      turns were already older than the marker by the time the
+        #      final sync runs, so `find -newer` silently skips them.
+        #      Even if they somehow appeared in changed_files, the
+        #      content_hashes check would mark them unchanged and skip
+        #      the DB upsert a second time.
+        #
+        #      The safest fix is two lines:
+        #        1. Reset the marker to epoch → find -newer catches everything
+        #        2. Evict agent-written paths from content_hashes → hash
+        #           check can't false-positive skip them
+        # -----------------------------------------------------------
+        session = self._sessions.get(project_id)
+        if session and session._agent_written_paths:
+            try:
+                # Reset marker to epoch so find -newer catches all files
+                await asyncio.to_thread(
+                    session.sandbox.commands.run,
+                    f"touch -t 197001010000 {SYNC_MARKER}",
+                    timeout=5,
+                )
+                # Evict hashes so _sync_once doesn't skip "already seen" files
+                for p in session._agent_written_paths:
+                    session.content_hashes.pop(p, None)
+                log_agent(
+                    "agent",
+                    f"Pre-sync: reset marker + evicted {len(session._agent_written_paths)} hashes",
+                    project_id,
+                )
+            except Exception as e:
+                log_agent("agent", f"Pre-sync reset failed (non-fatal): {e}", project_id)
+
+        # -----------------------------------------------------------
         # Sync
+        # -----------------------------------------------------------
         self._emit_status(project_id, "Syncing to database...")
         synced, deleted = await self._sync_once(project_id)
-        session._tree_cached_at = 0.0
+
+        # Clear the written-paths set now that the sync has run
+        if session:
+            session._agent_written_paths.clear()
+            session._tree_cached_at = 0.0
+
         self._emit_log(project_id, "sync", f"Synced {synced} changed, removed {deleted} deleted")
 
-        url = session.url
+        url = session.url if session else None
         self._emit(project_id, {"type": "sandbox_url", "url": url})
 
         return {
@@ -1070,15 +1121,9 @@ class E2BSandboxManager:
     # Linter helper — called after write_files on .ts/.tsx paths
     # -----------------------------------------------------------
     async def _lint_paths(self, project_id: str, paths: List[str]) -> str:
-        """
-        Run tsc --noEmit on the given paths.
-        Returns a non-empty string only if there are real TS errors.
-        """
         session = self._sessions.get(project_id)
         if not session:
             return ""
-        # tsc --noEmit on individual files is unreliable for module resolution;
-        # run project-wide but only surface errors in the written files.
         written_set = set(paths)
         try:
             lint_result = await asyncio.to_thread(
@@ -1089,7 +1134,6 @@ class E2BSandboxManager:
             lint_out = (lint_result.stdout or "").strip()
             if not lint_out:
                 return ""
-            # Filter to lines touching the written files
             relevant = [
                 line for line in lint_out.splitlines()
                 if any(p.replace("/", os.sep) in line or p in line for p in written_set)
@@ -1275,7 +1319,7 @@ class E2BSandboxManager:
         return tree
 
     # -----------------------------------------------------------
-    # Batched sync (unchanged)
+    # Batched sync
     # -----------------------------------------------------------
     async def _sync_once(self, project_id: str) -> Tuple[int, int]:
         session = self._sessions.get(project_id)
@@ -1421,8 +1465,6 @@ class E2BSandboxManager:
         session = self._sessions.get(project_id)
         if not session:
             return False
-        full = f"{APP_DIR}/{rel_path}"
-        dirp = "/".join(full.split("/")[:-1])
         try:
             ok = await asyncio.to_thread(self._write_one_file_sync, session.sandbox, rel_path, content)
             if ok:
