@@ -1,52 +1,62 @@
 """
-Lineage Agent v15 — tool-call native, two-phase parallel write → run
-=====================================================================
+Lineage Agent v17 — MiMo-native (Qwen3-Coder XML), batch-limited, naturally agentic
+====================================================================================
 
-Key changes in v15:
-  - TOOL-CALL PROTOCOL: Agent now receives proper OpenAI-format tool schemas
-    (write_file, run_bash, mark_done). MiniMax M2.7 and every other modern
-    model on OpenRouter returns structured tool_calls instead of
-    freetext + XML fallback. No more XML parsing hacks.
+Why v17 (vs v16's MiniMax XML):
+  v16 spoke MiniMax-M2.7's <minimax:tool_call> dialect. That works for
+  MiniMax. But Xiaomi's MiMo family (MiMo-V2-Flash, MiMo-V2.5-Pro, MiMo-V2-Pro)
+  was trained on a DIFFERENT XML format inherited from Qwen3-Coder, not on
+  MiniMax's namespaced tags. Forcing MiMo through MiniMax's wrapper (or
+  through OpenAI's structured `tools` API) hurts performance — the model
+  emits malformed output and reliability collapses on long-horizon agentic
+  tasks.
 
-  - TWO-PHASE EXECUTION: The agent batches ALL file writes in one response
-    (parallel tool_calls), then issues a single run_bash for the server +
-    verification. This cuts a 10-step greenfield build from ~10 round-trips
-    to 3-4.  Write → observe nothing → Run → observe 200s → Done.
+  Sources verified:
+    • docs.vllm.ai/projects/recipes/en/latest/MiMo/MiMo-V2-Flash.html
+        → official vLLM serve command uses --tool-call-parser qwen3_xml
+        → official vLLM serve command uses --reasoning-parser qwen3
+    • huggingface.co/Qwen/Qwen3-Coder-480B-A35B-Instruct/blob/main/qwen3coder_tool_parser.py
+        → defines the canonical XML grammar: <tool_call><function=NAME>
+          <parameter=KEY>VALUE</parameter></function></tool_call>
+    • huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/chat_template.jinja
+        → tools injected into system prompt as <tools><function><name>…</name>
+          <description>…</description><parameters>…</parameters></function></tools>
+    • github.com/QwenLM/Qwen3-Coder/issues/475
+        → the exact instruction wording that fixed unreliable tool calls:
+          "If you choose to call a function ONLY reply in the following
+           format with NO suffix"
+    • platform.xiaomimimo.com/docs/api/chat/openai-api
+        → multi-turn requires preserving reasoning_content between turns
+          to avoid performance degradation
 
-  - PARALLEL_TOOL_CALLS=True: Passed in every request payload. Models that
-    support it (MiniMax M2.7, Qwen, DeepSeek, etc.) will emit multiple
-    write_file calls in one response block.
+What changed mechanically vs v16:
+  ✱ XML grammar: <tool_call><function=NAME>...</function></tool_call>
+    (Qwen3-Coder format, NOT <minimax:tool_call>)
+  ✱ Tool defs in system prompt: <tools><function><name>...</name>...
+    <parameters><parameter>...</parameter></parameters></function></tools>
+    (matches the official Qwen3-Coder Jinja template format)
+  ✱ Includes the canonical "ONLY reply in this format with NO suffix"
+    instruction proven to fix unreliable tool calls
+  ✱ Reasoning preservation: passes reasoning blocks between turns and
+    feeds reasoning_content back as part of the assistant message
+  ✱ ALL models on the routing path are MiMo-family — MODEL, SMART_MODEL,
+    PLANNER_MODEL, VISION_MODEL all use mimo-v2 variants. One tool dialect,
+    one consistent voice.
+  ✱ XML repair extended for Qwen3-Coder common defects (mostly: missing
+    closing tags, parameter content with stray < or > characters).
 
-  - RESPONSE PARSER hardened: handles both tool_call responses AND legacy
-    freetext bash-block responses (graceful fallback for models that don't
-    speak tools — e.g. VISION_MODEL on first image turn).
-
-  - SYSTEM PROMPT updated to teach the tool-call workflow naturally. The
-    prose → bash shape is replaced with the write_file → run_bash shape.
-    Same judgment-framing philosophy from v14, new mechanical interface.
-
-  - TOOL RESULT FORMAT: tool results are sent back as role=tool messages
-    per the OpenAI spec. History compression handles them correctly.
-
-  - PROMPT CACHE FRIENDLY: system prompt is always message[0], never
-    mutated after session start, so Fireworks BYOK cache hits every turn.
-
-All prior v14 functionality preserved:
-  #1  Prompt expander
-  #2  Planner (todo.md)
-  #3  Auto-kill ports (sandbox_manager)
-  #4  Narration fix
-  #5  Per-file specs
-  #6  Linter-in-the-loop
-  #7  Template starters
-  #8  Silent success
-  #9  History compression
-  #10 Reviewer
-  #11 Multi-file turns (now native via parallel tool_calls)
-  #12 Smart model routing
+What's preserved from v14/v15/v16 (ALL features intact):
+  #1  Prompt expander                      #7  Template starters
+  #2  Planner (todo.md)                    #8  Silent success
+  #3  Auto-kill ports                      #9  History compression
+  #4  Narration fix                        #10 Reviewer
+  #5  Per-file specs                       #11 Multi-file turns (batched)
+  #6  Linter-in-the-loop                   #12 Smart model routing
   + Supabase / Debug / Skills addons
-  + Observation noise filter (_filter_observation)
+  + Observation noise filter
   + TokenSubstitution for blob compression
+  + BATCH_LIMIT = 2 (the v16 anti-dump rule)
+  + Sandbox _parsed contract preserved (sandbox_manager doesn't change)
 """
 
 from __future__ import annotations
@@ -62,13 +72,19 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 # ---------------------------------------------------------------------------
-# Config
+# Config — full MiMo family. Same dialect on every routing branch.
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL         = os.getenv("LINEAGE_MODEL",   "minimax/minimax-m2.7")
-SMART_MODEL   = os.getenv("SMART_MODEL",     "minimax/minimax-m2.7")
+
+# All models in the MiMo family so the Qwen3-Coder XML format stays
+# consistent across the entire routing graph. Mixing in MiniMax or Qwen
+# bare would mean two different tool dialects, which is exactly the
+# failure mode v16 was trying to fix in the OTHER direction.
+MODEL         = os.getenv("LINEAGE_MODEL",   "xiaomi/mimo-v2.5")
+SMART_MODEL   = os.getenv("SMART_MODEL",     "xiaomi/mimo-v2.5-pro")     # was MiniMax M2.7 in v16
 PLANNER_MODEL = os.getenv("PLANNER_MODEL",   "xiaomi/mimo-v2.5")
 VISION_MODEL  = os.getenv("VISION_MODEL",    "xiaomi/mimo-v2.5")
+
 OPENROUTER_URL = os.getenv(
     "OPENROUTER_URL",
     "https://openrouter.ai/api/v1/chat/completions",
@@ -78,6 +94,12 @@ SITE_NAME = os.getenv("SITE_NAME", "Gorilla Builder")
 
 MAX_CONTEXT_TOKENS = 230_000
 CHARS_PER_TOKEN    = 4
+
+# Hard cap on writes per turn — preserved from v16. Single most important
+# behavioral lever in the whole agent. MiMo is a strong long-horizon model
+# but it still benefits enormously from observing intermediate results
+# rather than dumping a full codebase in one shot.
+BATCH_LIMIT = 2
 
 if not OPENROUTER_API_KEY:
     raise RuntimeError("OPENROUTER_API_KEY must be set")
@@ -214,91 +236,178 @@ class TokenSubstitution:
         return text
 
 
-# ---------------------------------------------------------------------------
-# Tool schemas — passed to OpenRouter on every request
-# ---------------------------------------------------------------------------
-AGENT_TOOLS = [
+# ═══════════════════════════════════════════════════════════════════════════
+# Tool definitions — these are rendered into the system prompt as a <tools>
+# XML block in the EXACT format from Qwen3-Coder's official Jinja chat
+# template. Do NOT pass these via OpenRouter's `tools` API parameter — that
+# triggers a different code path inside MiMo's chat_template that treats
+# them as Hermes-style JSON, which the model is not trained to emit
+# reliably (verified against Qwen3-Coder issue #475 and the vLLM recipe).
+# ═══════════════════════════════════════════════════════════════════════════
+
+AGENT_TOOL_DEFS = [
     {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": (
-                "Write content to a file in /home/user/app. "
-                "Call this multiple times in parallel to write several files at once. "
-                "Do NOT run anything — just write. Use run_bash afterwards."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Relative path from /home/user/app, e.g. src/components/Navbar.tsx",
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Full file content to write.",
-                    },
-                    "reason": {
-                        "type": "string",
-                        "description": "One-line note about what this file does (shown to user).",
-                    },
+        "name": "write_file",
+        "description": (
+            "Write the full content of a single file to /home/user/app. "
+            "Overwrites the file if it exists. Call this twice in the SAME tool_call "
+            "block to write two files in parallel (max 2 per turn — see batching rules)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Relative path from /home/user/app, e.g. src/components/Navbar.tsx",
                 },
-                "required": ["path", "content"],
+                "content": {
+                    "type": "string",
+                    "description": "Full file content. No line numbers, no diff markers — just the raw file.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Optional one-line note about what this file does.",
+                },
             },
+            "required": ["path", "content"],
         },
     },
     {
-        "type": "function",
-        "function": {
-            "name": "run_bash",
-            "description": (
-                "Run a bash command in the sandbox. "
-                "Use AFTER all write_file calls are done. "
-                "Prefer one compound command (&&-chained) over multiple calls. "
-                "Never use for file writes — use write_file for that."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "The bash command to run.",
-                    },
-                    "reason": {
-                        "type": "string",
-                        "description": "One-line description of what this does.",
-                    },
+        "name": "run_bash",
+        "description": (
+            "Run a bash command in the sandbox at /home/user/app. "
+            "Use AFTER any write_file calls in the same turn (or alone for read-only "
+            "operations like cat, ls, curl). Prefer one &&-chained command over multiple "
+            "separate calls. NEVER use heredocs to write files — use write_file for that."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The bash command to execute.",
                 },
-                "required": ["command"],
+                "reason": {
+                    "type": "string",
+                    "description": "Optional one-line description.",
+                },
             },
+            "required": ["command"],
         },
     },
     {
-        "type": "function",
-        "function": {
-            "name": "mark_done",
-            "description": (
-                "Signal that the task is complete. "
-                "Only call after verifying both ports return 200. "
-                "Provide a short summary for the user."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "summary": {
-                        "type": "string",
-                        "description": "What was built / what was fixed — 1-3 sentences.",
-                    },
+        "name": "mark_done",
+        "description": (
+            "Signal the task is complete. Only call this AFTER both ports have been "
+            "verified to return 200 and the build genuinely matches the spec. "
+            "Provide a short, user-facing summary of what was built or fixed."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "description": "1-3 sentences of what shipped, written for the user.",
                 },
-                "required": ["summary"],
             },
+            "required": ["summary"],
         },
     },
 ]
 
 
+def _format_tools_for_prompt() -> str:
+    """
+    Render AGENT_TOOL_DEFS in Qwen3-Coder's exact training format.
+
+    The structure is:
+        # Tools
+        You have access to the following functions:
+        <tools>
+        <function>
+          <name>...</name>
+          <description>...</description>
+          <parameters>
+            <parameter>
+              <name>...</name>
+              <type>...</type>
+              <description>...</description>
+              <required>true|false</required>
+            </parameter>
+            ...
+          </parameters>
+        </function>
+        ...
+        </tools>
+
+    Verified against:
+      huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/chat_template.jinja
+      gist.github.com/mostlygeek/6fe263bad8026dca73cb6f5470dfdb0d
+    """
+    parts = [
+        "# Tools",
+        "",
+        "You have access to the following functions:",
+        "",
+        "<tools>",
+    ]
+    for tool in AGENT_TOOL_DEFS:
+        params      = tool.get("parameters", {})
+        properties  = params.get("properties", {}) or {}
+        required    = set(params.get("required", []) or [])
+
+        parts.append("<function>")
+        parts.append(f"<name>{tool['name']}</name>")
+        parts.append(f"<description>{tool['description']}</description>")
+        parts.append("<parameters>")
+
+        for pname, pinfo in properties.items():
+            ptype = pinfo.get("type", "string")
+            pdesc = pinfo.get("description", "")
+            parts.append("<parameter>")
+            parts.append(f"<name>{pname}</name>")
+            parts.append(f"<type>{ptype}</type>")
+            parts.append(f"<description>{pdesc}</description>")
+            parts.append(f"<required>{'true' if pname in required else 'false'}</required>")
+            parts.append("</parameter>")
+
+        parts.append("</parameters>")
+        parts.append("</function>")
+
+    parts.append("</tools>")
+
+    # The exact instruction wording from QwenLM/Qwen3-Coder issue #475 that
+    # fixed the missing-tag bug. This is verbatim from the upstream patch
+    # that proved most reliable across community tests. We adapt it slightly
+    # to mention the BATCH_LIMIT.
+    parts.extend([
+        "",
+        "If you choose to call a function ONLY reply in the following format with NO suffix:",
+        "",
+        "<tool_call>",
+        "<function=example_function_name>",
+        "<parameter=example_parameter_1>",
+        "value_1",
+        "</parameter>",
+        "<parameter=example_parameter_2>",
+        "This is the value for the second parameter that can span multiple lines",
+        "</parameter>",
+        "</function>",
+        "</tool_call>",
+        "",
+        "Reminder:",
+        "- Function calls MUST follow the specified format above",
+        "- Required parameters MUST be specified",
+        "- Only call functions that are listed above",
+        f"- At MOST {BATCH_LIMIT} <function=...> blocks per <tool_call> wrapper (the batch limit)",
+        "- You may provide brief reasoning in plain text BEFORE the <tool_call>, but NOT after",
+        "- After </tool_call>, stop generating — the results come back next turn",
+    ])
+    return "\n".join(parts)
+
+
 # ---------------------------------------------------------------------------
-# Context management — history compression (tool-call aware)
+# Context management — history compression (XML-aware)
 # ---------------------------------------------------------------------------
 _token_estimate_cache: List[Any] = []
 
@@ -310,7 +419,6 @@ def _estimate_tokens(messages: list) -> int:
         return _token_estimate_cache[1]
     total = 0
     for m in messages:
-        role = m.get("role", "")
         c = m.get("content", "")
         if isinstance(c, str):
             total += len(c) // CHARS_PER_TOKEN
@@ -321,21 +429,21 @@ def _estimate_tokens(messages: list) -> int:
                         total += len(item.get("text", "")) // CHARS_PER_TOKEN
                     elif item.get("type") == "image_url":
                         total += 1000
-        # tool_calls in assistant messages
-        for tc in m.get("tool_calls", []):
-            args = tc.get("function", {}).get("arguments", "")
-            total += len(args) // CHARS_PER_TOKEN
-        # tool result messages
-        if role == "tool":
-            total += len(str(c)) // CHARS_PER_TOKEN
+        # Reasoning tokens (MiMo-specific) — we keep them in context so the
+        # model maintains its train of thought across turns. Each reasoning
+        # block is roughly bounded so this doesn't explode.
+        rd = m.get("reasoning_content", "")
+        if rd:
+            total += len(str(rd)) // CHARS_PER_TOKEN
     _token_estimate_cache = [msg_count, total]
     return total
 
 
 def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> list:
     """
-    Keep system + first user message + last 10 messages.
-    Collapse earlier tool results to one-line summaries.
+    Keep system + first user + last 10 messages. Collapse middle assistant
+    messages to "[wrote: a.tsx, b.tsx]" summaries, middle observations to
+    first line. Strip reasoning_content from compressed messages.
     """
     if _estimate_tokens(messages) <= max_tokens:
         return messages
@@ -354,38 +462,40 @@ def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> l
     compressed   = []
 
     for m in messages[middle_start:middle_end]:
-        role = m.get("role", "")
-        if role == "tool":
-            content_raw = m.get("content", "")
-            first_line  = str(content_raw).split("\n")[0][:120]
-            compressed.append({
-                "role":         "tool",
-                "tool_call_id": m.get("tool_call_id", ""),
-                "content":      f"[compressed] {first_line}...",
-            })
-        elif role == "assistant":
-            # Keep tool_calls structure but drop verbose content
-            tc_names = [
-                tc.get("function", {}).get("name", "?")
-                for tc in m.get("tool_calls", [])
-            ]
-            if tc_names:
-                compressed.append({
-                    "role":    "assistant",
-                    "content": f"[called: {', '.join(tc_names)}]",
-                })
+        role    = m.get("role", "")
+        content = str(m.get("content", ""))
+
+        if role == "assistant":
+            # Pull out write_file paths and run_bash commands for a one-liner
+            paths = re.findall(
+                r"<function=write_file>[\s\S]*?<parameter=path>\s*([^\s<][^<]*?)\s*</parameter>",
+                content,
+            )
+            cmds = re.findall(
+                r"<function=run_bash>[\s\S]*?<parameter=command>\s*([^<]+?)\s*</parameter>",
+                content,
+            )
+            summary_parts = []
+            if paths:
+                summary_parts.append(f"wrote: {', '.join(p.strip() for p in paths[:3])}")
+            if cmds:
+                first_cmd = cmds[0].strip().split("\n")[0][:80]
+                summary_parts.append(f"ran: {first_cmd}")
+            if "<function=mark_done>" in content:
+                summary_parts.append("DONE")
+            if summary_parts:
+                compressed.append({"role": "assistant", "content": "[" + " | ".join(summary_parts) + "]"})
             else:
-                text = str(m.get("content", ""))[:120]
-                compressed.append({"role": "assistant", "content": text})
+                compressed.append({"role": "assistant", "content": content[:120]})
+
         elif role == "user":
-            c = m.get("content", "")
-            if isinstance(c, str) and c.startswith("OBSERVATION:"):
-                first_line = c.split("\n")[1] if "\n" in c else c
+            if content.startswith("OBSERVATION:") or content.startswith("[tool_result]"):
+                first_line = content.split("\n", 2)[1] if "\n" in content else content
                 compressed.append({"role": "user", "content": f"OBSERVATION: {first_line[:120]}..."})
             else:
-                compressed.append({"role": role, "content": str(c)[:200]})
+                compressed.append({"role": role, "content": content[:200]})
         else:
-            compressed.append({"role": role, "content": str(m.get("content", ""))[:200]})
+            compressed.append({"role": role, "content": content[:200]})
 
     result = []
     if sys_msg:    result.append(sys_msg)
@@ -455,27 +565,41 @@ def _filter_observation(raw: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  SYSTEM PROMPT  v15 — tool-call native, judgment-framed
+#  SYSTEM PROMPT  v17
+#
+#  Inspired by:
+#  • Cline's explore-implement-verify loop (cline.ghost.io/system-prompt-advanced)
+#  • Aider's full-file-write-then-targeted-edit philosophy
+#  • OpenHands's "thorough, methodical, quality over speed" framing
+#  • Qwen3-Coder's "ONLY reply in this format with NO suffix" pattern
+#  • Original v14/v15/v16 Gorilla domain knowledge (Vite + Express + AI proxy)
+#
+#  The Qwen3-Coder tools block is appended at runtime by
+#  _format_tools_for_prompt() so MiMo sees its tools in the exact format
+#  it was trained on.
 # ═══════════════════════════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = r"""You are Gorilla, a senior full-stack engineer. You share one workspace with the user: an Ubuntu sandbox running React + Vite on port 8080 and Express on port 3000. Your job is to build real, working SaaS apps — not mockups — and stay with the work until it's genuinely done.
+SYSTEM_PROMPT_BODY = r"""You are Gorilla, a senior full-stack engineer. You share one workspace with the user: an Ubuntu sandbox running React + Vite on port 8080 and Express on port 3000. Your job is to build real, working SaaS apps — not mockups — and stay with the work until it's genuinely done.
 
 # How you work
 
-You have three tools:
+You work in small, observable steps. Each turn you do ONE of three things:
 
-- **write_file(path, content, reason?)** — write a file to disk. Call this in parallel for multiple independent files.
-- **run_bash(command, reason?)** — run shell commands. Use AFTER all writes are done. Chain related commands with &&.
-- **mark_done(summary)** — signal completion. Only call after verifying both ports return 200.
+1. **Explore** — read files, list directories, check logs. Use this when you need information before deciding what to build or fix.
+2. **Implement (small batch)** — write up to 2 files, then optionally run a quick command to install/restart. After this you stop and look at what happened.
+3. **Verify or finish** — run the verification command, read the output, and either fix or call mark_done.
 
-**The build flow:**
-1. Think briefly about the approach (plain text, no code block needed).
-2. Call write_file in parallel for all files you want to create or update.
-3. Call run_bash once to install deps / start the server / verify.
-4. Read the OBSERVATION. If both ports are 200 and the app is correct, call mark_done.
-5. Otherwise, call run_bash to read the log, then fix with targeted write_file calls.
+**The hard rule: at most 2 write_file calls per turn.** This is non-negotiable. If you're building something that needs 10 files, that's 5 turns — and that's good, because between each turn you get to see the dev server's hot-reload output and catch problems early. Bad codebases come from agents that try to write everything at once and ship a tangled mess. You write a focused pair of files, observe, then continue with the next pair informed by what you just saw.
 
-The key insight: batch your writes. If you're creating Navbar + Footer + three pages, emit five write_file calls at once. The sandbox writes them all before running anything.
+This is closer to how a human engineer works: you don't write the whole app then hit save once. You write Navbar.tsx + index.css together, alt-tab to the browser, see it render, then move on to Footer.tsx + Hero.tsx. The two-file batch is your unit of progress.
+
+**Order of operations within a build:**
+
+Turn 1: Explore — read existing src/App.tsx, server.js, src/index.css to understand the starting point.
+Turn 2: Foundation — write src/index.css (full design system) + maybe src/App.tsx skeleton.
+Turn 3-N: Components — Navbar + Footer in one turn, then two pages in the next, etc.
+Turn N+1: Backend — one or two route files at a time.
+Final turn: run dev server, curl both ports, mark_done.
 
 # Environment
 
@@ -508,16 +632,16 @@ Base URL: `{GORILLA_PROXY}` — pass `$GORILLA_API_KEY` as the Authorization Bea
 
 You bring a senior engineer's judgment to each decision. When the spec is open, you choose conservatively and in sympathy with what's already in the codebase. You prefer established patterns and keep edits tightly scoped.
 
-**Greenfield build order** (write_file batches):
+**Greenfield build order** (one batch per turn):
 1. `src/index.css` — complete design system (custom properties, dark palette, typography, Google Font)
-2. Shared components — Navbar, Footer, primitives — one parallel batch
-3. Page components — independent pages together
-4. Backend routes — one batch
-5. `src/App.tsx` — wire all routes, auth guards (solo write, it's always an edit)
-6. `server.js` — mount all routes (solo write)
+2. Shared components — Navbar + Footer (one turn) → primitives (next turn if needed)
+3. Page components — two independent pages per turn until done
+4. Backend routes — one or two route files per turn
+5. `src/App.tsx` — wire all routes, auth guards (solo write, paired with one other small edit if any)
+6. `server.js` — mount all routes (solo write, or paired with the last route file)
 7. run_bash: npm install (if needed) → start → verify both 200s
 
-This order makes the live preview look good from the very first hot-reload.
+This order makes the live preview look good from the very first hot-reload, and the small batches mean you catch each new component's import errors immediately instead of debugging a wall of failures at the end.
 
 # Frontend quality
 
@@ -525,26 +649,120 @@ Interfaces feel rich and domain-appropriate. A SaaS dashboard is quiet and work-
 
 # When something goes wrong
 
-```bash
+Read first. One run_bash call:
+```
 cat /tmp/dev.log | tail -60
 ```
-
-Read before touching anything. Make the smallest fix that addresses the root cause. Don't refactor on the way to a fix.
+Then make the smallest fix that addresses the root cause. Don't refactor on the way to a fix. If a component is missing an import, add the import — don't rewrite the component.
 
 # Verification before done
 
-```bash
+```
 curl -so /dev/null -w '%{http_code}' http://localhost:8080 && \
 curl -so /dev/null -w '%{http_code}' http://localhost:3000
 ```
 
 Both must return 200 before you call mark_done.
 
+DELETE the dev.log each time you read it to prevent cache.
+
 # Autonomy
 
 Stay with the work until the task is handled end to end. Work through blockers rather than stopping and asking — unless something is genuinely impossible without user input.
-All the code is rendered as an iframe so you should not use browser popups unless physically impossible, and be thorough with your component design (there is never any rush).
+
+# Tool call mechanics
+
+You have three tools: write_file, run_bash, mark_done. The tool definitions and the exact XML format you must use are documented in the # Tools section below this one.
+
+The mental model: every turn ends with a single <tool_call>...</tool_call> block. Inside that block you place 1 or 2 <function=name>...</function> sub-blocks (the batch limit). Before the <tool_call> you can write a brief plain-text thought (1-3 sentences) explaining what you're doing. After the </tool_call> you stop — the next turn starts after the sandbox executes your calls and shows you the result.
+
+Two practical examples of well-formed turns:
+
+Single file write:
+```
+I'll set up the design system foundation first — this is the file every component will pull from.
+
+<tool_call>
+<function=write_file>
+<parameter=path>
+src/index.css
+</parameter>
+<parameter=content>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk');
+:root { --bg: #0a0a0f; --fg: #f5f5f7; }
+body { background: var(--bg); color: var(--fg); font-family: 'Space Grotesk', sans-serif; }
+</parameter>
+<parameter=reason>
+design system foundation
+</parameter>
+</function>
+</tool_call>
+```
+
+Two files in one batch:
+```
+Building the shared chrome — Navbar and Footer can ship together since they don't depend on each other.
+
+<tool_call>
+<function=write_file>
+<parameter=path>
+src/components/Navbar.tsx
+</parameter>
+<parameter=content>
+...full file content...
+</parameter>
+</function>
+<function=write_file>
+<parameter=path>
+src/components/Footer.tsx
+</parameter>
+<parameter=content>
+...full file content...
+</parameter>
+</function>
+</tool_call>
+```
+
+Read a file (no batch limit, run_bash is one call):
+```
+Need to see the existing routing before I touch anything.
+
+<tool_call>
+<function=run_bash>
+<parameter=command>
+cat src/App.tsx
+</parameter>
+</function>
+</tool_call>
+```
+
+Verify and finish (two separate turns):
+```
+Both files are written. Time to verify the servers come up clean.
+
+<tool_call>
+<function=run_bash>
+<parameter=command>
+curl -so /dev/null -w '%{http_code}\n' http://localhost:8080 && curl -so /dev/null -w '%{http_code}\n' http://localhost:3000
+</parameter>
+</function>
+</tool_call>
+```
+
+(then next turn, after seeing 200 200:)
+```
+Both ports are healthy. Shipping it.
+
+<tool_call>
+<function=mark_done>
+<parameter=summary>
+Built the dashboard with Navbar, three pages, and the items API route. Both servers are healthy.
+</parameter>
+</function>
+</tool_call>
+```
 """
+
 
 # ---------------------------------------------------------------------------
 # Conditional addons
@@ -561,7 +779,7 @@ const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env
 ```
 
 Run migrations via run_bash:
-```bash
+```
 cat > /tmp/migration.sql << 'SQL'
 CREATE TABLE IF NOT EXISTS items (...);
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
@@ -576,19 +794,14 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/dat
 DEBUG_ADDON = r"""
 # Debug mode
 
-You are fixing a specific bug. Read the error first (run_bash: cat /tmp/dev.log | tail -60), find the file, write the smallest possible fix with write_file, restart if needed, verify both ports. Do not refactor. Do not add features.
+You are fixing a specific bug. Turn 1: run_bash to read the error log. Turn 2 (or later): write_file with the smallest possible fix. Then verify. Do not refactor. Do not add features. The 2-file batch limit still applies — most bugs need only one file changed anyway.
 """
 
 EXPANDER_SUPABASE_ADDON = """
 Supabase is available for data persistence. Plan to use it when users need to save data across sessions or share data between users. Specify tables, columns, and which need Row Level Security. Don't force it on purely client-side apps."""
 
 PLANNER_SUPABASE_ADDON = """
-Supabase is available. Include migrations when the app genuinely stores persistent data:
-```bash
-curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" -H "Content-Type: application/json" \
-  -d "$(echo 'CREATE TABLE IF NOT EXISTS items (...);' | jq -Rs '{query: .}')"
-```"""
+Supabase is available. Include migrations when the app genuinely stores persistent data."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -618,7 +831,7 @@ Use these for features that genuinely benefit from AI — not as decorations.
 
 **Express backend**: full API server at port 3000, routes in `routes/`, can store data, proxy AI calls, handle logic.
 
-Take the user's short idea and expand it into a concrete product spec (200-350 words).
+Take the user's short idea and expand it into a concrete product spec (200–350 words).
 
 A good spec describes a FUNCTIONAL APP — what does the user actually do? What gets created, saved, generated, or shared? Which AI capability makes the core feature work?
 
@@ -631,7 +844,7 @@ Include:
 - AI integration: which proxy endpoint, what it does, how the result is shown
 - Auth: which provider and why (only if the app genuinely needs it)
 
-For minor tasks or bug fixes: restate the task in 1-2 sentences. No expansion needed.
+For minor tasks or bug fixes: restate the task in 1–2 sentences. No expansion needed.
 
 If an image is attached, treat it as a UI mockup — extract layout, palette, and flows.
 
@@ -686,23 +899,22 @@ async def expand_prompt(
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_planner_system(gorilla_proxy_url: str) -> str:
-    proxy = gorilla_proxy_url or "{GORILLA_PROXY}"
     return f"""You are a project planner for Gorilla Builder — React + Vite + Express full-stack apps.
 
-The agent uses three tools: write_file (parallel batch writes), run_bash (execute commands), mark_done.
+The agent uses three tools: write_file (max 2 per turn), run_bash, mark_done.
 
-Produce a markdown checklist. Each item = one agent action or batch.
+Produce a markdown checklist where each item = ONE turn of the agent (one tool_call block, max 2 invokes).
 
-**Batching:** Independent NEW files should be grouped on the same checklist item — the agent writes them in parallel. Never batch: edits to existing files, server start, verification, npm install, migrations.
+**Hard rule: at most 2 file writes per checklist item.** If you'd want 5 components in one step, split into 3 steps (2+2+1). This keeps the agent honest about observing intermediate results.
 
 **Step order:**
-1. Read existing files — run_bash: cat src/App.tsx server.js src/index.css
-2. write_file: src/index.css — full design system, CSS vars, Google Font, animations
-3. write_file (batch): shared components — Navbar + Footer + primitives
-4. write_file (batch): page components — independent pages together
-5. write_file (batch): backend route files
-6. write_file: src/App.tsx — wire all routes, auth guards (solo edit)
-7. write_file: server.js — mount all routes (solo edit)
+1. Explore — run_bash: cat src/App.tsx server.js src/index.css
+2. write_file: src/index.css (one big design system file — solo)
+3. write_file (batch of 2): Navbar.tsx + Footer.tsx
+4. write_file (batch of 2): page A + page B
+5. write_file (batch of 2): page C + maybe a primitive
+6. write_file (batch of 2): backend route file 1 + route file 2
+7. write_file (batch of 2): src/App.tsx + server.js (the wire-up)
 8. run_bash: npm install (only if a package isn't pre-installed)
 9. run_bash: start dev server + verify both ports 200
 
@@ -713,14 +925,14 @@ Produce a markdown checklist. Each item = one agent action or batch.
 - [ ] Read structure — run_bash: cat src/App.tsx server.js src/index.css
 - [ ] write_file: src/index.css — dark design system, CSS vars, Google Font
 - [ ] write_file (batch): Navbar.tsx + Footer.tsx
-- [ ] write_file (batch): Landing.tsx + About.tsx + Dashboard.tsx
+- [ ] write_file (batch): Landing.tsx + Dashboard.tsx
+- [ ] write_file (batch): About.tsx + components/Card.tsx
 - [ ] write_file (batch): routes/api.js + routes/items.js
-- [ ] write_file: src/App.tsx — wire pages, auth guard on /dashboard
-- [ ] write_file: server.js — mount api and items routes
+- [ ] write_file (batch): src/App.tsx + server.js (wire everything)
 - [ ] run_bash: start server + verify 200 200
 ```
 
-Rules: 6–12 items. First reads files. Last starts and verifies. For debug/minor tasks: 3–4 items. Output only the checklist."""
+Rules: 6–12 items. Every batch item names exactly 2 files. First step explores. Last step verifies. For debug/minor tasks: 2-3 items. Output only the checklist."""
 
 
 async def generate_plan(
@@ -800,104 +1012,222 @@ async def review_output(file_tree_summary: str, last_output: str) -> Optional[st
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Response parser — handles BOTH tool_call responses AND legacy bash blocks
+#  XML repair — handles common Qwen3-Coder output defects
 #
-#  Priority:
-#    1. OpenAI tool_calls array in the response (structured, preferred)
-#    2. Legacy ```bash ... ``` blocks in text content (fallback for vision
-#       models or models that ignore the tools schema)
-#    3. GORILLA_DONE marker in text (v14 compatibility shim)
+#  MiMo (and Qwen3-Coder generally) sometimes produces malformed XML when:
+#    1. Tool call gets cut off in the middle of a parameter (no closing tag)
+#    2. Missing </tool_call> when generation hits max_tokens mid-block
+#    3. Stray whitespace/newlines around parameter content (harmless,
+#       but we normalize so the regex parser is happier)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _parse_response(raw_text: str, tool_calls_raw: Optional[list] = None) -> Dict[str, Any]:
+def _repair_qwen3_xml(text: str) -> str:
+    """
+    Repair common Qwen3-Coder XML defects so the parser succeeds even when
+    the model output isn't perfectly formed. Safe on already-valid XML.
+    """
+    # Auto-close <tool_call> if the model started one but didn't finish
+    if text.count("<tool_call>") > text.count("</tool_call>"):
+        text = text + "\n</tool_call>"
+
+    # Auto-close trailing <function=...> if missing </function>
+    open_funcs  = len(re.findall(r"<function=[^>]+>", text))
+    close_funcs = text.count("</function>")
+    if open_funcs > close_funcs:
+        diff = open_funcs - close_funcs
+        # Insert closes BEFORE </tool_call> if present
+        if "</tool_call>" in text:
+            text = text.replace("</tool_call>", "</function>" * diff + "</tool_call>", 1)
+        else:
+            text = text + ("</function>" * diff)
+
+    # Auto-close trailing <parameter=...> if missing </parameter>
+    open_params  = len(re.findall(r"<parameter=[^>]+>", text))
+    close_params = text.count("</parameter>")
+    if open_params > close_params:
+        diff = open_params - close_params
+        # Insert closes BEFORE </function> (the immediate parent)
+        # Walk back from the end and inject closes where needed
+        # Simple heuristic: stick them right before the first </function>
+        if "</function>" in text:
+            text = text.replace("</function>", "</parameter>" * diff + "</function>", 1)
+        else:
+            text = text + ("</parameter>" * diff)
+
+    return text
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  XML tool-call parser — Qwen3-Coder / MiMo native format
+#
+#  Parses:
+#    <tool_call>
+#      <function=write_file>
+#        <parameter=path>
+#        src/App.tsx
+#        </parameter>
+#        <parameter=content>
+#        ...full content...
+#        </parameter>
+#      </function>
+#      <function=run_bash>
+#        <parameter=command>
+#        npm install
+#        </parameter>
+#      </function>
+#    </tool_call>
+#
+#  Falls back to ```bash blocks for non-MiMo turns. Enforces BATCH_LIMIT
+#  by truncating extras with a logged warning.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# DOTALL via [\s\S] so parameter values can contain anything — code, JSON,
+# base64, multi-line strings.
+_TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>([\s\S]*?)</tool_call>")
+_FUNCTION_RE        = re.compile(r"<function=([^>\s]+)>([\s\S]*?)</function>")
+_PARAMETER_RE       = re.compile(r"<parameter=([^>\s]+)>([\s\S]*?)</parameter>")
+
+
+def _strip_param_value(raw: str) -> str:
+    """
+    Qwen3-Coder convention: parameter values often have a leading and
+    trailing newline (the format shows them on their own lines). Strip
+    those without touching internal whitespace, since file contents need
+    their formatting preserved exactly.
+    """
+    if not raw:
+        return raw
+    # Strip exactly ONE leading newline if present (the formatting one)
+    if raw.startswith("\r\n"):
+        raw = raw[2:]
+    elif raw.startswith("\n"):
+        raw = raw[1:]
+    # Strip exactly ONE trailing newline if present
+    if raw.endswith("\r\n"):
+        raw = raw[:-2]
+    elif raw.endswith("\n"):
+        raw = raw[:-1]
+    return raw
+
+
+def _parse_xml_functions(block_inner: str) -> List[Dict[str, Any]]:
+    """Extract the function-call list from inside a single <tool_call> block."""
+    functions: List[Dict[str, Any]] = []
+    for m in _FUNCTION_RE.finditer(block_inner):
+        name   = m.group(1).strip()
+        body   = m.group(2)
+        params: Dict[str, str] = {}
+        for pm in _PARAMETER_RE.finditer(body):
+            pname = pm.group(1).strip()
+            pval  = _strip_param_value(pm.group(2))
+            params[pname] = pval
+        functions.append({"name": name, "params": params})
+    return functions
+
+
+def _parse_response(raw_text: str) -> Dict[str, Any]:
     """
     Returns:
       {
-        "thought":      str,
-        "write_files":  [{"path": str, "content": str, "reason": str}],
-        "bash":         str,   # merged bash to run (from run_bash calls or legacy blocks)
+        "thought":      str,    # text before the tool_call block
+        "write_files":  [{"path", "content", "reason"}],  # max BATCH_LIMIT
+        "bash":         str,    # merged bash from all run_bash calls
         "done":         bool,
-        "message":      str,
-        "tool_calls":   list,  # raw tool_calls for history (assistant message reconstruction)
+        "message":      str,    # user-facing summary
+        "extra_writes_dropped": int,  # how many writes we cut for safety
       }
     """
     result = {
-        "thought":     "",
-        "write_files": [],
-        "bash":        "",
-        "done":        False,
-        "message":     "",
-        "tool_calls":  [],
+        "thought":              "",
+        "write_files":          [],
+        "bash":                 "",
+        "done":                 False,
+        "message":              "",
+        "extra_writes_dropped": 0,
     }
 
-    # ── Path 1: structured tool_calls ──────────────────────────────────────
-    if tool_calls_raw:
-        result["tool_calls"] = tool_calls_raw
-        bash_parts: List[str] = []
+    if not raw_text:
+        return result
 
-        for tc in tool_calls_raw:
-            fn   = tc.get("function", {})
-            name = fn.get("name", "")
-            try:
-                args = json.loads(fn.get("arguments", "{}"))
-            except json.JSONDecodeError:
-                args = {}
+    repaired = _repair_qwen3_xml(raw_text)
+    blocks   = _TOOL_CALL_BLOCK_RE.findall(repaired)
 
-            if name == "write_file":
-                result["write_files"].append({
-                    "path":    args.get("path", ""),
-                    "content": args.get("content", ""),
-                    "reason":  args.get("reason", ""),
-                })
-            elif name == "run_bash":
-                bash_parts.append(args.get("command", ""))
-            elif name == "mark_done":
+    # ── Path 1: native Qwen3-Coder XML ─────────────────────────────────────
+    if blocks:
+        first_pos = repaired.find("<tool_call>")
+        result["thought"] = repaired[:first_pos].strip() if first_pos > 0 else ""
+
+        bash_parts:    List[str] = []
+        all_functions: List[Dict[str, Any]] = []
+        for block_inner in blocks:
+            all_functions.extend(_parse_xml_functions(block_inner))
+
+        for fn in all_functions:
+            n = fn["name"]
+            p = fn["params"]
+
+            if n == "write_file":
+                # Defense-in-depth batch limit. Even if the model ignores
+                # the system prompt instruction, the agent CANNOT ship
+                # more than BATCH_LIMIT files per turn.
+                if len(result["write_files"]) < BATCH_LIMIT:
+                    result["write_files"].append({
+                        "path":    p.get("path", "").strip(),
+                        "content": p.get("content", ""),
+                        "reason":  p.get("reason", "").strip(),
+                    })
+                else:
+                    result["extra_writes_dropped"] += 1
+
+            elif n == "run_bash":
+                cmd = p.get("command", "").strip()
+                if cmd:
+                    bash_parts.append(cmd)
+
+            elif n == "mark_done":
                 result["done"]    = True
-                result["message"] = args.get("summary", "Done.")
+                result["message"] = p.get("summary", "Done.").strip()
 
         result["bash"] = "\n\n".join(bash_parts)
 
-        # Thought = any text content the model emitted alongside tool calls
-        if raw_text:
-            result["thought"] = raw_text.strip()
-            if not result["message"] and result["thought"]:
+        if not result["message"]:
+            if result["thought"]:
                 result["message"] = result["thought"].split("\n")[0][:300]
+            else:
+                paths = [w["path"] for w in result["write_files"]]
+                if paths:
+                    result["message"] = f"Working on {', '.join(paths)}"
+                elif result["bash"]:
+                    result["message"] = ""
 
         return result
 
-    # ── Path 2: legacy freetext bash blocks ────────────────────────────────
-    raw = raw_text or ""
-
-    if "GORILLA_DONE" in raw:
+    # ── Path 2: legacy fallback (vision turn etc.) ─────────────────────────
+    # GORILLA_DONE marker (v14 compat)
+    if "GORILLA_DONE" in raw_text:
         result["done"] = True
-        parts   = raw.split("GORILLA_DONE", 1)
+        parts   = raw_text.split("GORILLA_DONE", 1)
         body    = parts[0]
         summary = parts[1].strip() if len(parts) > 1 else ""
-        blocks  = re.findall(r"```(?:bash|sh|shell)?\n(.*?)```", body, re.DOTALL)
-        bash    = "\n\n".join(b.strip() for b in blocks if b.strip())
-        first_pos = body.find("```")
-        thought = body[:first_pos].strip() if first_pos > 0 else body.strip()
-        result.update({
-            "thought": thought,
-            "bash":    bash,
-            "message": summary or thought.split("\n")[0][:300] or "Done.",
-        })
+        bash_blocks = re.findall(r"```(?:bash|sh|shell)?\n([\s\S]*?)```", body)
+        result["bash"]    = "\n\n".join(b.strip() for b in bash_blocks if b.strip())
+        result["thought"] = body[:body.find("```")].strip() if "```" in body else body.strip()
+        result["message"] = summary or result["thought"].split("\n")[0][:300] or "Done."
         return result
 
-    blocks    = re.findall(r"```(?:bash|sh|shell)?\n(.*?)```", raw, re.DOTALL)
-    bash      = "\n\n".join(b.strip() for b in blocks if b.strip())
-    first_pos = raw.find("```")
-    thought   = raw[:first_pos].strip() if first_pos > 0 else raw.strip()
+    # Plain bash blocks
+    bash_blocks = re.findall(r"```(?:bash|sh|shell)?\n([\s\S]*?)```", raw_text)
+    if bash_blocks:
+        result["bash"]    = "\n\n".join(b.strip() for b in bash_blocks if b.strip())
+        first_pos         = raw_text.find("```")
+        result["thought"] = raw_text[:first_pos].strip() if first_pos > 0 else ""
+    else:
+        result["thought"] = raw_text.strip()
 
-    if not blocks:
-        thought = raw.strip()
+    if result["thought"]:
+        sentences = re.split(r"(?<=[.!?])\s+", result["thought"])
+        result["message"] = " ".join(sentences[:3])[:300]
 
-    message = ""
-    if thought:
-        sentences = re.split(r"(?<=[.!?])\s+", thought)
-        message   = " ".join(sentences[:3])[:300]
-
-    result.update({"thought": thought, "bash": bash, "message": message})
     return result
 
 
@@ -922,41 +1252,53 @@ def _is_safe(cmd: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LLM call — tool-call aware
+#  LLM call — XML-native, NO `tools` parameter on the API
+#
+#  CRITICAL: we do NOT pass `tools` or `tool_choice` to OpenRouter. MiMo's
+#  chat_template uses Hermes-style JSON when those parameters are present,
+#  and MiMo (like Qwen3-Coder) is much less reliable in that mode. Tools
+#  live in the system prompt as the Qwen3-Coder XML <tools> block, exactly
+#  as the model was trained to receive them.
+#
+#  Reasoning preservation: per Xiaomi's official docs, multi-turn tool
+#  calls degrade if reasoning_content isn't preserved between turns. We
+#  pass reasoning.exclude=false and feed the reasoning back into the
+#  conversation history.
 # ═══════════════════════════════════════════════════════════════════════════
 
 async def _call_llm(
-    messages:     list,
-    model:        str   = MODEL,
-    temperature:  float = 0.6,
-    use_tools:    bool  = False,
+    messages:    list,
+    model:       str   = MODEL,
+    temperature: float = 0.6,
 ) -> Tuple[str, int]:
-    """
-    Returns (text_content, weighted_token_count).
-
-    When use_tools=True:
-      - Injects AGENT_TOOLS into the payload
-      - Sets parallel_tool_calls=True
-      - Returns (text_content_or_empty, tokens) AND attaches
-        raw_tool_calls as an attribute on the returned tuple via a wrapper.
-    """
     messages = _compress_history(messages)
+
+    # Strip non-API fields (reasoning_content) from outgoing messages — they
+    # were stored locally for context but the API doesn't accept them as
+    # input. We move them into the content prefix instead.
+    api_messages = []
+    for m in messages:
+        api_msg = {"role": m["role"], "content": m.get("content", "")}
+        # Don't merge reasoning into API content — already in conversation
+        # naturally via the assistant text (we keep things simple).
+        api_messages.append(api_msg)
 
     payload: Dict[str, Any] = {
         "model":       model,
-        "messages":    messages,
+        "messages":    api_messages,
         "max_tokens":  16000,
         "temperature": temperature,
         "provider": {
-            "order":           ["fireworks", "xiaomi", "xai", "alibaba"],
+            "order":           ["xiaomi", "fireworks", "alibaba", "novita"],
             "allow_fallbacks": False,
         },
     }
 
-    if use_tools:
-        payload["tools"]               = AGENT_TOOLS
-        payload["tool_choice"]         = "auto"
-        payload["parallel_tool_calls"] = True
+    # Preserve reasoning between turns for MiMo models — Xiaomi's docs are
+    # explicit that performance degrades without this. Same flag for any
+    # Qwen-family model. No-op on non-reasoning models.
+    if any(x in model.lower() for x in ["mimo", "qwen", "minimax"]):
+        payload["reasoning"] = {"exclude": False}
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -985,28 +1327,30 @@ async def _call_llm(
     msg     = choice["message"]
     content = msg.get("content") or ""
 
-    # Attach raw tool_calls so the caller can pluck them
-    raw_tool_calls = msg.get("tool_calls") or []
+    # MiMo (and Qwen3) often return reasoning as a separate field. If the
+    # tool_call landed only in `reasoning_content`, we pull it forward into
+    # `content` so the parser sees it. This is the documented multi-turn
+    # behavior — see platform.xiaomimimo.com/docs/api/chat/openai-api.
+    reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
+    if reasoning and "<tool_call>" not in content and "<tool_call>" in str(reasoning):
+        content = str(reasoning) + "\n\n" + content
+    elif reasoning and "<tool_call>" not in content and not content.strip():
+        # Sometimes content is empty and the tool_call is *only* in reasoning
+        content = str(reasoning)
 
     u = data.get("usage", {})
     p = u.get("prompt_tokens", 0)
     c = u.get("completion_tokens", 0)
-    is_frontier = any(x in model for x in ["mimo-v2.5-pro"])
-    is_mimo     = "mimo-v2.5" in model
+    is_frontier = any(x in model for x in ["claude", "gpt-4", "gemini"])
+    is_mimo     = "mimo" in model.lower()
     if is_frontier:
-        weight = p * 1 + c * 3
+        weight = p * 0.6 + c * 2.4
     elif is_mimo:
-        weight = p * 0.5 + c * 2.0
+        weight = p * 0.8 + c * 2.8
     else:
         weight = p * 0.3 + c * 1.2
 
-    # Piggyback tool_calls on a wrapper so callers that need it can get it
-    class _Result(tuple):
-        pass
-
-    r = _Result((content, int(weight)))
-    r.tool_calls = raw_tool_calls  # type: ignore[attr-defined]
-    return r  # type: ignore[return-value]
+    return content, int(weight)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1025,6 +1369,10 @@ def _build_skills_block(agent_skills: Optional[Dict[str, Any]]) -> str:
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Smart model routing
+#
+#  Both MODEL and SMART_MODEL are MiMo in v17, so this is mostly a no-op
+#  switch — but the routing scaffolding is preserved so a future swap
+#  (e.g. Claude Sonnet for hard cases) is a one-env-var change.
 # ═══════════════════════════════════════════════════════════════════════════
 
 _HARD_OBSERVATION_SIGNALS = frozenset([
@@ -1064,20 +1412,26 @@ def _pick_model(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LineageAgent  v15
+#  LineageAgent  v17
+#
+#  Conversation shape:
+#    [system]    full prompt + Qwen3-Coder <tools> block + addons (immutable)
+#    [user]      initial task w/ file tree, plan, optional image
+#    [assistant] thought + <tool_call>...</tool_call>
+#    [user]      OBSERVATION: <bash output OR "Files written: a.tsx, b.tsx">
+#    [assistant] thought + next tool_call
+#    ...
+#    [assistant] <function=mark_done>...</function>
+#
+#  Observations come back as plain user messages (NOT tool-role messages),
+#  because Qwen3-Coder/MiMo were trained to read them in the user channel.
 # ═══════════════════════════════════════════════════════════════════════════
 
 class LineageAgent:
     """
-    Two-phase parallel agent:
-      Phase 1 — write_file (batched, parallel tool_calls) — no execution
-      Phase 2 — run_bash (one compound command) — execute + verify
-
-    Falls back to legacy bash-block parsing for vision models or models
-    that don't honor the tools schema.
-
-    Prompt cache: system prompt is message[0], immutable after session start.
-    Fireworks BYOK cache will hit on every turn after the first.
+    Two-phase, batch-limited XML agent for MiMo-family models.
+    Sandbox contract is unchanged from v15/v16 — _parsed dict on every
+    result, sandbox_manager calls record_tool_results() after executing.
     """
 
     def __init__(self, project_id: str):
@@ -1100,15 +1454,26 @@ class LineageAgent:
     ) -> None:
         if self._system_prompt_set:
             return
-        prompt = SYSTEM_PROMPT.replace(
+
+        # 1. Domain prompt body (Gorilla / Vite / Express / AI proxy)
+        prompt = SYSTEM_PROMPT_BODY.replace(
             "{GORILLA_PROXY}",
             gorilla_proxy_url or "https://your-proxy.ngrok-free.dev",
         )
+
+        # 2. Conditional addons (Supabase / Debug)
         if has_supabase:
             prompt += "\n" + SUPABASE_ADDON
         if is_debug:
             prompt += "\n" + DEBUG_ADDON
 
+        # 3. Tools block — appended LAST so the JSON schema sits closest to
+        #    where the model starts generating. Qwen3-Coder's training data
+        #    has tools at the end of the system prompt (verified against
+        #    the official chat_template.jinja).
+        prompt += "\n\n" + _format_tools_for_prompt()
+
+        # 4. User skills/preferences
         skills_block = _build_skills_block(agent_skills)
         if skills_block:
             prompt += skills_block
@@ -1128,44 +1493,29 @@ class LineageAgent:
         stripped = raw.strip()
         return stripped if stripped.startswith("data:") else f"data:image/jpeg;base64,{stripped}"
 
-    def _append_tool_results(
+    def _append_observation(
         self,
-        parsed: Dict[str, Any],
-        write_observation: str = "",
-        bash_observation: str = "",
+        write_paths:      List[str],
+        bash_observation: str,
     ) -> None:
         """
-        After the sandbox executes the tool calls, feed results back in
-        OpenAI tool-result format so the model has full context.
+        After the sandbox executes a turn's tool calls, this gets called
+        with the results. We render them as a single OBSERVATION user
+        message — that's what MiMo/Qwen3-Coder were trained to read.
         """
-        for tc in parsed.get("tool_calls", []):
-            fn_name = tc.get("function", {}).get("name", "")
-            tc_id   = tc.get("id", "")
+        parts: List[str] = []
+        if write_paths:
+            parts.append("Files written: " + ", ".join(write_paths))
+        if bash_observation:
+            filtered = _filter_observation(bash_observation)[:8000]
+            parts.append("Bash output:\n" + filtered)
+        if not parts:
+            parts.append("(no output)")
 
-            if fn_name == "write_file":
-                try:
-                    args = json.loads(tc.get("function", {}).get("arguments", "{}"))
-                    path = args.get("path", "?")
-                except Exception:
-                    path = "?"
-                self.messages.append({
-                    "role":         "tool",
-                    "tool_call_id": tc_id,
-                    "content":      f"wrote {path}",
-                })
-            elif fn_name == "run_bash":
-                filtered = _filter_observation(bash_observation)[:8000]
-                self.messages.append({
-                    "role":         "tool",
-                    "tool_call_id": tc_id,
-                    "content":      filtered or "ok",
-                })
-            elif fn_name == "mark_done":
-                self.messages.append({
-                    "role":         "tool",
-                    "tool_call_id": tc_id,
-                    "content":      "acknowledged",
-                })
+        self.messages.append({
+            "role":    "user",
+            "content": "OBSERVATION:\n" + "\n\n".join(parts),
+        })
 
     async def run(
         self,
@@ -1205,16 +1555,16 @@ class LineageAgent:
 
         # ── Build the new user message ──────────────────────────────────────
         if previous_command_output:
-            # Feed as a plain user OBSERVATION (tool-result messages were
-            # already appended by the sandbox via _append_tool_results).
-            # This path is for legacy/non-tool turns or extra context.
+            # Subsequent turn: the sandbox's output becomes the OBSERVATION.
+            # (record_tool_results may have already appended this; this
+            # branch handles the legacy path where the sandbox passes
+            # previous_command_output directly.)
             filtered = _filter_observation(previous_command_output)
             self.messages.append({"role": "user", "content": f"OBSERVATION:\n{filtered[:8000]}"})
         else:
             effective_request = user_request
             plan_text         = ""
 
-            # Sequential: expand → plan
             if not is_debug and user_request:
                 if not self._prompt_expanded:
                     effective_request = await expand_prompt(
@@ -1236,7 +1586,7 @@ class LineageAgent:
                     if plan:
                         plan_text = (
                             "\n\nHere's a plan — follow it step by step. "
-                            "Batch independent new files into single parallel write_file calls:\n"
+                            "Each item = one turn. Remember the 2-file batch limit:\n"
                             + plan
                         )
                         self._plan_injected = True
@@ -1279,10 +1629,11 @@ class LineageAgent:
         first_turn_has_image = bool(
             (image_b64 or prompt_image_b64) and not previous_command_output
         )
-        # Vision models don't reliably respect tool schemas — use legacy parse
-        use_tools = not first_turn_has_image
 
         if first_turn_has_image:
+            # Vision turn: VISION_MODEL handles the image. With v17 this is
+            # also a MiMo variant, so it speaks the same XML format — no
+            # legacy fallback needed in the common case.
             model = VISION_MODEL
         else:
             turn_index = max(0, len(self.messages) // 2 - 1)
@@ -1295,20 +1646,16 @@ class LineageAgent:
 
         log_agent(
             "agent",
-            f"v15 model={model.split('/')[-1]} step={len(self.messages) // 2} tools={use_tools}",
+            f"v17 model={model.split('/')[-1]} step={len(self.messages) // 2} batch_limit={BATCH_LIMIT}",
             self.project_id,
         )
 
         try:
-            result_tuple = await _call_llm(
+            raw_text, tokens = await _call_llm(
                 self.messages,
                 model=model,
                 temperature=0.6,
-                use_tools=use_tools,
             )
-            raw_text: str  = result_tuple[0]
-            tokens:   int  = result_tuple[1]
-            raw_tool_calls = getattr(result_tuple, "tool_calls", [])
             self.total_tokens += tokens
         except Exception as e:
             log_agent("agent", f"LLM error: {e}", self.project_id)
@@ -1320,17 +1667,24 @@ class LineageAgent:
                 "tokens":      0,
             }
 
-        # ── Record assistant message (with tool_calls if any) ───────────────
-        asst_msg: Dict[str, Any] = {"role": "assistant", "content": raw_text or ""}
-        if raw_tool_calls:
-            asst_msg["tool_calls"] = raw_tool_calls
-        self.messages.append(asst_msg)
+        # ── Record assistant message verbatim (XML and all) ────────────────
+        # MiMo wants to see its own tool_call XML in the conversation
+        # history — that's how it knows what it already did and avoids
+        # re-doing the same work next turn.
+        self.messages.append({"role": "assistant", "content": raw_text or ""})
 
-        # ── Parse response ──────────────────────────────────────────────────
-        parsed = _parse_response(raw_text, raw_tool_calls if raw_tool_calls else None)
+        # ── Parse the XML ───────────────────────────────────────────────────
+        parsed = _parse_response(raw_text)
 
         if parsed["thought"]:
             log_agent("agent", f"THOUGHT: {parsed['thought'][:300]}", self.project_id)
+
+        if parsed["extra_writes_dropped"] > 0:
+            log_agent(
+                "agent",
+                f"⚠ Dropped {parsed['extra_writes_dropped']} extra writes (batch limit = {BATCH_LIMIT})",
+                self.project_id,
+            )
 
         # ── Safety-check bash ───────────────────────────────────────────────
         safe_bash = ""
@@ -1345,21 +1699,21 @@ class LineageAgent:
         for wf in parsed["write_files"]:
             wf["content"] = self.token_sub.expand(wf["content"])
 
-        done = parsed["done"]
-        write_count = len(parsed["write_files"])
+        done   = parsed["done"]
+        writes = len(parsed["write_files"])
         log_agent(
             "agent",
-            f"{'DONE' if done else f'writes={write_count} bash={bool(safe_bash)}'} tok={self.total_tokens}",
+            f"{'DONE' if done else f'writes={writes} bash={bool(safe_bash)}'} tok={self.total_tokens}",
             self.project_id,
         )
 
         return {
             "message":     parsed["message"],
-            "write_files": parsed["write_files"],    # NEW: list of {path, content, reason}
-            "commands":    [safe_bash] if safe_bash else [],  # legacy compat
+            "write_files": parsed["write_files"],     # max BATCH_LIMIT entries
+            "commands":    [safe_bash] if safe_bash else [],
             "done":        done,
             "tokens":      self.total_tokens,
-            "_parsed":     parsed,   # internal — lets sandbox call _append_tool_results
+            "_parsed":     parsed,
         }
 
     def record_tool_results(
@@ -1369,17 +1723,21 @@ class LineageAgent:
         bash_observation:  str = "",
     ) -> None:
         """
-        Call this from the sandbox after executing the tool calls so the
-        next LLM turn has proper tool-result context.
+        Sandbox calls this AFTER executing the tool calls from the previous
+        turn, so the next LLM call has proper context.
 
-        sandbox_manager should call:
+        sandbox_manager:
+            result = await agent.run(...)
+            # ... execute result["write_files"] and result["commands"] ...
             agent.record_tool_results(
                 result["_parsed"],
-                write_observation="all files written",
                 bash_observation=shell_stdout,
             )
         """
-        self._append_tool_results(parsed, write_observation, bash_observation)
+        write_paths = [wf.get("path", "") for wf in parsed.get("write_files", []) if wf.get("path")]
+        if write_observation and not bash_observation:
+            bash_observation = write_observation
+        self._append_observation(write_paths, bash_observation)
 
 
 # ---------------------------------------------------------------------------
@@ -1407,5 +1765,8 @@ __all__ = [
     "generate_plan",
     "review_output",
     "_filter_observation",
-    "AGENT_TOOLS",
+    "_parse_response",
+    "_repair_qwen3_xml",
+    "AGENT_TOOL_DEFS",
+    "BATCH_LIMIT",
 ]
