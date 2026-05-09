@@ -1,1337 +1,1239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <title>Gorilla Rush</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --c0: #000818;
-      --c1: #0a1e4a;
-      --c2: #1464d8;
-      --c3: #4ab4ff;
-      --scan: rgba(0,4,20,0.22);
-    }
-    * { box-sizing:border-box; margin:0; padding:0; image-rendering:pixelated; }
-    body {
-      background: #000a20;
-      min-height: 100vh;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      font-family: 'VT323', monospace;
-      overflow: hidden;
-      user-select: none;
-    }
-    .crt-frame {
-      position: relative;
-      padding: 22px 26px 34px;
-      background: var(--c0);
-      border: 4px solid var(--c2);
-      border-radius: 14px;
-      box-shadow:
-        0 0 0 2px var(--c1),
-        0 0 0 5px #000408,
-        0 0 60px rgba(20,100,216,0.18),
-        0 0 120px rgba(74,180,255,0.07);
-    }
-    .crt-label {
-      position: absolute; bottom: 9px; left: 50%;
-      transform: translateX(-50%);
-      font-size: 10px; letter-spacing: 4px;
-      color: var(--c2); font-family: 'Space Mono', monospace;
-      white-space: nowrap;
-    }
-    #gc {
-      position: relative;
-      width: 800px; height: 460px;
-      overflow: hidden;
-      background: var(--c0);
-      outline: 2px solid var(--c2);
-    }
-    #gc::after {
-      content: ''; position: absolute; inset: 0;
-      background: repeating-linear-gradient(
-        to bottom, transparent 0, transparent 3px,
-        var(--scan) 3px, var(--scan) 4px
-      );
-      pointer-events: none; z-index: 100;
-    }
-    .sky {
-      position: absolute; inset: 0;
-      background: linear-gradient(to bottom,
-        #000818 0%, #000e2a 40%, #001038 70%, #001444 100%
-      );
-    }
-    #sc { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-    .moon { position: absolute; top: 26px; right: 96px; z-index: 2; }
-    .city {
-      position: absolute; bottom: 78px; left: 0; right: 0; height: 110px;
-      z-index: 4; pointer-events: none;
-    }
-    .ggrid {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 78px;
-      z-index: 5; pointer-events: none; overflow: hidden;
-    }
-    .gstrip { position: absolute; bottom: 0; left: 0; right: 0; z-index: 6; }
-    .gs-top  { height: 5px;  background: var(--c3); opacity: 0.7; }
-    .gs-mid  { height: 22px; background: var(--c1); }
-    .gs-deep { height: 51px; background: var(--c0); }
+<meta charset="UTF-8"/>
+<title>GORILLA RUN — Game Boy Edition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --c0: #0a1c3a;
+    --c1: #2a5088;
+    --c2: #6ea0d4;
+    --c3: #c8e0f8;
+    --case-light: #d6d2c2;
+    --case-mid:   #b8b3a0;
+    --case-dark:  #8a8675;
+    --case-shadow:#5e5b50;
+    --bezel-dark: #2a3340;
+    --bezel-mid:  #4a5560;
+    --btn-blue:   #3a5878;
+    --btn-blue-dk:#1f3a5a;
+    --btn-blue-lt:#6a92b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: 'VT323', monospace;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at 30% 20%, #142848 0%, transparent 40%),
+      radial-gradient(ellipse at 70% 80%, #0a1830 0%, transparent 50%),
+      radial-gradient(ellipse at center, #050b18 0%, #000 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+  }
 
-    /* HUD */
-    .hud {
-      position: absolute; top: 0; left: 0; right: 0; height: 34px;
-      background: rgba(0,8,24,0.94);
-      border-bottom: 2px solid var(--c1);
-      display: flex; align-items: center;
-      padding: 0 14px; gap: 18px; z-index: 20;
-      color: var(--c2); font-size: 17px; letter-spacing: 1px;
-    }
-    .hud .val { color: var(--c3); min-width: 40px; }
-    .hud .hi  { color: var(--c3); opacity: 0.65; }
-    .lives { display: flex; gap: 5px; }
-    .heart { font-size: 17px; color: var(--c3); transition: opacity .3s, transform .3s; }
-    .heart.lost { opacity: 0.12; transform: scale(0.65); }
-    .pup-icons { display: flex; gap: 6px; margin-left: auto; }
-    .pup-icon {
-      font-size: 14px; color: var(--c3);
-      border: 1px solid var(--c3); padding: 1px 5px;
-      opacity: 0; transition: opacity .3s;
-      font-family: 'Space Mono', monospace;
-    }
-    .pup-icon.active { opacity: 1; }
+  .page-title {
+    position: fixed;
+    top: 12px;
+    left: 0; right: 0;
+    text-align: center;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .page-title h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(13px, 3vw, 20px);
+    color: var(--c3);
+    letter-spacing: 4px;
+    text-shadow:
+      0 0 12px rgba(168,200,236,0.5),
+      2px 2px 0 var(--c1),
+      4px 4px 0 var(--c0);
+    margin-bottom: 3px;
+  }
+  .page-title .sub {
+    font-family: 'VT323', monospace;
+    font-size: clamp(10px, 1.8vw, 13px);
+    color: var(--c2);
+    letter-spacing: 6px;
+    opacity: 0.85;
+  }
 
-    /* Rage meter */
-    .rage-wrap {
-      position: absolute; top: 36px; left: 0; right: 0; height: 8px;
-      background: var(--c0); z-index: 20; border-bottom: 1px solid var(--c1);
-    }
-    .rage-bar {
-      height: 100%; width: 0%; background: var(--c2);
-      transition: width .2s, background .3s;
-    }
-    .rage-bar.ready {
-      background: var(--c3);
-      animation: ragePulse 0.6s ease-in-out infinite;
-    }
-    @keyframes ragePulse {
-      0%,100% { opacity: 1; box-shadow: 0 0 6px var(--c3); }
-      50% { opacity: 0.7; box-shadow: 0 0 12px var(--c3); }
-    }
-    .rage-label {
-      position: absolute; top: 0; right: 8px; font-size: 9px;
-      color: var(--c3); letter-spacing: 2px; line-height: 8px;
-      font-family: 'Space Mono', monospace; opacity: 0;
-      transition: opacity .3s;
-    }
-    .rage-label.show { opacity: 1; }
+  .gameboy-wrap {
+    position: relative;
+    width: min(94vw, 420px);
+    aspect-ratio: 9 / 14.5;
+    perspective: 1200px;
+    margin-top: 50px;
+  }
+  .gameboy {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px 14px 38px 14px;
+    background:
+      linear-gradient(135deg,
+        rgba(255,255,255,0.25) 0%,
+        rgba(255,255,255,0) 25%,
+        rgba(0,0,0,0) 75%,
+        rgba(0,0,0,0.25) 100%),
+      linear-gradient(160deg,
+        var(--case-light) 0%,
+        var(--case-mid) 50%,
+        var(--case-dark) 100%);
+    box-shadow:
+      0 30px 60px rgba(0,0,0,0.7),
+      0 12px 25px rgba(0,0,0,0.5),
+      0 0 0 1px rgba(0,0,0,0.4),
+      inset 0 2px 1px rgba(255,255,255,0.5),
+      inset 0 -3px 6px rgba(0,0,0,0.3),
+      inset 3px 0 8px rgba(255,255,255,0.15),
+      inset -3px 0 8px rgba(0,0,0,0.2);
+    padding: 4% 6% 3%;
+    display: flex;
+    flex-direction: column;
+    animation: gbFloat 5s ease-in-out infinite;
+  }
+  @keyframes gbFloat {
+    0%, 100% { transform: translateY(0) rotateX(2deg) rotateY(-3deg); }
+    50%      { transform: translateY(-6px) rotateX(-1deg) rotateY(3deg); }
+  }
 
-    /* Combo display */
-    #combo-display {
-      position: absolute; top: 52px; left: 50%;
-      transform: translateX(-50%);
-      z-index: 22; text-align: center;
-      pointer-events: none; opacity: 0;
-      transition: opacity .3s;
-    }
-    #combo-display.visible { opacity: 1; }
-    .combo-mult {
-      font-size: 38px; color: var(--c3);
-      text-shadow: 2px 2px 0 var(--c2), 4px 4px 0 var(--c1);
-      transition: transform .15s;
-    }
-    .combo-mult.bump { transform: scale(1.4); }
-    .combo-count {
-      font-size: 16px; color: var(--c2); letter-spacing: 2px;
-    }
+  /* Screen well — now bigger */
+  .screen-well {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 10 / 9;
+    border-radius: 10px;
+    margin-top: 2%;
+    background: linear-gradient(160deg, var(--bezel-mid), var(--bezel-dark));
+    box-shadow:
+      inset 0 3px 6px rgba(0,0,0,0.7),
+      inset 0 -1px 1px rgba(255,255,255,0.1),
+      0 1px 0 rgba(255,255,255,0.4);
+    padding: 7% 6%;
+    display: flex;
+    flex-direction: column;
+  }
 
-    /* Wave announcement */
-    #wave-announce {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 55; pointer-events: none;
-      font-size: 52px; color: var(--c3);
-      text-shadow: 3px 3px 0 var(--c2), 6px 6px 0 var(--c1);
-      letter-spacing: 4px; opacity: 0;
-    }
-    #wave-announce.show {
-      animation: waveIn 1.8s ease-out forwards;
-    }
-    @keyframes waveIn {
-      0% { opacity:0; transform:translate(-50%,-50%) scale(0.5); }
-      15% { opacity:1; transform:translate(-50%,-50%) scale(1.15); }
-      30% { transform:translate(-50%,-50%) scale(1); }
-      75% { opacity:1; }
-      100% { opacity:0; transform:translate(-50%,-50%) scale(1.05); }
-    }
+  /* Top decorative line */
+  .well-line {
+    position: absolute;
+    top: 4%;
+    left: 12%;
+    right: 12%;
+    height: 1px;
+    background: rgba(0,0,0,0.4);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08);
+  }
 
-    /* Callout */
-    .callout {
-      position: absolute; top: 45%; left: 50%;
-      transform: translate(-50%,-50%);
-      z-index: 56; pointer-events: none;
-      font-size: 46px; color: var(--c3);
-      text-shadow: 3px 3px 0 var(--c2);
-      letter-spacing: 3px;
-      animation: calloutPop .9s ease-out forwards;
-    }
-    @keyframes calloutPop {
-      0% { opacity:1; transform:translate(-50%,-50%) scale(0.6); }
-      20% { transform:translate(-50%,-50%) scale(1.2); }
-      40% { transform:translate(-50%,-50%) scale(1); }
-      80% { opacity:1; }
-      100% { opacity:0; transform:translate(-50%,-55%) scale(1.05); }
-    }
+  /* Power LED — REPOSITIONED to top-left of bezel, NOT overlapping screen */
+  .power-area {
+    position: absolute;
+    top: 8%;
+    left: 6%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  .power-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 1px;
+  }
+  .led {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff8899, #d11020 60%, #4a0808 100%);
+    box-shadow:
+      0 0 6px rgba(255,40,60,0.9),
+      inset 0 1px 1px rgba(255,255,255,0.4),
+      inset 0 -1px 1px rgba(0,0,0,0.3);
+    animation: ledPulse 2s ease-in-out infinite;
+  }
+  @keyframes ledPulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(255,40,60,0.9), inset 0 1px 1px rgba(255,255,255,0.4); }
+    50%      { box-shadow: 0 0 14px rgba(255,80,100,1), inset 0 1px 1px rgba(255,255,255,0.4); }
+  }
 
-    /* Gorilla */
-    #gorilla {
-      position: absolute; bottom: 78px;
-      width: 44px; height: 52px;
-      z-index: 20;
-      transition: filter .2s;
-    }
-    #gorilla.rage-glow {
-      filter: drop-shadow(0 0 8px var(--c3)) drop-shadow(0 0 18px var(--c2)) brightness(1.3);
-    }
-    #gorilla.dash-tilt-left { transform: rotate(-8deg); }
-    #gorilla.dash-tilt-right { transform: rotate(8deg); }
+  /* Screen */
+  .screen {
+    flex: 1;
+    margin-top: 16%;
+    border-radius: 4px;
+    background: #0d2348;
+    box-shadow:
+      inset 0 1px 2px rgba(0,0,0,0.6),
+      0 1px 0 rgba(255,255,255,0.1);
+    overflow: hidden;
+    position: relative;
+    image-rendering: pixelated;
+  }
+  .screen canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  /* Subtler scanlines */
+  .screen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 3px,
+      rgba(0,0,0,0.1) 3px,
+      rgba(0,0,0,0.1) 4px
+    );
+    pointer-events: none;
+    z-index: 2;
+  }
+  /* Lighter vignette */
+  .screen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 70%, rgba(0,0,0,0.25) 100%);
+    pointer-events: none;
+    z-index: 3;
+  }
 
-    /* Shield bubble */
-    .shield-bubble {
-      position: absolute; top: -6px; left: -8px;
-      width: 60px; height: 64px;
-      border: 2px solid var(--c3);
-      border-radius: 50%;
-      opacity: 0; pointer-events: none;
-      animation: none;
-    }
-    .shield-bubble.active {
-      opacity: 0.5;
-      animation: shieldPulse 1s ease-in-out infinite;
-    }
-    @keyframes shieldPulse {
-      0%,100% { transform: scale(1); opacity: 0.4; }
-      50% { transform: scale(1.08); opacity: 0.6; }
-    }
+  .brand-stripe {
+    margin-top: 2%;
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(7px, 1.6vw, 10px);
+    color: var(--btn-blue);
+    letter-spacing: 1px;
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.4);
+  }
+  .brand-stripe .sub {
+    font-family: 'VT323', monospace;
+    font-size: clamp(10px, 2vw, 13px);
+    color: var(--case-shadow);
+    letter-spacing: 2px;
+    margin-top: 2px;
+    font-style: italic;
+  }
 
-    /* Dash cooldown bar under gorilla */
-    .dash-bar-wrap {
-      position: absolute; bottom: -8px; left: 4px;
-      width: 36px; height: 4px;
-      background: var(--c0); border: 1px solid var(--c1);
-      overflow: hidden; opacity: 0;
-      transition: opacity .3s;
-    }
-    .dash-bar-wrap.show { opacity: 1; }
-    .dash-bar-fill {
-      height: 100%; width: 100%;
-      background: var(--c3);
-      transition: width .05s linear;
-    }
+  .gb-seam {
+    position: absolute;
+    top: 18%;
+    left: 4%; right: 4%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(0,0,0,0.3), transparent);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  }
 
-    /* Items */
-    .item { position: absolute; z-index: 15; }
-    .item.golden { filter: drop-shadow(0 0 4px var(--c3)) brightness(1.4); }
+  .controls {
+    flex: 1;
+    position: relative;
+    margin-top: 3%;
+    min-height: 100px;
+  }
 
-    /* Flash */
-    #flash {
-      position: absolute; inset: 0;
-      background: var(--c3);
-      opacity: 0; pointer-events: none; z-index: 80;
-      transition: opacity .04s;
-    }
-    #flash.red { background: #d81414; }
+  .dpad {
+    position: absolute;
+    left: 4%;
+    top: 8%;
+    width: 36%;
+    aspect-ratio: 1;
+    background: radial-gradient(circle at 35% 35%,
+      rgba(0,0,0,0.05) 0%,
+      rgba(0,0,0,0.18) 60%,
+      rgba(0,0,0,0.25) 100%);
+    border-radius: 50%;
+  }
+  .dpad-cross { position: absolute; inset: 8%; }
+  .dpad-h, .dpad-v {
+    position: absolute;
+    background: linear-gradient(160deg, #2a2f3a, #0a0d12 70%);
+    box-shadow:
+      inset 0 2px 1px rgba(255,255,255,0.15),
+      inset 0 -2px 2px rgba(0,0,0,0.4),
+      0 2px 4px rgba(0,0,0,0.4),
+      0 1px 0 rgba(255,255,255,0.1);
+    border-radius: 4px;
+  }
+  .dpad-h { width: 100%; height: 32%; top: 34%; left: 0; }
+  .dpad-v { width: 32%; height: 100%; left: 34%; top: 0; }
+  .dpad-center {
+    position: absolute;
+    width: 12%;
+    aspect-ratio: 1;
+    left: 44%;
+    top: 44%;
+    background: radial-gradient(circle, rgba(0,0,0,0.5), rgba(0,0,0,0.2));
+    border-radius: 50%;
+  }
+  .dpad-arrows { position: absolute; inset: 0; pointer-events: none; }
+  .dpad-arrow {
+    position: absolute;
+    width: 0; height: 0;
+    border-style: solid;
+    opacity: 0.5;
+  }
+  .dpad-arrow.up    { top: 4%;  left: 50%; transform: translateX(-50%); border-width: 0 4px 5px 4px; border-color: transparent transparent rgba(255,255,255,0.6) transparent; }
+  .dpad-arrow.down  { bottom:4%; left: 50%; transform: translateX(-50%); border-width: 5px 4px 0 4px; border-color: rgba(255,255,255,0.6) transparent transparent transparent; }
+  .dpad-arrow.left  { left: 4%;  top: 50%; transform: translateY(-50%); border-width: 4px 5px 4px 0; border-color: transparent rgba(255,255,255,0.6) transparent transparent; }
+  .dpad-arrow.right { right:4%; top: 50%; transform: translateY(-50%); border-width: 4px 0 4px 5px; border-color: transparent transparent transparent rgba(255,255,255,0.6); }
 
-    /* OVERLAY */
-    #ov {
-      position: absolute; inset: 0;
-      background: rgba(0,6,18,0.94);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      z-index: 50; transition: opacity .35s;
-    }
-    #ov.hidden { opacity: 0; pointer-events: none; }
-    .obox {
-      border: 2px solid var(--c3);
-      padding: 24px 40px;
-      background: var(--c0);
-      text-align: center; position: relative;
-      min-width: 380px;
-    }
-    .obox::before {
-      content: ''; position: absolute; top: 0; left: 0;
-      width: 0; height: 0; border-style: solid;
-      border-width: 14px 14px 0 0;
-      border-color: rgba(0,6,18,0.94) transparent transparent transparent;
-    }
-    .obox::after {
-      content: ''; position: absolute; bottom: 0; right: 0;
-      width: 0; height: 0; border-style: solid;
-      border-width: 0 0 14px 14px;
-      border-color: transparent transparent rgba(0,6,18,0.94) transparent;
-    }
-    .gtitle {
-      font-size: 52px; letter-spacing: 5px;
-      color: var(--c3);
-      text-shadow: 3px 3px 0 var(--c2), 6px 6px 0 var(--c1);
-      line-height: 1; margin-bottom: 2px;
-    }
-    .gsub {
-      font-size: 16px; color: var(--c2);
-      letter-spacing: 3px; margin-bottom: 16px;
-    }
-    .kbd {
-      display: inline-block;
-      border: 2px solid var(--c3); color: var(--c3);
-      padding: 1px 7px; font-size: 16px;
-      background: var(--c0);
-      box-shadow: 2px 2px 0 var(--c2);
-    }
-    .ctrl-row {
-      display: flex; align-items: center; gap: 8px;
-      justify-content: center; margin-bottom: 8px;
-      font-size: 16px; color: var(--c2);
-    }
-    .pbtn {
-      background: var(--c3); color: var(--c0);
-      border: none; padding: 7px 38px;
-      font-family: 'VT323', monospace;
-      font-size: 28px; letter-spacing: 3px; cursor: pointer;
-      box-shadow: 4px 4px 0 var(--c2), 8px 8px 0 var(--c1);
-      transition: transform .1s, box-shadow .1s;
-    }
-    .pbtn:hover  { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--c2), 10px 10px 0 var(--c1); }
-    .pbtn:active { transform: translate(3px,3px);   box-shadow: 1px 1px 0 var(--c2); }
-    .sdisplay { font-size: 44px; color: var(--c3); text-shadow: 2px 2px 0 var(--c2); margin: 8px 0; }
-    .slabel   { color: var(--c2); font-size: 20px; }
-    .hsrow    { color: var(--c2); font-size: 18px; margin-bottom: 14px; }
-    .hsrow span { color: var(--c3); }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-    .blink { animation: blink 1s step-end infinite; color: var(--c3); }
+  .ab-area {
+    position: absolute;
+    right: 4%;
+    top: 4%;
+    width: 44%;
+    aspect-ratio: 1;
+    transform: rotate(-15deg);
+  }
+  .ab-btn {
+    position: absolute;
+    width: 36%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%,
+      var(--btn-blue-lt) 0%,
+      var(--btn-blue) 45%,
+      var(--btn-blue-dk) 100%);
+    box-shadow:
+      0 4px 6px rgba(0,0,0,0.4),
+      inset 0 2px 2px rgba(255,255,255,0.25),
+      inset 0 -3px 4px rgba(0,0,0,0.4),
+      0 0 0 4px rgba(0,0,0,0.15);
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
+  }
+  .ab-btn:active {
+    transform: translateY(2px);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.4),
+      inset 0 2px 2px rgba(255,255,255,0.25),
+      inset 0 -2px 3px rgba(0,0,0,0.4);
+  }
+  .ab-btn.a { right: 6%; top: 18%; }
+  .ab-btn.b { right: 42%; top: 38%; }
+  .ab-label {
+    position: absolute;
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(8px, 1.8vw, 11px);
+    color: var(--btn-blue);
+    font-style: italic;
+    transform: rotate(15deg);
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.3);
+  }
+  .ab-label.a { right: 16%; top: 60%; }
+  .ab-label.b { right: 52%; top: 80%; }
 
-    /* Score pop */
-    .pop {
-      position: absolute; font-size: 20px;
-      font-family: 'VT323', monospace;
-      pointer-events: none; z-index: 30;
-      color: var(--c3);
-      text-shadow: 2px 2px 0 var(--c1);
-      animation: popUp .65s ease-out forwards;
-    }
-    .pop.golden-pop { color: #fff; font-size: 24px; }
-    @keyframes popUp {
-      0%  { opacity:1; transform:translateY(0) scale(1); }
-      100%{ opacity:0; transform:translateY(-48px) scale(1.5); }
-    }
+  .ss-area {
+    position: absolute;
+    bottom: 14%;
+    left: 50%;
+    transform: translateX(-50%) rotate(-15deg);
+    display: flex;
+    gap: 14%;
+    align-items: center;
+  }
+  .ss-btn {
+    width: clamp(32px, 8vw, 46px);
+    height: clamp(8px, 1.8vw, 11px);
+    border-radius: 6px;
+    background: linear-gradient(160deg, #8a8a95, #4a4d55);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,0.4),
+      inset 0 -1px 1px rgba(0,0,0,0.4),
+      0 2px 3px rgba(0,0,0,0.3);
+    cursor: pointer;
+  }
+  .ss-btn:active {
+    transform: translateY(1px);
+  }
 
-    /* Shake */
-    @keyframes shake {
-      0%,100%{transform:translate(0,0)}
-      15%{transform:translate(-7px,3px)}
-      30%{transform:translate(7px,-3px)}
-      45%{transform:translate(-5px,5px)}
-      60%{transform:translate(6px,-4px)}
-    }
-    .shaking { animation: shake .45s ease; }
-    @keyframes shakeBig {
-      0%,100%{transform:translate(0,0)}
-      10%{transform:translate(-12px,6px)}
-      20%{transform:translate(12px,-6px)}
-      30%{transform:translate(-10px,8px)}
-      40%{transform:translate(10px,-8px)}
-      50%{transform:translate(-8px,4px)}
-      60%{transform:translate(8px,-4px)}
-      70%{transform:translate(-4px,2px)}
-      80%{transform:translate(4px,-2px)}
-    }
-    .shaking-big { animation: shakeBig .6s ease; }
+  .speaker {
+    position: absolute;
+    right: 6%;
+    bottom: 6%;
+    width: 26%;
+    aspect-ratio: 1.4;
+    transform: rotate(-15deg);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    padding: 8%;
+  }
+  .speaker-line {
+    height: 8%;
+    background: linear-gradient(to bottom,
+      rgba(0,0,0,0.45) 0%,
+      rgba(0,0,0,0.25) 50%,
+      rgba(255,255,255,0.15) 100%);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.2);
+  }
 
-    /* Particles */
-    .pt {
-      position: absolute; pointer-events: none; z-index: 12;
-      animation: ptUp 1s ease-out forwards;
-    }
-    @keyframes ptUp {
-      0%  { opacity:.9; transform:translate(0,0) scale(1); }
-      100%{ opacity:0;  transform:translate(var(--dx),var(--dy)) scale(0); }
-    }
-
-    /* Explosion ring */
-    .explosion-ring {
-      position: absolute; pointer-events: none; z-index: 14;
-      border: 2px solid var(--c3);
-      border-radius: 50%;
-      animation: ringExpand .5s ease-out forwards;
-    }
-    @keyframes ringExpand {
-      0% { width:8px; height:8px; opacity:1; transform:translate(-50%,-50%); }
-      100% { width:80px; height:80px; opacity:0; transform:translate(-50%,-50%); }
-    }
-
-    /* Trail dots for dash */
-    .trail-dot {
-      position: absolute; width: 6px; height: 6px;
-      background: var(--c3); opacity: 0.6;
-      pointer-events: none; z-index: 19;
-      animation: trailFade .3s ease-out forwards;
-    }
-    @keyframes trailFade {
-      0% { opacity:0.6; transform:scale(1); }
-      100% { opacity:0; transform:scale(0.3); }
-    }
-
-    /* Idle bob */
-    @keyframes idleBob {
-      0%,100% { transform:translateY(0); }
-      50% { transform:translateY(-3px); }
-    }
-    #gorilla.idle { animation: idleBob 1.2s ease-in-out infinite; }
-
-    /* Mobile controls */
-    .mobile-ctrl {
-      display: none; position: absolute; bottom: 12px;
-      left: 0; right: 0; z-index: 25;
-      padding: 0 10px;
-      justify-content: space-between; align-items: flex-end;
-    }
-    .m-btn {
-      width: 64px; height: 64px; border: 2px solid var(--c2);
-      background: rgba(10,30,74,0.6); color: var(--c3);
-      font-family: 'VT323', monospace; font-size: 28px;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 8px; cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .m-btn:active { background: rgba(74,180,255,0.2); }
-    .m-side { display: flex; gap: 8px; }
-    .m-action { display: flex; gap: 8px; flex-direction: column; align-items: center; }
-    .m-action .m-btn { width: 56px; height: 40px; font-size: 16px; }
-
-    @media (pointer: coarse) {
-      .mobile-ctrl { display: flex; }
-    }
-    @media (max-width: 860px) {
-      #gc { width: 100vw; height: 57vw; }
-      .crt-frame { padding: 10px 8px 24px; border-width: 2px; }
-    }
-  </style>
+  #tap-hint {
+    position: fixed;
+    bottom: 8px; left: 0; right: 0;
+    text-align: center;
+    color: var(--c2);
+    font-family: 'VT323', monospace;
+    font-size: 13px;
+    letter-spacing: 3px;
+    pointer-events: none;
+    opacity: 0.85;
+    z-index: 10;
+  }
+  @keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:0.95} }
+  #tap-hint .blink { animation: blink 1.2s step-end infinite; }
+</style>
 </head>
 <body>
 
-<div class="crt-frame">
-  <div style="position:relative;">
-    <div id="gc">
-      <div id="flash"></div>
-      <div class="sky"></div>
-      <canvas id="sc" width="800" height="460"></canvas>
-
-      <div class="moon">
-        <svg width="36" height="36" viewBox="0 0 9 9" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="0" width="3" height="1" fill="#4ab4ff" opacity=".7"/>
-          <rect x="1" y="1" width="7" height="1" fill="#4ab4ff" opacity=".7"/>
-          <rect x="0" y="2" width="9" height="5" fill="#4ab4ff" opacity=".75"/>
-          <rect x="1" y="7" width="7" height="1" fill="#4ab4ff" opacity=".65"/>
-          <rect x="3" y="8" width="3" height="1" fill="#4ab4ff" opacity=".5"/>
-          <rect x="2" y="3" width="2" height="2" fill="#1464d8" opacity=".5"/>
-          <rect x="5" y="5" width="2" height="1" fill="#1464d8" opacity=".4"/>
-        </svg>
-      </div>
-
-      <div style="position:absolute;top:50px;left:68px;z-index:3;opacity:.22;" id="cl1"></div>
-      <div style="position:absolute;top:72px;left:430px;z-index:3;opacity:.16;" id="cl2"></div>
-      <div style="position:absolute;top:42px;right:88px;z-index:3;opacity:.2;" id="cl3"></div>
-
-      <svg class="city" viewBox="0 0 800 110" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="0" y="60" width="800" height="50" fill="#000818"/>
-        <rect x="8" y="55" width="28" height="55" fill="#0a1e4a"/>
-        <rect x="12" y="44" width="5" height="11" fill="#0a1e4a"/>
-        <rect x="40" y="36" width="38" height="74" fill="#0a1e4a"/>
-        <rect x="53" y="26" width="7" height="10" fill="#0a1e4a"/>
-        <rect x="82" y="50" width="22" height="60" fill="#0a1e4a"/>
-        <rect x="108" y="28" width="52" height="82" fill="#0a1e4a"/>
-        <rect x="120" y="16" width="9" height="12" fill="#0a1e4a"/>
-        <rect x="164" y="40" width="30" height="70" fill="#0a1e4a"/>
-        <rect x="198" y="54" width="20" height="56" fill="#0a1e4a"/>
-        <rect x="222" y="20" width="62" height="90" fill="#0a1e4a"/>
-        <rect x="235" y="8" width="11" height="12" fill="#0a1e4a"/>
-        <rect x="288" y="46" width="24" height="64" fill="#0a1e4a"/>
-        <rect x="316" y="33" width="42" height="77" fill="#0a1e4a"/>
-        <rect x="362" y="54" width="16" height="56" fill="#0a1e4a"/>
-        <rect x="382" y="23" width="56" height="87" fill="#0a1e4a"/>
-        <rect x="394" y="12" width="8" height="11" fill="#0a1e4a"/>
-        <rect x="442" y="42" width="32" height="68" fill="#0a1e4a"/>
-        <rect x="478" y="28" width="48" height="82" fill="#0a1e4a"/>
-        <rect x="489" y="16" width="10" height="12" fill="#0a1e4a"/>
-        <rect x="530" y="48" width="22" height="62" fill="#0a1e4a"/>
-        <rect x="556" y="34" width="38" height="76" fill="#0a1e4a"/>
-        <rect x="598" y="20" width="62" height="90" fill="#0a1e4a"/>
-        <rect x="612" y="8" width="11" height="12" fill="#0a1e4a"/>
-        <rect x="664" y="46" width="24" height="64" fill="#0a1e4a"/>
-        <rect x="692" y="28" width="44" height="82" fill="#0a1e4a"/>
-        <rect x="740" y="33" width="32" height="77" fill="#0a1e4a"/>
-        <rect x="775" y="52" width="25" height="58" fill="#0a1e4a"/>
-        <rect x="46" y="42" width="3" height="3" fill="#4ab4ff" opacity=".5"/>
-        <rect x="58" y="52" width="3" height="3" fill="#4ab4ff" opacity=".4"/>
-        <rect x="114" y="34" width="3" height="3" fill="#4ab4ff" opacity=".55"/>
-        <rect x="128" y="46" width="3" height="3" fill="#4ab4ff" opacity=".4"/>
-        <rect x="142" y="38" width="3" height="3" fill="#4ab4ff" opacity=".35"/>
-        <rect x="228" y="26" width="3" height="3" fill="#4ab4ff" opacity=".55"/>
-        <rect x="244" y="36" width="3" height="3" fill="#4ab4ff" opacity=".4"/>
-        <rect x="322" y="40" width="3" height="3" fill="#4ab4ff" opacity=".5"/>
-        <rect x="338" y="52" width="3" height="3" fill="#4ab4ff" opacity=".35"/>
-        <rect x="388" y="30" width="3" height="3" fill="#4ab4ff" opacity=".55"/>
-        <rect x="400" y="44" width="3" height="3" fill="#4ab4ff" opacity=".45"/>
-        <rect x="484" y="24" width="3" height="3" fill="#4ab4ff" opacity=".55"/>
-        <rect x="498" y="36" width="3" height="3" fill="#4ab4ff" opacity=".4"/>
-        <rect x="560" y="42" width="3" height="3" fill="#4ab4ff" opacity=".5"/>
-        <rect x="604" y="16" width="3" height="3" fill="#4ab4ff" opacity=".55"/>
-        <rect x="618" y="30" width="3" height="3" fill="#4ab4ff" opacity=".4"/>
-        <rect x="668" y="36" width="3" height="3" fill="#4ab4ff" opacity=".5"/>
-        <rect x="698" y="46" width="3" height="3" fill="#4ab4ff" opacity=".45"/>
-        <rect x="746" y="40" width="3" height="3" fill="#4ab4ff" opacity=".5"/>
-      </svg>
-
-      <div class="ggrid">
-        <svg width="800" height="78" viewBox="0 0 800 78" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-          <line x1="0" y1="7" x2="800" y2="7" stroke="#0a1e4a" stroke-width="1" opacity=".6"/>
-          <line x1="0" y1="20" x2="800" y2="20" stroke="#0a1e4a" stroke-width="1" opacity=".4"/>
-          <line x1="0" y1="38" x2="800" y2="38" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-          <line x1="100" y1="0" x2="100" y2="78" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-          <line x1="200" y1="0" x2="200" y2="78" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-          <line x1="300" y1="0" x2="300" y2="78" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-          <line x1="400" y1="0" x2="400" y2="78" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-          <line x1="500" y1="0" x2="500" y2="78" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-          <line x1="600" y1="0" x2="600" y2="78" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-          <line x1="700" y1="0" x2="700" y2="78" stroke="#0a1e4a" stroke-width="1" opacity=".25"/>
-        </svg>
-      </div>
-
-      <div class="gstrip">
-        <div class="gs-top"></div>
-        <div class="gs-mid"></div>
-        <div class="gs-deep"></div>
-      </div>
-
-      <!-- HUD -->
-      <div class="hud">
-        <span>SCORE&nbsp;<span class="val" id="sv">0</span></span>
-        <span>BEST&nbsp;<span class="val hi" id="hv">0</span></span>
-        <div class="lives">
-          <span class="heart" id="h1">&#9829;</span>
-          <span class="heart" id="h2">&#9829;</span>
-          <span class="heart" id="h3">&#9829;</span>
-        </div>
-        <div class="pup-icons">
-          <span class="pup-icon" id="pi-shield">SHD</span>
-          <span class="pup-icon" id="pi-magnet">MAG</span>
-          <span class="pup-icon" id="pi-double">2X</span>
-        </div>
-      </div>
-
-      <!-- Rage meter -->
-      <div class="rage-wrap">
-        <div class="rage-bar" id="rage-bar"></div>
-        <span class="rage-label" id="rage-label">RAGE READY</span>
-      </div>
-
-      <!-- Combo display -->
-      <div id="combo-display">
-        <div class="combo-mult" id="combo-mult">&times;1</div>
-        <div class="combo-count" id="combo-count">0 STREAK</div>
-      </div>
-
-      <!-- Wave announcement -->
-      <div id="wave-announce"></div>
-
-      <!-- Gorilla -->
-      <div id="gorilla" class="idle">
-        <div class="shield-bubble" id="shield-bubble"></div>
-        <div class="dash-bar-wrap" id="dash-wrap">
-          <div class="dash-bar-fill" id="dash-fill"></div>
-        </div>
-        <svg width="44" height="52" viewBox="0 0 44 52" xmlns="http://www.w3.org/2000/svg">
-          <ellipse cx="22" cy="51" rx="15" ry="3" fill="#000818" opacity=".5"/>
-          <rect x="5" y="9" width="7" height="8" fill="#0a1e4a"/>
-          <rect x="6" y="10" width="5" height="6" fill="#000e30"/>
-          <rect x="32" y="9" width="7" height="8" fill="#0a1e4a"/>
-          <rect x="33" y="10" width="5" height="6" fill="#000e30"/>
-          <rect x="9" y="7" width="26" height="16" fill="#0a1e4a"/>
-          <rect x="11" y="5" width="22" height="18" fill="#0a1e4a"/>
-          <rect x="11" y="5" width="22" height="3" fill="#000e30"/>
-          <rect x="13" y="18" width="18" height="7" fill="#1464d8" opacity=".45"/>
-          <rect x="14" y="10" width="5" height="5" fill="#000818"/>
-          <rect x="25" y="10" width="5" height="5" fill="#000818"/>
-          <rect x="15" y="11" width="2" height="2" fill="#4ab4ff" opacity=".9"/>
-          <rect x="26" y="11" width="2" height="2" fill="#4ab4ff" opacity=".9"/>
-          <rect x="17" y="15" width="10" height="4" fill="#000818"/>
-          <rect x="18" y="16" width="3" height="2" fill="#0a1e4a"/>
-          <rect x="23" y="16" width="3" height="2" fill="#0a1e4a"/>
-          <rect x="16" y="20" width="12" height="2" fill="#000818"/>
-          <rect x="9" y="22" width="26" height="20" fill="#0a1e4a"/>
-          <rect x="12" y="23" width="20" height="16" fill="#000e30"/>
-          <rect x="16" y="24" width="12" height="10" fill="#0a1e4a"/>
-          <rect x="1" y="22" width="9" height="10" fill="#0a1e4a"/>
-          <rect x="0" y="28" width="8" height="7" fill="#000e30"/>
-          <rect x="34" y="22" width="9" height="10" fill="#0a1e4a"/>
-          <rect x="36" y="28" width="8" height="7" fill="#000e30"/>
-          <rect x="11" y="40" width="10" height="10" fill="#000e30"/>
-          <rect x="23" y="40" width="10" height="10" fill="#000e30"/>
-          <rect x="9" y="47" width="12" height="5" fill="#000818"/>
-          <rect x="23" y="47" width="12" height="5" fill="#000818"/>
-          <rect x="17" y="25" width="10" height="6" fill="#4ab4ff" opacity=".04"/>
-        </svg>
-      </div>
-
-      <!-- Mobile controls -->
-      <div class="mobile-ctrl" id="mobile-ctrl">
-        <div class="m-side">
-          <div class="m-btn" id="mb-left">&#9664;</div>
-          <div class="m-btn" id="mb-right">&#9654;</div>
-        </div>
-        <div class="m-action">
-          <div class="m-btn" id="mb-rage">RAGE</div>
-          <div class="m-btn" id="mb-dash">DASH</div>
-        </div>
-      </div>
-
-      <!-- OVERLAY -->
-      <div id="ov">
-        <div class="obox">
-          <div class="gtitle" id="ttl">GORILLA RUSH</div>
-          <div class="gsub" id="sub">ELECTRIC EDITION</div>
-
-          <div id="sc_start">
-            <div class="ctrl-row">
-              <span class="kbd">&#9664;</span><span class="kbd">&#9654;</span>
-              <span>MOVE</span>
-            </div>
-            <div class="ctrl-row">
-              <span class="kbd">SHIFT</span>
-              <span>DASH — smash coconuts</span>
-            </div>
-            <div class="ctrl-row">
-              <span class="kbd">SPACE</span>
-              <span>RAGE MODE — when meter full</span>
-            </div>
-            <div style="display:flex;gap:28px;justify-content:center;margin:12px 0 16px;">
-              <div style="text-align:center;">
-                <svg width="22" height="40" viewBox="0 0 5 10" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
-                  <rect x="2" y="0" width="2" height="1" fill="#4ab4ff"/><rect x="1" y="1" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="3" y="1" width="1" height="1" fill="#1464d8"/><rect x="0" y="2" width="2" height="1" fill="#4ab4ff"/>
-                  <rect x="3" y="2" width="1" height="1" fill="#4ab4ff"/><rect x="0" y="3" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="1" y="3" width="2" height="1" fill="#0a1e4a"/><rect x="3" y="3" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="0" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="4" width="2" height="1" fill="#0a1e4a"/>
-                  <rect x="3" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="5" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="2" y="5" width="2" height="1" fill="#0a1e4a"/><rect x="1" y="6" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="2" y="6" width="2" height="1" fill="#0a1e4a"/><rect x="2" y="7" width="2" height="1" fill="#4ab4ff"/>
-                  <rect x="2" y="8" width="2" height="1" fill="#1464d8"/><rect x="3" y="9" width="1" height="1" fill="#0a1e4a"/>
-                </svg>
-                <div style="color:var(--c3);font-size:15px;margin-top:3px;">CATCH</div>
-              </div>
-              <div style="text-align:center;">
-                <svg width="28" height="28" viewBox="0 0 9 9" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
-                  <rect x="3" y="0" width="3" height="1" fill="#0a1e4a"/><rect x="1" y="1" width="7" height="1" fill="#0a1e4a"/>
-                  <rect x="0" y="2" width="9" height="5" fill="#0a1e4a"/><rect x="1" y="7" width="7" height="1" fill="#0a1e4a"/>
-                  <rect x="3" y="8" width="3" height="1" fill="#0a1e4a"/>
-                  <rect x="2" y="3" width="2" height="2" fill="#1464d8" opacity=".9"/>
-                  <rect x="5" y="3" width="2" height="2" fill="#1464d8" opacity=".8"/>
-                  <rect x="3" y="5" width="3" height="1" fill="#1464d8" opacity=".7"/>
-                  <rect x="1" y="2" width="2" height="1" fill="#4ab4ff" opacity=".45"/>
-                </svg>
-                <div style="color:var(--c2);font-size:15px;margin-top:3px;">DODGE</div>
-              </div>
-              <div style="text-align:center;">
-                <svg width="22" height="40" viewBox="0 0 5 10" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;filter:drop-shadow(0 0 3px #4ab4ff) brightness(1.4);">
-                  <rect x="2" y="0" width="2" height="1" fill="#4ab4ff"/><rect x="1" y="1" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="3" y="1" width="1" height="1" fill="#fff"/><rect x="0" y="2" width="2" height="1" fill="#fff"/>
-                  <rect x="3" y="2" width="1" height="1" fill="#4ab4ff"/><rect x="0" y="3" width="1" height="1" fill="#fff"/>
-                  <rect x="1" y="3" width="2" height="1" fill="#4ab4ff"/><rect x="3" y="3" width="1" height="1" fill="#fff"/>
-                  <rect x="0" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="4" width="2" height="1" fill="#0a1e4a"/>
-                  <rect x="3" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="5" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="2" y="5" width="2" height="1" fill="#0a1e4a"/><rect x="1" y="6" width="1" height="1" fill="#4ab4ff"/>
-                  <rect x="2" y="6" width="2" height="1" fill="#0a1e4a"/><rect x="2" y="7" width="2" height="1" fill="#fff"/>
-                  <rect x="2" y="8" width="2" height="1" fill="#4ab4ff"/><rect x="3" y="9" width="1" height="1" fill="#0a1e4a"/>
-                </svg>
-                <div style="color:#fff;font-size:15px;margin-top:3px;text-shadow:0 0 6px var(--c3);">+5 RARE</div>
-              </div>
-            </div>
-            <div style="color:var(--c2);font-size:14px;margin-bottom:4px;">Catch streaks to build your multiplier!</div>
-          </div>
-
-          <div id="sc_over" style="display:none;">
-            <div class="slabel">BANANAS CAUGHT</div>
-            <div class="sdisplay" id="fs">0</div>
-            <div class="hsrow">BEST: <span id="hsb">0</span></div>
-          </div>
-
-          <button class="pbtn" onclick="startGame()" id="ab">&#9654; START</button>
-          <div style="margin-top:10px;font-size:14px;color:var(--c2);">
-            PRESS <span class="blink">SPACE</span> OR CLICK
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-  <div class="crt-label">GORILLA RUSH · ELECTRIC EDITION · v4.0</div>
+<div class="page-title">
+  <h1>Play While You Wait</h1>
+  <div class="sub">◆ GORILLA RUN - GAME BOY EDITION ◆</div>
 </div>
 
+<div class="gameboy-wrap">
+  <div class="gameboy">
+    <div class="screen-well">
+      <div class="well-line"></div>
+      <div class="power-area">
+        <div class="led"></div>
+        <span class="power-label">POWER</span>
+      </div>
+      <div class="screen">
+        <canvas id="game" width="320" height="288"></canvas>
+      </div>
+    </div>
+
+    <div class="brand-stripe">
+      GORILLA RUN
+      <div class="sub">— Waiting Room —</div>
+    </div>
+
+    <div class="gb-seam"></div>
+
+    <div class="controls">
+      <div class="dpad" id="dpad">
+        <div class="dpad-cross">
+          <div class="dpad-v"></div>
+          <div class="dpad-h"></div>
+          <div class="dpad-arrows">
+            <div class="dpad-arrow up"></div>
+            <div class="dpad-arrow down"></div>
+            <div class="dpad-arrow left"></div>
+            <div class="dpad-arrow right"></div>
+          </div>
+          <div class="dpad-center"></div>
+        </div>
+      </div>
+
+      <div class="ab-area">
+        <div class="ab-btn a" id="btn-a"></div>
+        <div class="ab-label a">A</div>
+        <div class="ab-btn b" id="btn-b"></div>
+        <div class="ab-label b">B</div>
+      </div>
+
+      <div class="ss-area">
+        <div style="position:relative;">
+          <div class="ss-btn" id="btn-select"></div>
+          <div style="position:absolute;top:130%;left:50%;transform:translateX(-50%);font-family:'Press Start 2P',monospace;font-size:6px;color:var(--btn-blue);text-shadow:1px 1px 0 rgba(255,255,255,0.3);">SELECT</div>
+        </div>
+        <div style="position:relative;">
+          <div class="ss-btn" id="btn-start"></div>
+          <div style="position:absolute;top:130%;left:50%;transform:translateX(-50%);font-family:'Press Start 2P',monospace;font-size:6px;color:var(--btn-blue);text-shadow:1px 1px 0 rgba(255,255,255,0.3);">START</div>
+        </div>
+      </div>
+
+      <div class="speaker">
+        <div class="speaker-line"></div>
+        <div class="speaker-line"></div>
+        <div class="speaker-line"></div>
+        <div class="speaker-line"></div>
+        <div class="speaker-line"></div>
+        <div class="speaker-line"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tap-hint"><span class="blink">◆ TAP / SPACE / A TO PLAY ◆</span></div>
+
 <script>
-/* ═══════════════════════════════════
-   STARS
-   ═══════════════════════════════════ */
-(()=>{
-  const c=document.getElementById('sc'),ctx=c.getContext('2d');
-  const S=[];
-  for(let i=0;i<140;i++) S.push({x:Math.random()*800,y:Math.random()*310,s:Math.random()<.15?2:1,b:.25+Math.random()*.75,t:Math.random()*Math.PI*2});
-  function draw(){
-    ctx.clearRect(0,0,800,460);
-    S.forEach(s=>{
-      s.t+=.011;
-      const a=s.b*(.5+.5*Math.sin(s.t));
-      ctx.fillStyle=`rgba(74,180,255,${a})`;
-      ctx.fillRect(Math.floor(s.x),Math.floor(s.y),s.s,s.s);
-    });
-    requestAnimationFrame(draw);
-  }
-  requestAnimationFrame(draw);
-})();
+/* ═══════════════════════════════════════════════════════════
+   GORILLA RUN — pure 2D
+   Brighter blue palette + side-view gorilla
+   ═══════════════════════════════════════════════════════════ */
+const PAL = {
+  c0: '#0a1c3a',
+  c1: '#2a5088',
+  c2: '#6ea0d4',
+  c3: '#c8e0f8'
+};
+const SCREEN_BG_TOP = '#0d2348';
+const SCREEN_BG_BOT = '#1a3868';
 
-/* ═══════════════════════════════════
-   CLOUDS
-   ═══════════════════════════════════ */
-function mkCloud(id,pat){
-  const el=document.getElementById(id); if(!el)return;
-  el.style.cssText='display:grid;gap:0;';
-  el.style.gridTemplateColumns=`repeat(${pat[0].length},6px)`;
-  pat.forEach(row=>row.forEach(c=>{
-    const d=document.createElement('div');
-    d.style.cssText=`width:6px;height:6px;background:${c?'#1464d8':'transparent'};`;
-    el.appendChild(d);
-  }));
-}
-mkCloud('cl1',[[0,0,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,1,0]]);
-mkCloud('cl2',[[0,0,1,1,1,0,0],[0,1,1,1,1,1,0],[1,1,1,1,1,1,1]]);
-mkCloud('cl3',[[0,0,0,1,1,1,1,1,0,0,0],[0,0,1,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,1]]);
+const SW = 320, SH = 288;
+const canvas = document.getElementById('game');
+const gctx = canvas.getContext('2d');
+gctx.imageSmoothingEnabled = false;
 
-/* ═══════════════════════════════════
-   AUDIO — Web Audio API sound FX
-   ═══════════════════════════════════ */
+// AUDIO
 let audioCtx = null;
 function ensureAudio(){
-  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  if(audioCtx.state==='suspended') audioCtx.resume();
+  if(!audioCtx){
+    try { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){}
+  }
+  if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
 }
-function playTone(freq,dur,type='square',vol=0.07){
-  if(!audioCtx)return;
-  try{
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type=type; o.frequency.setValueAtTime(freq,audioCtx.currentTime);
-    g.gain.setValueAtTime(vol,audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+dur);
+function tone(freq, dur, type='square', vol=0.05){
+  if(!audioCtx) return;
+  try {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
     o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime+dur);
-  }catch(e){}
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch(e){}
 }
-function sfxCatch(){ playTone(880,.08); setTimeout(()=>playTone(1200,.06,'square',0.04),40); }
-function sfxGolden(){ playTone(1200,.12); setTimeout(()=>playTone(1600,.12,'square',0.06),70); setTimeout(()=>playTone(2000,.1,'square',0.04),140); }
-function sfxHit(){ playTone(150,.25,'sawtooth',0.1); }
-function sfxDash(){ playTone(600,.08,'square',0.05); playTone(900,.06,'square',0.04); }
-function sfxRage(){ playTone(300,.4,'sawtooth',0.08); setTimeout(()=>playTone(500,.3,'sawtooth',0.06),100); setTimeout(()=>playTone(800,.3,'square',0.05),200); }
-function sfxPowerUp(){ playTone(1000,.08); setTimeout(()=>playTone(1400,.12,'square',0.06),80); }
-function sfxNearMiss(){ playTone(1800,.05,'square',0.03); }
-function sfxCombo(mult){ playTone(600+mult*120,.1,'square',0.06); }
-function sfxExplosion(){ playTone(200,.3,'sawtooth',0.08); playTone(100,.3,'sawtooth',0.06); }
+const sfx = {
+  jump:  ()=>{ tone(660,.08,'square',.05); setTimeout(()=>tone(880,.06,'square',.04),40); },
+  hit:   ()=>{ tone(180,.15,'sawtooth',.07); setTimeout(()=>tone(90,.25,'sawtooth',.06),80); },
+  point: ()=>tone(1200,.05,'square',.03),
+  start: ()=>{ tone(523,.1); setTimeout(()=>tone(659,.1),80); setTimeout(()=>tone(784,.15),160); }
+};
 
-/* ═══════════════════════════════════
-   SPRITES
-   ═══════════════════════════════════ */
-const BANANA=`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="40" viewBox="0 0 5 10">
-  <rect x="2" y="0" width="2" height="1" fill="#1464d8"/><rect x="1" y="1" width="1" height="1" fill="#1464d8"/>
-  <rect x="3" y="1" width="1" height="1" fill="#4ab4ff"/><rect x="0" y="2" width="2" height="1" fill="#4ab4ff"/>
-  <rect x="3" y="2" width="1" height="1" fill="#1464d8"/><rect x="0" y="3" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="1" y="3" width="2" height="1" fill="#0a1e4a"/><rect x="3" y="3" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="0" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="4" width="2" height="1" fill="#0a1e4a"/>
-  <rect x="3" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="5" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="2" y="5" width="2" height="1" fill="#0a1e4a"/><rect x="1" y="6" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="2" y="6" width="2" height="1" fill="#0a1e4a"/><rect x="2" y="7" width="2" height="1" fill="#4ab4ff"/>
-  <rect x="2" y="8" width="2" height="1" fill="#1464d8"/><rect x="3" y="9" width="1" height="1" fill="#0a1e4a"/>
-</svg>`;
-
-const GOLDEN=`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="40" viewBox="0 0 5 10">
-  <rect x="2" y="0" width="2" height="1" fill="#4ab4ff"/><rect x="1" y="1" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="3" y="1" width="1" height="1" fill="#fff"/><rect x="0" y="2" width="2" height="1" fill="#fff"/>
-  <rect x="3" y="2" width="1" height="1" fill="#4ab4ff"/><rect x="0" y="3" width="1" height="1" fill="#fff"/>
-  <rect x="1" y="3" width="2" height="1" fill="#4ab4ff"/><rect x="3" y="3" width="1" height="1" fill="#fff"/>
-  <rect x="0" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="4" width="2" height="1" fill="#0a1e4a"/>
-  <rect x="3" y="4" width="1" height="1" fill="#4ab4ff"/><rect x="1" y="5" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="2" y="5" width="2" height="1" fill="#0a1e4a"/><rect x="1" y="6" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="2" y="6" width="2" height="1" fill="#0a1e4a"/><rect x="2" y="7" width="2" height="1" fill="#fff"/>
-  <rect x="2" y="8" width="2" height="1" fill="#4ab4ff"/><rect x="3" y="9" width="1" height="1" fill="#0a1e4a"/>
-</svg>`;
-
-const COCONUT=`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 9 9">
-  <rect x="3" y="0" width="3" height="1" fill="#0a1e4a"/><rect x="1" y="1" width="7" height="1" fill="#0a1e4a"/>
-  <rect x="0" y="2" width="9" height="5" fill="#0a1e4a"/><rect x="1" y="7" width="7" height="1" fill="#0a1e4a"/>
-  <rect x="3" y="8" width="3" height="1" fill="#0a1e4a"/>
-  <rect x="2" y="3" width="2" height="2" fill="#1464d8" opacity=".9"/>
-  <rect x="5" y="3" width="2" height="2" fill="#1464d8" opacity=".8"/>
-  <rect x="3" y="5" width="3" height="1" fill="#1464d8" opacity=".7"/>
-  <rect x="1" y="2" width="2" height="1" fill="#4ab4ff" opacity=".45"/>
-</svg>`;
-
-// Power-up sprites
-const SPRITE_SHIELD=`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 7 7">
-  <rect x="2" y="0" width="3" height="1" fill="#4ab4ff"/><rect x="1" y="1" width="5" height="1" fill="#4ab4ff"/>
-  <rect x="0" y="2" width="7" height="2" fill="#4ab4ff"/><rect x="1" y="4" width="5" height="1" fill="#4ab4ff"/>
-  <rect x="2" y="5" width="3" height="1" fill="#4ab4ff"/><rect x="3" y="6" width="1" height="1" fill="#4ab4ff"/>
-  <rect x="1" y="2" width="2" height="1" fill="#fff" opacity=".4"/>
-</svg>`;
-const SPRITE_MAGNET=`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 7 7">
-  <rect x="0" y="0" width="2" height="3" fill="#4ab4ff"/><rect x="5" y="0" width="2" height="3" fill="#4ab4ff"/>
-  <rect x="0" y="3" width="1" height="1" fill="#1464d8"/><rect x="6" y="3" width="1" height="1" fill="#1464d8"/>
-  <rect x="1" y="4" width="1" height="1" fill="#1464d8"/><rect x="5" y="4" width="1" height="1" fill="#1464d8"/>
-  <rect x="2" y="5" width="1" height="1" fill="#1464d8"/><rect x="4" y="5" width="1" height="1" fill="#1464d8"/>
-  <rect x="3" y="6" width="1" height="1" fill="#1464d8"/>
-</svg>`;
-const SPRITE_DOUBLE=`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 7 7">
-  <rect x="0" y="1" width="3" height="5" fill="#4ab4ff" opacity=".6"/><rect x="2" y="0" width="3" height="5" fill="#4ab4ff"/>
-  <rect x="1" y="2" width="1" height="2" fill="#1464d8" opacity=".5"/><rect x="3" y="1" width="1" height="2" fill="#1464d8" opacity=".5"/>
-</svg>`;
-
-/* ═══════════════════════════════════
-   GAME STATE & CONSTANTS
-   ═══════════════════════════════════ */
-const ACCEL = 1.1;
-const FRICTION = 0.82;
-const MAX_SPEED = 10;
-const DASH_SPEED = 28;
-const DASH_FRAMES = 8;
-const DASH_CD = 120;        // 2 seconds at 60fps
-const RAGE_DUR = 180;       // 3 seconds
-const RAGE_MAX = 100;
-const NEAR_MISS_PX = 45;    // horizontal distance for near-miss
-
-const gc = document.getElementById('gc');
-const gorilla = document.getElementById('gorilla');
-const sv = document.getElementById('sv'), hv = document.getElementById('hv');
-const ov = document.getElementById('ov');
-const ttl = document.getElementById('ttl'), sub = document.getElementById('sub');
-const ab = document.getElementById('ab');
-const sc_s = document.getElementById('sc_start'), sc_o = document.getElementById('sc_over');
-const fsEl = document.getElementById('fs'), hsbEl = document.getElementById('hsb');
-const flashEl = document.getElementById('flash');
-const hearts = [document.getElementById('h1'),document.getElementById('h2'),document.getElementById('h3')];
-const rageBar = document.getElementById('rage-bar');
-const rageLabel = document.getElementById('rage-label');
-const comboDisp = document.getElementById('combo-display');
-const comboMult = document.getElementById('combo-mult');
-const comboCount = document.getElementById('combo-count');
-const waveAnn = document.getElementById('wave-announce');
-const shieldBub = document.getElementById('shield-bubble');
-const dashWrap = document.getElementById('dash-wrap');
-const dashFill = document.getElementById('dash-fill');
-const piShield = document.getElementById('pi-shield');
-const piMagnet = document.getElementById('pi-magnet');
-const piDouble = document.getElementById('pi-double');
-
-let score=0, hs=parseInt(localStorage.getItem('gr_eb4')||'0');
-let gx=378, gvx=0, running=false, lives=3;
-let items=[], keys={}, frameCount=0;
-let combo=0, multiplier=1;
-let rageMeter=0, rageActive=false, rageTimer=0;
-let dashActive=false, dashTimer=0, dashCD=0, dashDir=1;
-let shieldActive=false, shieldTimer=0;
-let magnetActive=false, magnetTimer=0;
-let doubleActive=false, doubleTimer=0;
-let spawnTimer=0;
-let waveTimer=0, waveQueue=[];
-let invulnTimer=0; // brief invulnerability after hit
-
-hv.textContent=hs; hsbEl.textContent=hs;
-
-/* ═══════════════════════════════════
-   INPUT
-   ═══════════════════════════════════ */
-document.addEventListener('keydown',e=>{
-  keys[e.key]=true;
-  if((e.key===' '||e.key==='Enter')&&!running){ startGame(); e.preventDefault(); }
-  if(e.key===' ') e.preventDefault();
-});
-document.addEventListener('keyup',e=>{ keys[e.key]=false; });
-
-// Mobile touch controls
-const mbLeft=document.getElementById('mb-left');
-const mbRight=document.getElementById('mb-right');
-const mbRage=document.getElementById('mb-rage');
-const mbDash=document.getElementById('mb-dash');
-
-function mDown(key){ keys[key]=true; }
-function mUp(key){ keys[key]=false; }
-mbLeft.addEventListener('touchstart',e=>{e.preventDefault();mDown('ArrowLeft');});
-mbLeft.addEventListener('touchend',e=>{e.preventDefault();mUp('ArrowLeft');});
-mbRight.addEventListener('touchstart',e=>{e.preventDefault();mDown('ArrowRight');});
-mbRight.addEventListener('touchend',e=>{e.preventDefault();mUp('ArrowRight');});
-mbRage.addEventListener('touchstart',e=>{e.preventDefault();mDown(' ');});
-mbRage.addEventListener('touchend',e=>{e.preventDefault();mUp(' ');});
-mbDash.addEventListener('touchstart',e=>{e.preventDefault();mDown('Shift');});
-mbDash.addEventListener('touchend',e=>{e.preventDefault();mUp('Shift');});
-
-/* ═══════════════════════════════════
-   HELPERS
-   ═══════════════════════════════════ */
-function upHearts(){ hearts.forEach((h,i)=>h.classList.toggle('lost',i>=lives)); }
-
-function doFlash(red){
-  flashEl.className = red ? 'red' : '';
-  flashEl.style.opacity= red ? '.3' : '.2';
-  setTimeout(()=>{ flashEl.style.opacity='0'; flashEl.className=''; },90);
+// MUSIC
+let musicPlaying = false;
+let musicTimers = [];
+const MELODY = [
+  [523,1],[659,1],[784,1],[1047,1],[988,1],[784,1],[659,2],
+  [587,1],[698,1],[880,1],[1047,1],[988,1],[698,1],[587,2],
+  [523,1],[659,1],[784,1],[1047,1],[1175,2],[988,2],
+  [880,1],[784,1],[659,1],[587,1],[523,4]
+];
+const BASS = [
+  [131,2],[131,2],[165,2],[131,2],
+  [147,2],[147,2],[175,2],[147,2],
+  [131,2],[131,2],[196,2],[196,2],
+  [165,2],[147,2],[131,4]
+];
+function startMusic(){
+  if(musicPlaying || !audioCtx) return;
+  musicPlaying = true;
+  const beat = 60/132;
+  function melodyLoop(){
+    if(!musicPlaying) return;
+    let cum = 0;
+    MELODY.forEach(([f,b])=>{
+      const id = setTimeout(()=>{ if(musicPlaying) tone(f, beat*b*0.85, 'square', 0.022); }, cum*beat*1000);
+      musicTimers.push(id);
+      cum += b;
+    });
+    musicTimers.push(setTimeout(melodyLoop, cum*beat*1000));
+  }
+  function bassLoop(){
+    if(!musicPlaying) return;
+    let cum = 0;
+    BASS.forEach(([f,b])=>{
+      const id = setTimeout(()=>{ if(musicPlaying) tone(f, beat*b*0.9, 'triangle', 0.035); }, cum*beat*1000);
+      musicTimers.push(id);
+      cum += b;
+    });
+    musicTimers.push(setTimeout(bassLoop, cum*beat*1000));
+  }
+  melodyLoop();
+  bassLoop();
+}
+function stopMusic(){
+  musicPlaying = false;
+  musicTimers.forEach(t=>clearTimeout(t));
+  musicTimers = [];
 }
 
-function pop(x,y,txt,cls){
-  const el=document.createElement('div');
-  el.className='pop'+(cls?' '+cls:''); el.textContent=txt;
-  el.style.left=x+'px'; el.style.top=y+'px';
-  gc.appendChild(el); setTimeout(()=>el.remove(),700);
+// GAME STATE
+const STATE = { TITLE:0, RUNNING:1, OVER:2 };
+let gameState = STATE.TITLE;
+
+const GROUND_Y = 230;
+const GORILLA_X = 50;
+const GRAVITY = 0.7;
+const JUMP_VEL = -13;
+const DUCK_FALL = 1.6;
+
+let player = {
+  x: GORILLA_X, y: GROUND_Y - 40,
+  vy: 0, jumping: false, ducking: false
+};
+
+let obstacles = [], clouds = [], mountains = [], stars = [];
+let score = 0;
+let highScore = parseInt(localStorage.getItem('gb_dino_blue_hs')||'0');
+let speed = 5;
+let groundOffset = 0;
+let frameCount = 0;
+let spawnTimer = 60;
+let flashTimer = 0;
+let titlePulse = 0;
+
+function initBg(){
+  clouds = [];
+  for(let i=0;i<5;i++){
+    clouds.push({ x: Math.random()*SW, y: 30+Math.random()*60, spd: 0.3+Math.random()*0.4 });
+  }
+  mountains = [];
+  for(let i=0;i<6;i++){
+    mountains.push({ x: i*70, y: 180, w: 80+Math.random()*40, h: 50+Math.random()*30 });
+  }
+  stars = [];
+  for(let i=0;i<35;i++){
+    stars.push({ x: Math.random()*SW, y: Math.random()*150, t: Math.random()*Math.PI*2, b: 0.3+Math.random()*0.7 });
+  }
+}
+initBg();
+
+function px(x,y,w,h,c){ gctx.fillStyle = c; gctx.fillRect(Math.floor(x),Math.floor(y),w,h); }
+
+function drawBg(){
+  const grd = gctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  grd.addColorStop(0, '#0a1c3a');
+  grd.addColorStop(1, '#1a3868');
+  gctx.fillStyle = grd;
+  gctx.fillRect(0, 0, SW, GROUND_Y);
+
+  stars.forEach(s=>{
+    s.t += 0.03;
+    const a = (0.5 + 0.5*Math.sin(s.t)) * s.b;
+    if(a > 0.4){
+      gctx.fillStyle = `rgba(200,224,248,${a})`;
+      gctx.fillRect(Math.floor(s.x), Math.floor(s.y), 1, 1);
+    }
+  });
+
+  clouds.forEach(c=>{
+    if(gameState === STATE.RUNNING) c.x -= c.spd;
+    if(c.x < -40) c.x = SW + 20;
+    drawCloud(Math.floor(c.x), Math.floor(c.y));
+  });
+
+  mountains.forEach(m=>{
+    if(gameState === STATE.RUNNING) m.x -= speed * 0.15;
+    if(m.x < -m.w) m.x = SW;
+    drawMountain(Math.floor(m.x), m.y, m.w, m.h);
+  });
 }
 
-function sparks(x,y,count=8,color='var(--c3)'){
-  for(let i=0;i<count;i++){
-    const p=document.createElement('div');
-    p.className='pt';
-    const angle=(Math.PI*2/count)*i;
-    const dist=20+Math.random()*30;
-    p.style.cssText=`left:${x}px;top:${y}px;width:${3+Math.random()*3}px;height:${3+Math.random()*3}px;background:${color};--dx:${Math.cos(angle)*dist}px;--dy:${Math.sin(angle)*dist-20}px;`;
-    gc.appendChild(p); setTimeout(()=>p.remove(),1100);
+function drawCloud(x,y){
+  px(x+4, y, 12, 2, PAL.c2);
+  px(x, y+2, 20, 2, PAL.c2);
+  px(x-2, y+4, 24, 2, PAL.c2);
+  px(x, y+6, 20, 2, PAL.c2);
+  px(x+4, y+2, 12, 4, PAL.c1);
+}
+
+function drawMountain(x,y,w,h){
+  const peak = x + w/2;
+  for(let i=0;i<h;i++){
+    const ww = Math.floor(w * (1 - i/h));
+    px(peak - ww/2, y - i, ww, 1, i < h*0.3 ? PAL.c1 : '#0d1f3a');
+  }
+  const capH = Math.floor(h*0.2);
+  for(let i=0;i<capH;i++){
+    const ww = Math.floor(w * (1 - (h-capH+i)/h) * 0.5);
+    px(peak - ww/2, y - h + i + capH, ww, 1, PAL.c2);
   }
 }
 
-function explosion(x,y){
-  sparks(x,y,12);
-  const ring=document.createElement('div');
-  ring.className='explosion-ring';
-  ring.style.left=x+'px'; ring.style.top=y+'px';
-  gc.appendChild(ring); setTimeout(()=>ring.remove(),500);
+function drawGround(){
+  px(0, GROUND_Y, SW, 2, PAL.c2);
+  const off = Math.floor(groundOffset) % 16;
+  for(let x = -off; x < SW; x += 16){
+    px(x, GROUND_Y+3, 8, 1, PAL.c1);
+    px(x+10, GROUND_Y+5, 4, 1, PAL.c1);
+    px(x+4, GROUND_Y+7, 6, 1, PAL.c2);
+    px(x+12, GROUND_Y+9, 3, 1, PAL.c1);
+  }
+  px(0, GROUND_Y+12, SW, SH-GROUND_Y-12, '#081730');
 }
 
-function showCallout(txt){
-  const el=document.createElement('div');
-  el.className='callout'; el.textContent=txt;
-  gc.appendChild(el); setTimeout(()=>el.remove(),1000);
+/* ═══════════════════════════════════════════════════════════
+   GORILLA — SIDE VIEW (facing right, like Chrome dino)
+   42 wide × 40 tall — running, jumping, ducking, dead
+   ═══════════════════════════════════════════════════════════ */
+function drawGorilla(x, y, state){
+  const C0 = PAL.c0, C1 = PAL.c1, C2 = PAL.c2, C3 = PAL.c3;
+
+  if(state === 'duck1' || state === 'duck2'){
+    // Ducking gorilla — long body, head forward, knuckle-walking
+    // 48 wide × 22 tall
+    const dy = y + 18;
+
+    // Shadow
+    px(x+4, dy+22, 40, 1, C0);
+
+    // Tail/back lump
+    px(x, dy+4, 8, 8, C1);
+    px(x+1, dy+5, 6, 6, C2);
+
+    // Body (long, low to ground)
+    px(x+6, dy+2, 28, 14, C1);
+    px(x+8, dy, 24, 18, C1);
+
+    // Back highlight
+    px(x+10, dy+2, 18, 4, C2);
+
+    // Head extending forward (right side)
+    px(x+30, dy+2, 14, 12, C1);
+    px(x+32, dy, 10, 14, C1);
+
+    // Brow (heavy)
+    px(x+34, dy+3, 8, 2, C0);
+
+    // Eye (looking forward)
+    px(x+38, dy+5, 2, 2, C0);
+    px(x+39, dy+5, 1, 1, C3);
+
+    // Snout/mouth
+    px(x+40, dy+8, 4, 3, C0);
+    px(x+41, dy+10, 2, 1, C2);
+
+    // Nostril
+    px(x+42, dy+8, 1, 1, C2);
+
+    // Front leg/arm (knuckle on ground)
+    if(state === 'duck1'){
+      px(x+30, dy+14, 5, 8, C0);
+      px(x+28, dy+20, 8, 2, C0);
+    } else {
+      px(x+32, dy+14, 5, 8, C0);
+      px(x+30, dy+20, 8, 2, C0);
+    }
+
+    // Back leg
+    if(state === 'duck1'){
+      px(x+10, dy+14, 5, 8, C0);
+      px(x+8, dy+20, 8, 2, C0);
+    } else {
+      px(x+12, dy+14, 5, 8, C0);
+      px(x+10, dy+20, 8, 2, C0);
+    }
+
+    return;
+  }
+
+  // === STANDARD STANDING/RUNNING (side view, facing right) ===
+  // 36 wide × 44 tall
+
+  // Shadow
+  if(state !== 'jump') px(x+4, y+42, 30, 1, C0);
+
+  // === LEGS (animated) ===
+  if(state === 'run1'){
+    // Left leg forward (visible), right leg back
+    // Front leg bent forward
+    px(x+10, y+30, 6, 10, C0);  // thigh
+    px(x+8, y+36, 8, 4, C0);    // foot forward
+    // Back leg trailing
+    px(x+18, y+32, 5, 8, C0);
+    px(x+16, y+38, 8, 2, C0);
+  } else if(state === 'run2'){
+    // Right leg forward, left leg back
+    px(x+18, y+30, 6, 10, C0);
+    px(x+16, y+36, 8, 4, C0);
+    px(x+10, y+32, 5, 8, C0);
+    px(x+8, y+38, 8, 2, C0);
+  } else if(state === 'jump'){
+    // Both legs tucked
+    px(x+10, y+28, 6, 8, C0);
+    px(x+18, y+28, 6, 8, C0);
+    px(x+8, y+34, 8, 4, C0);
+    px(x+16, y+34, 8, 4, C0);
+  } else { // idle
+    px(x+10, y+30, 6, 12, C0);
+    px(x+18, y+30, 6, 12, C0);
+    px(x+8, y+40, 8, 2, C0);
+    px(x+16, y+40, 8, 2, C0);
+  }
+
+  // === BODY (torso, side profile) ===
+  // Hunched gorilla shape — wider at shoulders, narrower at waist
+  px(x+8, y+16, 18, 16, C1);    // main torso
+  px(x+6, y+18, 22, 12, C1);    // shoulders wide
+  px(x+10, y+14, 14, 4, C1);    // upper back
+
+  // Chest highlight (catch light from front)
+  px(x+18, y+20, 6, 8, C2);
+  px(x+20, y+22, 4, 4, C3);     // bright chest spot
+
+  // Back curve (darker)
+  px(x+8, y+18, 4, 10, C0);
+
+  // === ARMS ===
+  // Side view: front arm visible, back arm partially hidden
+  if(state === 'jump'){
+    // Arms up/forward
+    px(x+24, y+14, 6, 10, C1);  // front arm raised
+    px(x+28, y+18, 4, 6, C1);   // hand
+    px(x+4, y+18, 6, 10, C1);   // back arm
+  } else if(state === 'run1'){
+    // Front arm back, back arm forward
+    px(x+22, y+20, 6, 12, C1);
+    px(x+24, y+30, 5, 4, C0);   // fist
+    px(x+4, y+18, 6, 8, C1);
+  } else if(state === 'run2'){
+    // Front arm forward, back arm back
+    px(x+24, y+18, 6, 10, C1);
+    px(x+28, y+24, 5, 4, C0);   // fist forward
+    px(x+4, y+22, 5, 10, C1);
+  } else { // idle
+    px(x+24, y+18, 6, 14, C1);
+    px(x+4, y+18, 5, 14, C1);
+  }
+
+  // === HEAD (side profile, facing right) ===
+  // Sloped/sagittal crest at top
+  px(x+10, y+4, 14, 12, C1);    // main head
+  px(x+12, y+2, 10, 14, C1);    // top of head
+  px(x+14, y, 6, 16, C1);       // crown peak
+
+  // Forward (right side) — protruding face/snout
+  px(x+22, y+6, 8, 10, C1);     // jaw forward
+  px(x+24, y+8, 8, 8, C1);      // snout extends right
+  px(x+30, y+10, 2, 6, C1);     // nose tip
+
+  // Back of head
+  px(x+8, y+8, 4, 6, C1);
+
+  // === FACE DETAILS (side view) ===
+  // Heavy brow ridge
+  px(x+18, y+8, 12, 2, C0);
+  px(x+24, y+9, 6, 2, C0);
+
+  // Eye (facing right, only one visible from side)
+  px(x+24, y+10, 2, 2, C0);
+  px(x+25, y+10, 1, 1, C3);
+
+  // Snout/mouth area (dark)
+  px(x+24, y+12, 8, 4, C0);
+  px(x+26, y+13, 2, 1, C2);     // nostril
+  if(state === 'dead'){
+    // X eye
+    px(x+24, y+10, 1, 1, C3);
+    px(x+25, y+11, 1, 1, C3);
+  } else {
+    px(x+27, y+14, 3, 1, C2);   // mouth line
+  }
+
+  // Ear (small, on visible side)
+  px(x+12, y+10, 2, 3, C0);
+
+  // Cheek shadow
+  px(x+20, y+12, 3, 3, C0);
 }
 
-function showAnnouncement(txt){
-  waveAnn.textContent=txt;
-  waveAnn.className='show';
-  setTimeout(()=>{ waveAnn.className=''; },1900);
+function spawnObstacle(){
+  const r = Math.random();
+  let type;
+  if(score < 200){
+    type = r < 0.7 ? 'cactus_s' : 'cactus_l';
+  } else if(score < 500){
+    type = r < 0.4 ? 'cactus_s' : r < 0.75 ? 'cactus_l' : r < 0.9 ? 'cactus_g' : 'bird';
+  } else {
+    type = r < 0.3 ? 'cactus_s' : r < 0.55 ? 'cactus_l' : r < 0.75 ? 'cactus_g' : 'bird';
+  }
+  let w, h, y;
+  if(type === 'cactus_s'){ w=12; h=22; y=GROUND_Y - h; }
+  else if(type === 'cactus_l'){ w=16; h=32; y=GROUND_Y - h; }
+  else if(type === 'cactus_g'){ w=32; h=28; y=GROUND_Y - h; }
+  else if(type === 'bird'){
+    w=28; h=18;
+    const alt = Math.random();
+    y = alt < 0.5 ? GROUND_Y - 26 : alt < 0.85 ? GROUND_Y - 46 : GROUND_Y - 66;
+  }
+  obstacles.push({ x: SW + 10, y, w, h, type, animFrame: 0 });
 }
 
-function trailDot(x,y){
-  const d=document.createElement('div');
-  d.className='trail-dot';
-  d.style.left=x+'px'; d.style.bottom='90px';
-  gc.appendChild(d); setTimeout(()=>d.remove(),350);
+function drawObstacle(o){
+  const x = Math.floor(o.x), y = Math.floor(o.y);
+  if(o.type === 'cactus_s'){
+    px(x+4, y+4, 4, 18, PAL.c1);
+    px(x+2, y+10, 8, 4, PAL.c1);
+    px(x+5, y+2, 2, 20, PAL.c2);
+    px(x, y+12, 2, 2, PAL.c1);
+    px(x+10, y+12, 2, 2, PAL.c1);
+  } else if(o.type === 'cactus_l'){
+    px(x+6, y+2, 4, 30, PAL.c1);
+    px(x+2, y+10, 12, 6, PAL.c1);
+    px(x+7, y, 2, 30, PAL.c2);
+    px(x, y+12, 4, 4, PAL.c1);
+    px(x+12, y+14, 4, 4, PAL.c1);
+  } else if(o.type === 'cactus_g'){
+    px(x+1, y+8, 4, 20, PAL.c1);
+    px(x+2, y+6, 2, 22, PAL.c2);
+    px(x+12, y+2, 4, 26, PAL.c1);
+    px(x+13, y, 2, 28, PAL.c2);
+    px(x+9, y+12, 8, 6, PAL.c1);
+    px(x+24, y+10, 4, 18, PAL.c1);
+    px(x+25, y+8, 2, 20, PAL.c2);
+  } else if(o.type === 'bird'){
+    const flap = o.animFrame % 30 < 15;
+    px(x+10, y+8, 14, 6, PAL.c1);
+    px(x+22, y+5, 7, 6, PAL.c1);
+    px(x+26, y+6, 4, 2, PAL.c0);   // beak
+    px(x+24, y+7, 1, 1, PAL.c3);   // eye
+    px(x+4, y+9, 6, 4, PAL.c1);    // tail
+    if(flap){
+      px(x+12, y, 10, 2, PAL.c2);
+      px(x+14, y+2, 8, 3, PAL.c2);
+      px(x+16, y+5, 4, 3, PAL.c1);
+    } else {
+      px(x+12, y+12, 10, 4, PAL.c2);
+      px(x+14, y+16, 8, 2, PAL.c2);
+    }
+  }
 }
 
-/* ═══════════════════════════════════
-   GAME FLOW
-   ═══════════════════════════════════ */
-function startGame(){
-  ensureAudio();
-  ov.classList.add('hidden');
-  items.forEach(i=>i.el.remove()); items=[];
-  waveQueue=[];
-  score=0; lives=3; combo=0; multiplier=1;
-  gx=378; gvx=0; frameCount=0;
-  rageMeter=0; rageActive=false; rageTimer=0;
-  dashActive=false; dashTimer=0; dashCD=0;
-  shieldActive=false; shieldTimer=0;
-  magnetActive=false; magnetTimer=0;
-  doubleActive=false; doubleTimer=0;
-  invulnTimer=0; spawnTimer=0; waveTimer=0;
-  sv.textContent='0';
-  gorilla.style.left=gx+'px';
-  gorilla.classList.remove('idle','rage-glow','dash-tilt-left','dash-tilt-right');
-  shieldBub.classList.remove('active');
-  upHearts(); updateComboDisplay(); updateRageBar(); updatePowerUpIcons();
-  running=true;
-  requestAnimationFrame(loop);
+function getHitbox(o){
+  if(o.type === 'bird'){
+    return { x: o.x+4, y: o.y+2, w: o.w-6, h: o.h-4 };
+  }
+  return { x: o.x+2, y: o.y+2, w: o.w-4, h: o.h-3 };
+}
+
+function getPlayerHitbox(){
+  if(player.ducking && !player.jumping){
+    return { x: player.x+4, y: player.y+22, w: 36, h: 18 };
+  }
+  return { x: player.x+6, y: player.y+4, w: 26, h: 38 };
+}
+
+function aabb(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function drawHud(){
+  gctx.font = '8px "Press Start 2P", monospace';
+  gctx.textBaseline = 'top';
+  gctx.textAlign = 'left';
+  gctx.fillStyle = PAL.c2;
+  gctx.fillText('HI '+String(highScore).padStart(5,'0'), SW-150, 8);
+  gctx.fillStyle = PAL.c3;
+  gctx.fillText(String(Math.floor(score)).padStart(5,'0'), SW-50, 8);
+}
+
+function drawTitle(){
+  titlePulse += 0.04;
+  const titleY = 60 + Math.sin(titlePulse)*3;
+
+  gctx.textAlign = 'center';
+  gctx.fillStyle = PAL.c1;
+  gctx.font = '24px "Press Start 2P", monospace';
+  gctx.fillText('GORILLA', SW/2+2, titleY+2);
+  gctx.fillText('RUN!', SW/2+2, titleY+30+2);
+  gctx.fillStyle = PAL.c3;
+  gctx.fillText('GORILLA', SW/2, titleY);
+  gctx.fillText('RUN!', SW/2, titleY+30);
+
+  // Mini gorilla running
+  const tFrame = Math.floor(frameCount / 8) % 2;
+  drawGorilla(SW/2 - 18, 130, tFrame === 0 ? 'run1' : 'run2');
+
+  // Cactus zooming past
+  const cx = SW/2 + 50 - (frameCount*2.5 % 100);
+  if(cx > -20){
+    px(cx+4, 158, 4, 18, PAL.c1);
+    px(cx+2, 164, 8, 4, PAL.c1);
+    px(cx+5, 156, 2, 20, PAL.c2);
+  }
+
+  gctx.fillStyle = PAL.c2;
+  gctx.font = '8px "Press Start 2P", monospace';
+  gctx.fillText('GAME BOY EDITION', SW/2, 195);
+
+  if(Math.floor(frameCount/30) % 2 === 0){
+    gctx.fillStyle = PAL.c3;
+    gctx.fillText('PRESS  START', SW/2, 220);
+  }
+
+  gctx.fillStyle = PAL.c2;
+  gctx.fillText('HI  '+String(highScore).padStart(5,'0'), SW/2, 250);
+  gctx.textAlign = 'left';
+}
+
+function drawGameOver(){
+  gctx.fillStyle = 'rgba(10,28,58,0.65)';
+  gctx.fillRect(0, 90, SW, 120);
+
+  gctx.textAlign = 'center';
+  gctx.fillStyle = PAL.c3;
+  gctx.font = '16px "Press Start 2P", monospace';
+  gctx.fillText('G A M E', SW/2, 110);
+  gctx.fillText('O V E R', SW/2, 135);
+
+  gctx.font = '8px "Press Start 2P", monospace';
+  gctx.fillStyle = PAL.c3;
+  gctx.fillText('SCORE  '+String(Math.floor(score)).padStart(5,'0'), SW/2, 165);
+  gctx.fillStyle = PAL.c2;
+  gctx.fillText('HI     '+String(highScore).padStart(5,'0'), SW/2, 180);
+
+  if(Math.floor(frameCount/30) % 2 === 0){
+    gctx.fillStyle = PAL.c3;
+    gctx.fillText('TAP TO RETRY', SW/2, 205);
+  }
+  gctx.textAlign = 'left';
+}
+
+function update(){
+  frameCount++;
+
+  if(gameState !== STATE.RUNNING) return;
+
+  speed = Math.min(13, 5 + score * 0.003);
+  groundOffset += speed;
+
+  if(player.jumping){
+    const grav = (keys.down || touchDown) ? GRAVITY * DUCK_FALL : GRAVITY;
+    player.vy += grav;
+    player.y += player.vy;
+    if(player.y >= GROUND_Y - 40){
+      player.y = GROUND_Y - 40;
+      player.vy = 0;
+      player.jumping = false;
+    }
+  }
+
+  spawnTimer--;
+  if(spawnTimer <= 0){
+    spawnObstacle();
+    const minGap = Math.max(40, 90 - score*0.04);
+    spawnTimer = minGap + Math.random() * 50;
+  }
+
+  for(let i = obstacles.length-1; i >= 0; i--){
+    const o = obstacles[i];
+    o.x -= speed;
+    o.animFrame++;
+    if(o.x + o.w < -10){ obstacles.splice(i, 1); continue; }
+    if(aabb(getHitbox(o), getPlayerHitbox())){
+      gameOver();
+      return;
+    }
+  }
+
+  const prev = Math.floor(score);
+  score += 0.15 * (speed/5);
+  if(Math.floor(score) > prev && Math.floor(score) % 100 === 0){
+    sfx.point();
+    flashTimer = 6;
+  }
+  if(flashTimer > 0) flashTimer--;
 }
 
 function gameOver(){
-  running=false;
-  sfxExplosion();
-  doFlash(true);
-  gc.classList.add('shaking-big');
-  setTimeout(()=>gc.classList.remove('shaking-big'),600);
-  if(score>hs){ hs=score; localStorage.setItem('gr_eb4',hs); hv.textContent=hs; }
-  ttl.textContent='GAME OVER';
-  sub.textContent=score>=hs?'NEW RECORD!':'TRY AGAIN';
-  fsEl.textContent=score; hsbEl.textContent=hs;
-  sc_s.style.display='none'; sc_o.style.display='block';
-  ab.textContent='\u25B6 RETRY';
-  ov.classList.remove('hidden');
-  gorilla.classList.remove('rage-glow');
-  shieldBub.classList.remove('active');
-}
-
-/* ═══════════════════════════════════
-   SPAWNING
-   ═══════════════════════════════════ */
-function getFallSpeed(){ return score<10?3.2:score<25?4.8:score<45?6.5:score<70?8.5:10.5; }
-function getSpawnInterval(){ return score<10?850:score<25?650:score<45?480:score<70?350:260; }
-
-function decideItemType(){
-  const r=Math.random();
-  if(score>=8 && r<0.055) return 'powerup';
-  if(score>=12 && r<0.14) return 'golden';
-  const cc=score<10?0.25:score<25?0.32:score<45?0.38:score<70?0.42:0.48;
-  return Math.random()<cc?'coconut':'banana';
-}
-
-function spawnItem(type){
-  if(!running) return;
-  const t=type||decideItemType();
-  const el=document.createElement('div');
-  el.classList.add('item');
-
-  let w,h,html,vx=0;
-  if(t==='banana'){ w=20;h=40;html=BANANA; }
-  else if(t==='golden'){ w=20;h=40;html=GOLDEN;el.classList.add('golden');vx=(Math.random()-0.5)*1.5; }
-  else if(t==='coconut'){ w=32;h=32;html=COCONUT; }
-  else if(t==='powerup'){
-    const pt=['shield','magnet','double'][Math.floor(Math.random()*3)];
-    w=28;h=28;
-    html=pt==='shield'?SPRITE_SHIELD:pt==='magnet'?SPRITE_MAGNET:SPRITE_DOUBLE;
-    el.dataset.powerType=pt;
+  gameState = STATE.OVER;
+  sfx.hit();
+  if(score > highScore){
+    highScore = Math.floor(score);
+    localStorage.setItem('gb_dino_blue_hs', highScore);
   }
-
-  el.innerHTML=html;
-  el.style.width=w+'px'; el.style.height=h+'px';
-  const x=Math.floor(Math.random()*(760-w));
-  el.style.left=x+'px'; el.style.top='-50px';
-  gc.appendChild(el);
-
-  items.push({el,y:-50,x,type:t,w,h,vx,nearMissTriggered:false,
-    powerType:t==='powerup'?el.dataset.powerType:null});
+  setTimeout(()=>{ if(gameState === STATE.OVER) startMusic(); }, 800);
 }
 
-/* ═══════════════════════════════════
-   COMBO & RAGE
-   ═══════════════════════════════════ */
-function addCombo(n){
-  const oldMult=multiplier;
-  combo+=n;
-  multiplier=Math.min(5,1+Math.floor(combo/4));
-  if(multiplier!==oldMult){
-    sfxCombo(multiplier);
-    const labels={2:'NICE',3:'GREAT',4:'AWESOME',5:'LEGENDARY'};
-    if(labels[multiplier]) showCallout(labels[multiplier]+'!');
-  }
-  updateComboDisplay();
-}
+function draw(){
+  drawBg();
+  drawGround();
 
-function resetCombo(){
-  combo=0; multiplier=1; updateComboDisplay();
-}
-
-function updateComboDisplay(){
-  if(combo>0){
-    comboDisp.classList.add('visible');
-    comboMult.textContent='\u00D7'+multiplier;
-    comboCount.textContent=combo+' STREAK';
-    comboMult.classList.add('bump');
-    setTimeout(()=>comboMult.classList.remove('bump'),150);
+  if(gameState === STATE.TITLE){
+    drawTitle();
   } else {
-    comboDisp.classList.remove('visible');
+    obstacles.forEach(drawObstacle);
+
+    let pState = 'run1';
+    if(gameState === STATE.OVER) pState = 'dead';
+    else if(player.jumping) pState = 'jump';
+    else if(player.ducking) pState = (Math.floor(frameCount/6) % 2 === 0) ? 'duck1' : 'duck2';
+    else pState = (Math.floor(frameCount/6) % 2 === 0) ? 'run1' : 'run2';
+    drawGorilla(player.x, player.y, pState);
+
+    drawHud();
+    if(gameState === STATE.OVER) drawGameOver();
+
+    if(flashTimer > 0 && flashTimer % 2 === 0){
+      gctx.fillStyle = 'rgba(200,224,248,0.15)';
+      gctx.fillRect(0,0,SW,SH);
+    }
   }
 }
 
-function addRage(n){
-  if(rageActive) return;
-  rageMeter=Math.min(RAGE_MAX,rageMeter+n);
-  updateRageBar();
-}
+const keys = { up:false, down:false };
+let touchDown = false;
 
-function updateRageBar(){
-  rageBar.style.width=(rageMeter/RAGE_MAX*100)+'%';
-  if(rageMeter>=RAGE_MAX){
-    rageBar.classList.add('ready');
-    rageLabel.classList.add('show');
-  } else {
-    rageBar.classList.remove('ready');
-    rageLabel.classList.remove('show');
-  }
-}
-
-function activateRage(){
-  if(rageMeter<RAGE_MAX||rageActive) return;
+function actionPress(){
   ensureAudio();
-  rageActive=true; rageTimer=RAGE_DUR;
-  rageMeter=0; updateRageBar();
-  sfxRage();
-  gorilla.classList.add('rage-glow');
-  gc.classList.add('shaking');
-  setTimeout(()=>gc.classList.remove('shaking'),450);
-  doFlash(false);
-
-  // Destroy all coconuts on screen
-  let destroyed=0;
-  for(let i=items.length-1;i>=0;i--){
-    if(items[i].type==='coconut'){
-      explosion(items[i].x+16, items[i].y+16);
-      score+=2; destroyed++;
-      items[i].el.remove(); items.splice(i,1);
-    }
+  if(gameState === STATE.TITLE){ startGame(); return; }
+  if(gameState === STATE.OVER){ startGame(); return; }
+  if(!player.jumping){
+    player.vy = JUMP_VEL;
+    player.jumping = true;
+    player.ducking = false;
+    sfx.jump();
   }
-  if(destroyed>0){
-    pop(380,200,'+'+(destroyed*2)+' RAGE!');
-    sv.textContent=score;
-  }
-  showCallout('RAGE MODE!');
 }
 
-function updatePowerUpIcons(){
-  piShield.classList.toggle('active',shieldActive);
-  piMagnet.classList.toggle('active',magnetActive);
-  piDouble.classList.toggle('active',doubleActive);
-}
-
-/* ═══════════════════════════════════
-   COLLISION
-   ═══════════════════════════════════ */
-function checkHit(it){
-  // Gorilla hitbox (slightly forgiving)
-  const gL=gx+8, gR=gx+36, gT=330, gB=382;
-  return it.x+it.w > gL && it.x < gR && it.y+it.h > gT && it.y < gB;
-}
-
-function checkNearMiss(it){
-  const gCx=gx+22;
-  const iCx=it.x+it.w/2;
-  const dist=Math.abs(iCx-gCx);
-  return dist>18 && dist<NEAR_MISS_PX && it.y+it.h>340 && it.y<382;
-}
-
-/* ═══════════════════════════════════
-   MAIN LOOP
-   ═══════════════════════════════════ */
-function loop(){
-  if(!running) return;
-  frameCount++;
-
-  // ── Movement ──
-  const left=keys['ArrowLeft']||keys['a'];
-  const right=keys['ArrowRight']||keys['d'];
-  if(left) gvx-=ACCEL;
-  if(right) gvx+=ACCEL;
-  if(!left&&!right) gvx*=FRICTION;
-  gvx=Math.max(-MAX_SPEED,Math.min(MAX_SPEED,gvx));
-
-  // Dash
-  if((keys['Shift']||keys['z'])&&dashCD<=0&&!dashActive&&running){
-    dashActive=true; dashTimer=DASH_FRAMES;
-    dashCD=DASH_CD;
-    dashDir=gvx>=0?1:-1;
-    if(Math.abs(gvx)<1) dashDir=1; // default right if standing
-    gvx=dashDir*DASH_SPEED;
-    sfxDash();
-    gorilla.classList.add(dashDir>0?'dash-tilt-right':'dash-tilt-left');
-    dashWrap.classList.add('show');
-  }
-  if(dashActive){
-    dashTimer--;
-    trailDot(gx+22,0);
-    if(dashTimer<=0){
-      dashActive=false;
-      gvx=dashDir*6; // exit dash with some speed
-      gorilla.classList.remove('dash-tilt-left','dash-tilt-right');
-    }
-  }
-  if(dashCD>0) dashCD--;
-  dashFill.style.width=(1-dashCD/DASH_CD)*100+'%';
-  if(dashCD<=0) dashWrap.classList.remove('show');
-
-  gx+=gvx;
-  gx=Math.max(0,Math.min(756,gx));
-  if(gx<=0||gx>=756) gvx=0;
-  gorilla.style.left=Math.round(gx)+'px';
-
-  // ── Rage activation ──
-  if(keys[' ']&&!rageActive&&rageMeter>=RAGE_MAX){
-    activateRage();
-  }
-  if(rageActive){
-    rageTimer--;
-    if(rageTimer<=0){
-      rageActive=false;
-      gorilla.classList.remove('rage-glow');
-    }
-  }
-
-  // ── Invulnerability ──
-  if(invulnTimer>0) invulnTimer--;
-
-  // ── Power-up timers ──
-  if(shieldActive){ shieldTimer--; if(shieldTimer<=0){ shieldActive=false; shieldBub.classList.remove('active'); updatePowerUpIcons(); } }
-  if(magnetActive){ magnetTimer--; if(magnetTimer<=0){ magnetActive=false; updatePowerUpIcons(); } }
-  if(doubleActive){ doubleTimer--; if(doubleTimer<=0){ doubleActive=false; updatePowerUpIcons(); } }
-
-  // ── Spawning ──
-  spawnTimer--;
-  if(spawnTimer<=0){
-    spawnItem();
-    spawnTimer=Math.round(getSpawnInterval()/16.67)+Math.floor(Math.random()*8-4);
-  }
-
-  // ── Wave system ──
-  waveTimer++;
-  if(waveTimer>900&&!waveQueue.length&&Math.random()<0.004&&score>5){
-    const isRush=Math.random()<0.55;
-    const count=isRush?6:4;
-    showAnnouncement(isRush?'BANANA RUSH!':'COCONUT STORM!');
-    for(let i=0;i<count;i++){
-      waveQueue.push({type:isRush?'banana':'coconut', delay:i*10});
-    }
-    waveTimer=0;
-  }
-  // Process wave queue
-  for(let i=waveQueue.length-1;i>=0;i--){
-    waveQueue[i].delay--;
-    if(waveQueue[i].delay<=0){
-      spawnItem(waveQueue[i].type);
-      waveQueue.splice(i,1);
-    }
-  }
-
-  // ── Item update ──
-  const spd=getFallSpeed();
-  for(let i=items.length-1;i>=0;i--){
-    const it=items[i];
-    it.y+=spd;
-    // Golden banana drift
-    if(it.type==='golden'&&it.vx){
-      it.x+=it.vx;
-      if(it.x<10||it.x>740) it.vx*=-1;
-      it.el.style.left=it.x+'px';
-    }
-    // Banana wiggle
-    if(it.type==='banana'||it.type==='golden'){
-      it.el.style.transform=`rotate(${Math.sin(frameCount*.13+i)*16}deg)`;
-    }
-    it.el.style.top=it.y+'px';
-
-    // Magnet attraction
-    if(magnetActive&&(it.type==='banana'||it.type==='golden')){
-      const gCx=gx+22, iCx=it.x+it.w/2;
-      const dist=Math.abs(iCx-gCx);
-      if(dist<120){
-        const pull=(1-dist/120)*4;
-        it.x+= gCx>iCx? pull:-pull;
-        it.el.style.left=it.x+'px';
-      }
-    }
-
-    // Collision
-    if(checkHit(it)){
-      if(it.type==='banana'||it.type==='golden'){
-        // Catch!
-        const base=it.type==='golden'?5:1;
-        const pts=base*multiplier*(doubleActive?2:1);
-        score+=pts;
-        sv.textContent=score;
-        addCombo(it.type==='golden'?3:1);
-        addRage(it.type==='golden'?20:10);
-        sfxCatch();
-        if(it.type==='golden') sfxGolden();
-        sparks(it.x+it.w/2,it.y+it.h/2,it.type==='golden'?14:8,it.type==='golden'?'#fff':'var(--c3)');
-        pop(it.x-8,it.y-20,'+'+pts,it.type==='golden'?'golden-pop':'');
-        it.el.style.transition='all .1s ease-out';
-        it.el.style.transform='scale(2) rotate(25deg)';
-        it.el.style.opacity='0';
-        const er=it.el; items.splice(i,1);
-        setTimeout(()=>er.remove(),120);
-        continue;
-      } else if(it.type==='coconut'){
-        if(dashActive||rageActive){
-          // Smash coconut!
-          explosion(it.x+16,it.y+16);
-          const pts=2*(doubleActive?2:1);
-          score+=pts; sv.textContent=score;
-          pop(it.x,it.y-10,'+'+pts);
-          addRage(3);
-          sfxCatch();
-          it.el.remove(); items.splice(i,1);
-          continue;
-        } else if(shieldActive){
-          // Shield absorbs hit
-          shieldActive=false; shieldTimer=0;
-          shieldBub.classList.remove('active');
-          updatePowerUpIcons();
-          explosion(it.x+16,it.y+16);
-          sfxDash(); // reuse sound
-          it.el.remove(); items.splice(i,1);
-          doFlash(false);
-          continue;
-        } else if(invulnTimer<=0){
-          // Take damage
-          lives--; upHearts(); resetCombo();
-          sfxHit(); doFlash(true);
-          gc.classList.add('shaking');
-          setTimeout(()=>gc.classList.remove('shaking'),450);
-          pop(it.x-8,it.y-20,'OUCH!');
-          invulnTimer=60; // 1 second invuln
-          it.el.remove(); items.splice(i,1);
-          if(lives<=0){ gameOver(); return; }
-          continue;
-        }
-      } else if(it.type==='powerup'){
-        // Collect power-up
-        const pt=it.powerType;
-        sfxPowerUp();
-        sparks(it.x+14,it.y+14,10,'#fff');
-        if(pt==='shield'){ shieldActive=true; shieldTimer=600; shieldBub.classList.add('active'); pop(it.x-8,it.y-20,'SHIELD!'); }
-        else if(pt==='magnet'){ magnetActive=true; magnetTimer=360; pop(it.x-8,it.y-20,'MAGNET!'); }
-        else if(pt==='double'){ doubleActive=true; doubleTimer=480; pop(it.x-8,it.y-20,'2X POINTS!'); }
-        updatePowerUpIcons();
-        it.el.remove(); items.splice(i,1);
-        continue;
-      }
-    }
-
-    // Near miss (coconuts only)
-    if(it.type==='coconut'&&!it.nearMissTriggered&&checkNearMiss(it)){
-      it.nearMissTriggered=true;
-      addRage(4);
-      sfxNearMiss();
-      pop(it.x+it.w/2-16,it.y-16,'CLOSE!');
-    }
-
-    // Off screen
-    if(it.y>470){
-      if(it.type==='banana') combo=Math.max(0,combo-2);
-      if(it.type==='golden') combo=Math.max(0,combo-1);
-      multiplier=Math.min(5,1+Math.floor(combo/4));
-      updateComboDisplay();
-      it.el.remove(); items.splice(i,1);
-    }
-  }
-
-  // ── Gorilla blink during invuln ──
-  if(invulnTimer>0){
-    gorilla.style.opacity=frameCount%8<4?'0.3':'1';
+function duckPress(){
+  if(gameState !== STATE.RUNNING) return;
+  if(player.jumping){
+    if(player.vy < 0) player.vy = 2;
+    else player.vy += 5;
   } else {
-    gorilla.style.opacity='1';
+    player.ducking = true;
   }
+}
+function duckRelease(){ player.ducking = false; }
 
-  requestAnimationFrame(loop);
+function startGame(){
+  ensureAudio();
+  stopMusic();
+  gameState = STATE.RUNNING;
+  obstacles = [];
+  score = 0;
+  speed = 5;
+  spawnTimer = 60;
+  player.x = GORILLA_X;
+  player.y = GROUND_Y - 40;
+  player.vy = 0;
+  player.jumping = false;
+  player.ducking = false;
+  sfx.start();
+  const hint = document.getElementById('tap-hint');
+  if(hint) hint.style.display = 'none';
 }
 
-/* ═══════════════════════════════════
-   START SCREEN IDLE
-   ═══════════════════════════════════ */
-gorilla.classList.add('idle');
-gorilla.style.left='378px';
+window.addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  if(e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyZ' || e.code === 'KeyX'){
+    e.preventDefault(); keys.up = true; actionPress();
+  } else if(e.code === 'ArrowDown' || e.code === 'KeyS'){
+    e.preventDefault(); keys.down = true; duckPress();
+  } else if(e.code === 'Enter'){
+    e.preventDefault(); actionPress();
+  }
+});
+window.addEventListener('keyup', e=>{
+  if(e.code === 'ArrowDown' || e.code === 'KeyS'){
+    keys.down = false; duckRelease();
+  } else if(e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyZ' || e.code === 'KeyX'){
+    keys.up = false;
+  }
+});
+
+const screenEl = document.querySelector('.screen');
+function handlePress(clientY){
+  ensureAudio();
+  const rect = screenEl.getBoundingClientRect();
+  if(clientY > rect.top + rect.height * 0.6 && gameState === STATE.RUNNING){
+    touchDown = true;
+    duckPress();
+  } else {
+    actionPress();
+  }
+}
+
+function bindBtn(el, onDown, onUp){
+  el.addEventListener('touchstart', e=>{ e.preventDefault(); ensureAudio(); onDown(); }, {passive:false});
+  el.addEventListener('touchend', e=>{ e.preventDefault(); if(onUp) onUp(); }, {passive:false});
+  el.addEventListener('mousedown', e=>{ e.preventDefault(); ensureAudio(); onDown(); });
+  el.addEventListener('mouseup', e=>{ e.preventDefault(); if(onUp) onUp(); });
+  el.addEventListener('mouseleave', e=>{ if(onUp) onUp(); });
+}
+
+bindBtn(document.getElementById('btn-a'), actionPress);
+bindBtn(document.getElementById('btn-b'), actionPress);
+bindBtn(document.getElementById('btn-start'), actionPress);
+bindBtn(document.getElementById('btn-select'), ()=>{});
+
+const dpadEl = document.getElementById('dpad');
+dpadEl.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  ensureAudio();
+  const t = e.touches[0];
+  const rect = dpadEl.getBoundingClientRect();
+  const cy = t.clientY - rect.top;
+  if(cy > rect.height * 0.6){
+    touchDown = true; duckPress();
+  } else {
+    actionPress();
+  }
+}, {passive:false});
+dpadEl.addEventListener('touchend', e=>{
+  e.preventDefault(); touchDown = false; duckRelease();
+}, {passive:false});
+dpadEl.addEventListener('mousedown', e=>{
+  ensureAudio();
+  const rect = dpadEl.getBoundingClientRect();
+  const cy = e.clientY - rect.top;
+  if(cy > rect.height * 0.6){
+    touchDown = true; duckPress();
+  } else {
+    actionPress();
+  }
+});
+dpadEl.addEventListener('mouseup', ()=>{ touchDown = false; duckRelease(); });
+
+screenEl.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  ensureAudio();
+  const t = e.touches[0];
+  handlePress(t.clientY);
+}, {passive:false});
+screenEl.addEventListener('touchend', e=>{
+  e.preventDefault(); touchDown = false; duckRelease();
+}, {passive:false});
+screenEl.addEventListener('mousedown', e=>{
+  ensureAudio();
+  handlePress(e.clientY);
+});
+screenEl.addEventListener('mouseup', ()=>{ touchDown = false; duckRelease(); });
+
+document.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+
+let musicStarted = false;
+function tryStartMusic(){
+  if(musicStarted) return;
+  ensureAudio();
+  if(audioCtx){
+    musicStarted = true;
+    setTimeout(()=>{ if(gameState === STATE.TITLE) startMusic(); }, 200);
+  }
+}
+window.addEventListener('pointerdown', tryStartMusic, {once:true});
+window.addEventListener('keydown', tryStartMusic, {once:true});
+window.addEventListener('touchstart', tryStartMusic, {once:true});
+
+function tick(){
+  update();
+  draw();
+  requestAnimationFrame(tick);
+}
+tick();
 </script>
 </body>
 </html>

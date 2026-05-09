@@ -1772,6 +1772,9 @@ async def project_editor(request: Request, project_id: str, file: str = "index.h
     user = get_current_user(request)
     _require_project_owner(user, project_id)
     
+    if not prompt:
+        prompt = request.session.pop("editor_prompt", None)
+
     # 1. Fetch User Data (API Keys & Integrations)
     user_data = db_select_one("users", {"id": user["id"]}, "gorilla_api_key, github_access_token, supabase_access_token")
     api_key = user_data.get("gorilla_api_key", "") if user_data else ""

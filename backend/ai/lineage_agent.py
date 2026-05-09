@@ -2,61 +2,14 @@
 Lineage Agent v17 — MiMo-native (Qwen3-Coder XML), batch-limited, naturally agentic
 ====================================================================================
 
-Why v17 (vs v16's MiniMax XML):
-  v16 spoke MiniMax-M2.7's <minimax:tool_call> dialect. That works for
-  MiniMax. But Xiaomi's MiMo family (MiMo-V2-Flash, MiMo-V2.5-Pro, MiMo-V2-Pro)
-  was trained on a DIFFERENT XML format inherited from Qwen3-Coder, not on
-  MiniMax's namespaced tags. Forcing MiMo through MiniMax's wrapper (or
-  through OpenAI's structured `tools` API) hurts performance — the model
-  emits malformed output and reliability collapses on long-horizon agentic
-  tasks.
+PATCH: Live pricing via OpenRouter /api/v1/models
+  - Removed all hardcoded per-token weight heuristics (frontier/mimo/else branches)
+  - _fetch_model_price() fetches prompt+completion prices live after each turn
+  - weight = int((prompt_tokens * prompt_price + completion_tokens * completion_price) * 1_000_000)
+  - Results cached per model for 5 minutes to avoid a round-trip on every turn
+  - Fails open (price=0) so a bad fetch never crashes billing
 
-  Sources verified:
-    • docs.vllm.ai/projects/recipes/en/latest/MiMo/MiMo-V2-Flash.html
-        → official vLLM serve command uses --tool-call-parser qwen3_xml
-        → official vLLM serve command uses --reasoning-parser qwen3
-    • huggingface.co/Qwen/Qwen3-Coder-480B-A35B-Instruct/blob/main/qwen3coder_tool_parser.py
-        → defines the canonical XML grammar: <tool_call><function=NAME>
-          <parameter=KEY>VALUE</parameter></function></tool_call>
-    • huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/chat_template.jinja
-        → tools injected into system prompt as <tools><function><name>…</name>
-          <description>…</description><parameters>…</parameters></function></tools>
-    • github.com/QwenLM/Qwen3-Coder/issues/475
-        → the exact instruction wording that fixed unreliable tool calls:
-          "If you choose to call a function ONLY reply in the following
-           format with NO suffix"
-    • platform.xiaomimimo.com/docs/api/chat/openai-api
-        → multi-turn requires preserving reasoning_content between turns
-          to avoid performance degradation
-
-What changed mechanically vs v16:
-  ✱ XML grammar: <tool_call><function=NAME>...</function></tool_call>
-    (Qwen3-Coder format, NOT <minimax:tool_call>)
-  ✱ Tool defs in system prompt: <tools><function><name>...</name>...
-    <parameters><parameter>...</parameter></parameters></function></tools>
-    (matches the official Qwen3-Coder Jinja template format)
-  ✱ Includes the canonical "ONLY reply in this format with NO suffix"
-    instruction proven to fix unreliable tool calls
-  ✱ Reasoning preservation: passes reasoning blocks between turns and
-    feeds reasoning_content back as part of the assistant message
-  ✱ ALL models on the routing path are MiMo-family — MODEL, SMART_MODEL,
-    PLANNER_MODEL, VISION_MODEL all use mimo-v2 variants. One tool dialect,
-    one consistent voice.
-  ✱ XML repair extended for Qwen3-Coder common defects (mostly: missing
-    closing tags, parameter content with stray < or > characters).
-
-What's preserved from v14/v15/v16 (ALL features intact):
-  #1  Prompt expander                      #7  Template starters
-  #2  Planner (todo.md)                    #8  Silent success
-  #3  Auto-kill ports                      #9  History compression
-  #4  Narration fix                        #10 Reviewer
-  #5  Per-file specs                       #11 Multi-file turns (batched)
-  #6  Linter-in-the-loop                   #12 Smart model routing
-  + Supabase / Debug / Skills addons
-  + Observation noise filter
-  + TokenSubstitution for blob compression
-  + BATCH_LIMIT = 2 (the v16 anti-dump rule)
-  + Sandbox _parsed contract preserved (sandbox_manager doesn't change)
+Everything else is identical to v17.
 """
 
 from __future__ import annotations
@@ -76,12 +29,8 @@ import httpx
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# All models in the MiMo family so the Qwen3-Coder XML format stays
-# consistent across the entire routing graph. Mixing in MiniMax or Qwen
-# bare would mean two different tool dialects, which is exactly the
-# failure mode v16 was trying to fix in the OTHER direction.
 MODEL         = os.getenv("LINEAGE_MODEL",   "xiaomi/mimo-v2.5")
-SMART_MODEL   = os.getenv("SMART_MODEL",     "xiaomi/mimo-v2.5-pro")     # was MiniMax M2.7 in v16
+SMART_MODEL   = os.getenv("SMART_MODEL",     "xiaomi/mimo-v2.5-pro")
 PLANNER_MODEL = os.getenv("PLANNER_MODEL",   "xiaomi/mimo-v2.5")
 VISION_MODEL  = os.getenv("VISION_MODEL",    "xiaomi/mimo-v2.5")
 
@@ -95,10 +44,6 @@ SITE_NAME = os.getenv("SITE_NAME", "Gorilla Builder")
 MAX_CONTEXT_TOKENS = 230_000
 CHARS_PER_TOKEN    = 4
 
-# Hard cap on writes per turn — preserved from v16. Single most important
-# behavioral lever in the whole agent. MiMo is a strong long-horizon model
-# but it still benefits enormously from observing intermediate results
-# rather than dumping a full codebase in one shot.
 BATCH_LIMIT = 2
 
 if not OPENROUTER_API_KEY:
@@ -237,12 +182,7 @@ class TokenSubstitution:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Tool definitions — these are rendered into the system prompt as a <tools>
-# XML block in the EXACT format from Qwen3-Coder's official Jinja chat
-# template. Do NOT pass these via OpenRouter's `tools` API parameter — that
-# triggers a different code path inside MiMo's chat_template that treats
-# them as Hermes-style JSON, which the model is not trained to emit
-# reliably (verified against Qwen3-Coder issue #475 and the vLLM recipe).
+# Tool definitions
 # ═══════════════════════════════════════════════════════════════════════════
 
 AGENT_TOOL_DEFS = [
@@ -317,33 +257,6 @@ AGENT_TOOL_DEFS = [
 
 
 def _format_tools_for_prompt() -> str:
-    """
-    Render AGENT_TOOL_DEFS in Qwen3-Coder's exact training format.
-
-    The structure is:
-        # Tools
-        You have access to the following functions:
-        <tools>
-        <function>
-          <name>...</name>
-          <description>...</description>
-          <parameters>
-            <parameter>
-              <name>...</name>
-              <type>...</type>
-              <description>...</description>
-              <required>true|false</required>
-            </parameter>
-            ...
-          </parameters>
-        </function>
-        ...
-        </tools>
-
-    Verified against:
-      huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/chat_template.jinja
-      gist.github.com/mostlygeek/6fe263bad8026dca73cb6f5470dfdb0d
-    """
     parts = [
         "# Tools",
         "",
@@ -375,11 +288,6 @@ def _format_tools_for_prompt() -> str:
         parts.append("</function>")
 
     parts.append("</tools>")
-
-    # The exact instruction wording from QwenLM/Qwen3-Coder issue #475 that
-    # fixed the missing-tag bug. This is verbatim from the upstream patch
-    # that proved most reliable across community tests. We adapt it slightly
-    # to mention the BATCH_LIMIT.
     parts.extend([
         "",
         "If you choose to call a function ONLY reply in the following format with NO suffix:",
@@ -407,7 +315,7 @@ def _format_tools_for_prompt() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Context management — history compression (XML-aware)
+# Context management — history compression
 # ---------------------------------------------------------------------------
 _token_estimate_cache: List[Any] = []
 
@@ -429,9 +337,6 @@ def _estimate_tokens(messages: list) -> int:
                         total += len(item.get("text", "")) // CHARS_PER_TOKEN
                     elif item.get("type") == "image_url":
                         total += 1000
-        # Reasoning tokens (MiMo-specific) — we keep them in context so the
-        # model maintains its train of thought across turns. Each reasoning
-        # block is roughly bounded so this doesn't explode.
         rd = m.get("reasoning_content", "")
         if rd:
             total += len(str(rd)) // CHARS_PER_TOKEN
@@ -440,11 +345,6 @@ def _estimate_tokens(messages: list) -> int:
 
 
 def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> list:
-    """
-    Keep system + first user + last 10 messages. Collapse middle assistant
-    messages to "[wrote: a.tsx, b.tsx]" summaries, middle observations to
-    first line. Strip reasoning_content from compressed messages.
-    """
     if _estimate_tokens(messages) <= max_tokens:
         return messages
 
@@ -466,7 +366,6 @@ def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> l
         content = str(m.get("content", ""))
 
         if role == "assistant":
-            # Pull out write_file paths and run_bash commands for a one-liner
             paths = re.findall(
                 r"<function=write_file>[\s\S]*?<parameter=path>\s*([^\s<][^<]*?)\s*</parameter>",
                 content,
@@ -566,17 +465,6 @@ def _filter_observation(raw: str) -> str:
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  SYSTEM PROMPT  v17
-#
-#  Inspired by:
-#  • Cline's explore-implement-verify loop (cline.ghost.io/system-prompt-advanced)
-#  • Aider's full-file-write-then-targeted-edit philosophy
-#  • OpenHands's "thorough, methodical, quality over speed" framing
-#  • Qwen3-Coder's "ONLY reply in this format with NO suffix" pattern
-#  • Original v14/v15/v16 Gorilla domain knowledge (Vite + Express + AI proxy)
-#
-#  The Qwen3-Coder tools block is appended at runtime by
-#  _format_tools_for_prompt() so MiMo sees its tools in the exact format
-#  it was trained on.
 # ═══════════════════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT_BODY = r"""You are Gorilla, a senior full-stack engineer. You share one workspace with the user: an Ubuntu sandbox running React + Vite on port 8080 and Express on port 3000. Your job is to build real, working SaaS apps — not mockups — and stay with the work until it's genuinely done.
@@ -624,7 +512,7 @@ useEffect(() => onAuthStateChanged(setUser), []);
 Base URL: `{GORILLA_PROXY}` — pass `$GORILLA_API_KEY` as the Authorization Bearer token.
 
 - LLM chat:     `POST {GORILLA_PROXY}/api/v1/chat/completions`  (omit the model field)
-- Image gen:    `POST {GORILLA_PROXY}/api/v1/images/generations` → save base64 to `public/generated/`
+- Image gen:    `POST {GORILLA_PROXY}/api/v1/images/generations` → save base64 to `public/generated/` also use in the users app for image gen, to learn the format, use it yourself with curl first.
 - STT:          `POST {GORILLA_PROXY}/api/v1/audio/transcriptions`
 - BG removal:   `POST {GORILLA_PROXY}/api/v1/images/remove-background`
 
@@ -680,7 +568,7 @@ Two practical examples of well-formed turns:
 
 Single file write:
 ```
-I'll set up the design system foundation first — this is the file every component will pull from.
+I'll set up the design system foundation first — this is the file every component will pull from. --> Never use literal new lines in your thoughts. They will not show.
 
 <tool_call>
 <function=write_file>
@@ -769,14 +657,14 @@ Built the dashboard with Navbar, three pages, and the items API route. Both serv
 # ---------------------------------------------------------------------------
 
 SUPABASE_ADDON = r"""
-# Supabase
 
-Active. Env vars: `$VITE_SUPABASE_URL`, `$VITE_SUPABASE_ANON_KEY`, `$SUPABASE_MGMT_TOKEN`, `$SUPABASE_PROJECT_REF`. Package `@supabase/supabase-js` is installed.
+Supabase is Active. Env vars Are active. Package `@supabase/supabase-js` is installed.
 
 ```ts
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 ```
+You must provision your own DB using the CLI
 
 Run migrations via run_bash:
 ```
@@ -789,6 +677,7 @@ curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/dat
   -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" -H "Content-Type: application/json" \
   -d "$(cat /tmp/migration.sql | jq -Rs '{query: .}')"
 ```
+Do not try an poke around with the users projects unless instructed, make a new project for this project as poking around with the users supabase, may not at all be safe.
 """
 
 DEBUG_ADDON = r"""
@@ -1012,43 +901,26 @@ async def review_output(file_tree_summary: str, last_output: str) -> Optional[st
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  XML repair — handles common Qwen3-Coder output defects
-#
-#  MiMo (and Qwen3-Coder generally) sometimes produces malformed XML when:
-#    1. Tool call gets cut off in the middle of a parameter (no closing tag)
-#    2. Missing </tool_call> when generation hits max_tokens mid-block
-#    3. Stray whitespace/newlines around parameter content (harmless,
-#       but we normalize so the regex parser is happier)
+#  XML repair
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _repair_qwen3_xml(text: str) -> str:
-    """
-    Repair common Qwen3-Coder XML defects so the parser succeeds even when
-    the model output isn't perfectly formed. Safe on already-valid XML.
-    """
-    # Auto-close <tool_call> if the model started one but didn't finish
     if text.count("<tool_call>") > text.count("</tool_call>"):
         text = text + "\n</tool_call>"
 
-    # Auto-close trailing <function=...> if missing </function>
     open_funcs  = len(re.findall(r"<function=[^>]+>", text))
     close_funcs = text.count("</function>")
     if open_funcs > close_funcs:
         diff = open_funcs - close_funcs
-        # Insert closes BEFORE </tool_call> if present
         if "</tool_call>" in text:
             text = text.replace("</tool_call>", "</function>" * diff + "</tool_call>", 1)
         else:
             text = text + ("</function>" * diff)
 
-    # Auto-close trailing <parameter=...> if missing </parameter>
     open_params  = len(re.findall(r"<parameter=[^>]+>", text))
     close_params = text.count("</parameter>")
     if open_params > close_params:
         diff = open_params - close_params
-        # Insert closes BEFORE </function> (the immediate parent)
-        # Walk back from the end and inject closes where needed
-        # Simple heuristic: stick them right before the first </function>
         if "</function>" in text:
             text = text.replace("</function>", "</parameter>" * diff + "</function>", 1)
         else:
@@ -1058,51 +930,21 @@ def _repair_qwen3_xml(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  XML tool-call parser — Qwen3-Coder / MiMo native format
-#
-#  Parses:
-#    <tool_call>
-#      <function=write_file>
-#        <parameter=path>
-#        src/App.tsx
-#        </parameter>
-#        <parameter=content>
-#        ...full content...
-#        </parameter>
-#      </function>
-#      <function=run_bash>
-#        <parameter=command>
-#        npm install
-#        </parameter>
-#      </function>
-#    </tool_call>
-#
-#  Falls back to ```bash blocks for non-MiMo turns. Enforces BATCH_LIMIT
-#  by truncating extras with a logged warning.
+#  XML tool-call parser
 # ═══════════════════════════════════════════════════════════════════════════
 
-# DOTALL via [\s\S] so parameter values can contain anything — code, JSON,
-# base64, multi-line strings.
 _TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>([\s\S]*?)</tool_call>")
 _FUNCTION_RE        = re.compile(r"<function=([^>\s]+)>([\s\S]*?)</function>")
 _PARAMETER_RE       = re.compile(r"<parameter=([^>\s]+)>([\s\S]*?)</parameter>")
 
 
 def _strip_param_value(raw: str) -> str:
-    """
-    Qwen3-Coder convention: parameter values often have a leading and
-    trailing newline (the format shows them on their own lines). Strip
-    those without touching internal whitespace, since file contents need
-    their formatting preserved exactly.
-    """
     if not raw:
         return raw
-    # Strip exactly ONE leading newline if present (the formatting one)
     if raw.startswith("\r\n"):
         raw = raw[2:]
     elif raw.startswith("\n"):
         raw = raw[1:]
-    # Strip exactly ONE trailing newline if present
     if raw.endswith("\r\n"):
         raw = raw[:-2]
     elif raw.endswith("\n"):
@@ -1111,7 +953,6 @@ def _strip_param_value(raw: str) -> str:
 
 
 def _parse_xml_functions(block_inner: str) -> List[Dict[str, Any]]:
-    """Extract the function-call list from inside a single <tool_call> block."""
     functions: List[Dict[str, Any]] = []
     for m in _FUNCTION_RE.finditer(block_inner):
         name   = m.group(1).strip()
@@ -1126,17 +967,6 @@ def _parse_xml_functions(block_inner: str) -> List[Dict[str, Any]]:
 
 
 def _parse_response(raw_text: str) -> Dict[str, Any]:
-    """
-    Returns:
-      {
-        "thought":      str,    # text before the tool_call block
-        "write_files":  [{"path", "content", "reason"}],  # max BATCH_LIMIT
-        "bash":         str,    # merged bash from all run_bash calls
-        "done":         bool,
-        "message":      str,    # user-facing summary
-        "extra_writes_dropped": int,  # how many writes we cut for safety
-      }
-    """
     result = {
         "thought":              "",
         "write_files":          [],
@@ -1152,7 +982,6 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
     repaired = _repair_qwen3_xml(raw_text)
     blocks   = _TOOL_CALL_BLOCK_RE.findall(repaired)
 
-    # ── Path 1: native Qwen3-Coder XML ─────────────────────────────────────
     if blocks:
         first_pos = repaired.find("<tool_call>")
         result["thought"] = repaired[:first_pos].strip() if first_pos > 0 else ""
@@ -1167,9 +996,6 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
             p = fn["params"]
 
             if n == "write_file":
-                # Defense-in-depth batch limit. Even if the model ignores
-                # the system prompt instruction, the agent CANNOT ship
-                # more than BATCH_LIMIT files per turn.
                 if len(result["write_files"]) < BATCH_LIMIT:
                     result["write_files"].append({
                         "path":    p.get("path", "").strip(),
@@ -1202,8 +1028,7 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
 
         return result
 
-    # ── Path 2: legacy fallback (vision turn etc.) ─────────────────────────
-    # GORILLA_DONE marker (v14 compat)
+    # Legacy fallback
     if "GORILLA_DONE" in raw_text:
         result["done"] = True
         parts   = raw_text.split("GORILLA_DONE", 1)
@@ -1215,7 +1040,6 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
         result["message"] = summary or result["thought"].split("\n")[0][:300] or "Done."
         return result
 
-    # Plain bash blocks
     bash_blocks = re.findall(r"```(?:bash|sh|shell)?\n([\s\S]*?)```", raw_text)
     if bash_blocks:
         result["bash"]    = "\n\n".join(b.strip() for b in bash_blocks if b.strip())
@@ -1252,18 +1076,81 @@ def _is_safe(cmd: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LLM call — XML-native, NO `tools` parameter on the API
+#  Live model price fetching
 #
-#  CRITICAL: we do NOT pass `tools` or `tool_choice` to OpenRouter. MiMo's
-#  chat_template uses Hermes-style JSON when those parameters are present,
-#  and MiMo (like Qwen3-Coder) is much less reliable in that mode. Tools
-#  live in the system prompt as the Qwen3-Coder XML <tools> block, exactly
-#  as the model was trained to receive them.
+#  OpenRouter's /api/v1/models endpoint returns pricing as dollar amounts
+#  per token (e.g. "0.0000001"). We fetch this once per model per 5 minutes
+#  and cache it. On any fetch failure we return (0.0, 0.0) so billing never
+#  hard-crashes the agent loop.
 #
-#  Reasoning preservation: per Xiaomi's official docs, multi-turn tool
-#  calls degrade if reasoning_content isn't preserved between turns. We
-#  pass reasoning.exclude=false and feed the reasoning back into the
-#  conversation history.
+#  The returned `weight` from _call_llm is:
+#    int((prompt_tokens * prompt_$/token + completion_tokens * completion_$/token) * 1_000_000)
+#
+#  This gives the cost in micro-dollars (millionths of a dollar), which
+#  callers deduct directly from the user's balance.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# { model_id: (prompt_price_per_token, completion_price_per_token) }
+_model_price_cache:     Dict[str, Tuple[float, float]] = {}
+_model_price_cache_ttl: Dict[str, float]               = {}
+_PRICE_CACHE_TTL_S = 300  # 5 minutes
+
+
+async def _fetch_model_price(model: str) -> Tuple[float, float]:
+    """
+    Return (prompt_price_per_token, completion_price_per_token) in USD.
+
+    OpenRouter prices are already per-token (not per-million), so no
+    division is needed here. The caller multiplies by 1_000_000 to get
+    micro-dollars for billing.
+
+    Caches results for _PRICE_CACHE_TTL_S seconds. Falls back to (0, 0)
+    on any network/parse error so the agent never crashes due to pricing.
+    """
+    now = time.monotonic()
+    cached_at = _model_price_cache_ttl.get(model, 0)
+    if model in _model_price_cache and (now - cached_at) < _PRICE_CACHE_TTL_S:
+        return _model_price_cache[model]
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer":  SITE_URL,
+                    "X-Title":       SITE_NAME,
+                },
+            )
+            resp.raise_for_status()
+            models_list = resp.json().get("data", [])
+
+        for entry in models_list:
+            if entry.get("id") == model:
+                pricing          = entry.get("pricing", {})
+                prompt_price     = float(pricing.get("prompt",     0) or 0)
+                completion_price = float(pricing.get("completion", 0) or 0)
+                _model_price_cache[model]     = (prompt_price, completion_price)
+                _model_price_cache_ttl[model] = now
+                log_agent(
+                    "agent",
+                    f"Price fetched — {model}: ${prompt_price}/pt ${completion_price}/ct",
+                )
+                return (prompt_price, completion_price)
+
+        # Model not found in the list — cache zero so we don't hammer the API
+        log_agent("agent", f"Model '{model}' not found in /api/v1/models — price=0")
+
+    except Exception as e:
+        log_agent("agent", f"Price fetch failed for '{model}': {e} — defaulting to 0")
+
+    _model_price_cache[model]     = (0.0, 0.0)
+    _model_price_cache_ttl[model] = now
+    return (0.0, 0.0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  LLM call — XML-native, live pricing
 # ═══════════════════════════════════════════════════════════════════════════
 
 async def _call_llm(
@@ -1273,14 +1160,9 @@ async def _call_llm(
 ) -> Tuple[str, int]:
     messages = _compress_history(messages)
 
-    # Strip non-API fields (reasoning_content) from outgoing messages — they
-    # were stored locally for context but the API doesn't accept them as
-    # input. We move them into the content prefix instead.
     api_messages = []
     for m in messages:
         api_msg = {"role": m["role"], "content": m.get("content", "")}
-        # Don't merge reasoning into API content — already in conversation
-        # naturally via the assistant text (we keep things simple).
         api_messages.append(api_msg)
 
     payload: Dict[str, Any] = {
@@ -1294,9 +1176,6 @@ async def _call_llm(
         },
     }
 
-    # Preserve reasoning between turns for MiMo models — Xiaomi's docs are
-    # explicit that performance degrades without this. Same flag for any
-    # Qwen-family model. No-op on non-reasoning models.
     if any(x in model.lower() for x in ["mimo", "qwen", "minimax"]):
         payload["reasoning"] = {"exclude": False}
 
@@ -1327,30 +1206,33 @@ async def _call_llm(
     msg     = choice["message"]
     content = msg.get("content") or ""
 
-    # MiMo (and Qwen3) often return reasoning as a separate field. If the
-    # tool_call landed only in `reasoning_content`, we pull it forward into
-    # `content` so the parser sees it. This is the documented multi-turn
-    # behavior — see platform.xiaomimimo.com/docs/api/chat/openai-api.
     reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
     if reasoning and "<tool_call>" not in content and "<tool_call>" in str(reasoning):
         content = str(reasoning) + "\n\n" + content
     elif reasoning and "<tool_call>" not in content and not content.strip():
-        # Sometimes content is empty and the tool_call is *only* in reasoning
         content = str(reasoning)
 
+    # ── Live pricing ────────────────────────────────────────────────────────
+    # Fetch the actual per-token prices from OpenRouter and compute real cost.
+    # weight is returned in micro-dollars (millionths of a USD) so the caller
+    # can deduct it directly from a user balance stored as an integer.
     u = data.get("usage", {})
-    p = u.get("prompt_tokens", 0)
-    c = u.get("completion_tokens", 0)
-    is_frontier = any(x in model for x in ["claude", "gpt-4", "gemini"])
-    is_mimo     = "mimo" in model.lower()
-    if is_frontier:
-        weight = p * 0.6 + c * 2.4
-    elif is_mimo:
-        weight = p * 0.8 + c * 2.8
-    else:
-        weight = p * 0.3 + c * 1.2
+    prompt_tokens     = u.get("prompt_tokens",     0)
+    completion_tokens = u.get("completion_tokens", 0)
 
-    return content, int(weight)
+    prompt_price, completion_price = await _fetch_model_price(model)
+    weight = int(
+        (prompt_tokens * prompt_price + completion_tokens * completion_price)
+        * 1_000_000
+    )
+
+    log_agent(
+        "agent",
+        f"usage p={prompt_tokens} c={completion_tokens} "
+        f"cost={weight}µ$ (${weight / 1_000_000:.6f})",
+    )
+
+    return content, weight
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1369,10 +1251,6 @@ def _build_skills_block(agent_skills: Optional[Dict[str, Any]]) -> str:
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Smart model routing
-#
-#  Both MODEL and SMART_MODEL are MiMo in v17, so this is mostly a no-op
-#  switch — but the routing scaffolding is preserved so a future swap
-#  (e.g. Claude Sonnet for hard cases) is a one-env-var change.
 # ═══════════════════════════════════════════════════════════════════════════
 
 _HARD_OBSERVATION_SIGNALS = frozenset([
@@ -1413,27 +1291,9 @@ def _pick_model(
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  LineageAgent  v17
-#
-#  Conversation shape:
-#    [system]    full prompt + Qwen3-Coder <tools> block + addons (immutable)
-#    [user]      initial task w/ file tree, plan, optional image
-#    [assistant] thought + <tool_call>...</tool_call>
-#    [user]      OBSERVATION: <bash output OR "Files written: a.tsx, b.tsx">
-#    [assistant] thought + next tool_call
-#    ...
-#    [assistant] <function=mark_done>...</function>
-#
-#  Observations come back as plain user messages (NOT tool-role messages),
-#  because Qwen3-Coder/MiMo were trained to read them in the user channel.
 # ═══════════════════════════════════════════════════════════════════════════
 
 class LineageAgent:
-    """
-    Two-phase, batch-limited XML agent for MiMo-family models.
-    Sandbox contract is unchanged from v15/v16 — _parsed dict on every
-    result, sandbox_manager calls record_tool_results() after executing.
-    """
-
     def __init__(self, project_id: str):
         self.project_id         = project_id
         self.total_tokens       = 0
@@ -1455,25 +1315,18 @@ class LineageAgent:
         if self._system_prompt_set:
             return
 
-        # 1. Domain prompt body (Gorilla / Vite / Express / AI proxy)
         prompt = SYSTEM_PROMPT_BODY.replace(
             "{GORILLA_PROXY}",
             gorilla_proxy_url or "https://your-proxy.ngrok-free.dev",
         )
 
-        # 2. Conditional addons (Supabase / Debug)
         if has_supabase:
             prompt += "\n" + SUPABASE_ADDON
         if is_debug:
             prompt += "\n" + DEBUG_ADDON
 
-        # 3. Tools block — appended LAST so the JSON schema sits closest to
-        #    where the model starts generating. Qwen3-Coder's training data
-        #    has tools at the end of the system prompt (verified against
-        #    the official chat_template.jinja).
         prompt += "\n\n" + _format_tools_for_prompt()
 
-        # 4. User skills/preferences
         skills_block = _build_skills_block(agent_skills)
         if skills_block:
             prompt += skills_block
@@ -1498,11 +1351,6 @@ class LineageAgent:
         write_paths:      List[str],
         bash_observation: str,
     ) -> None:
-        """
-        After the sandbox executes a turn's tool calls, this gets called
-        with the results. We render them as a single OBSERVATION user
-        message — that's what MiMo/Qwen3-Coder were trained to read.
-        """
         parts: List[str] = []
         if write_paths:
             parts.append("Files written: " + ", ".join(write_paths))
@@ -1553,12 +1401,7 @@ class LineageAgent:
             if prompt_image_b64:
                 log_agent("agent", "prompt_image.b64 found", self.project_id)
 
-        # ── Build the new user message ──────────────────────────────────────
         if previous_command_output:
-            # Subsequent turn: the sandbox's output becomes the OBSERVATION.
-            # (record_tool_results may have already appended this; this
-            # branch handles the legacy path where the sandbox passes
-            # previous_command_output directly.)
             filtered = _filter_observation(previous_command_output)
             self.messages.append({"role": "user", "content": f"OBSERVATION:\n{filtered[:8000]}"})
         else:
@@ -1625,15 +1468,11 @@ class LineageAgent:
             else:
                 self.messages.append({"role": "user", "content": user_text})
 
-        # ── Model routing ───────────────────────────────────────────────────
         first_turn_has_image = bool(
             (image_b64 or prompt_image_b64) and not previous_command_output
         )
 
         if first_turn_has_image:
-            # Vision turn: VISION_MODEL handles the image. With v17 this is
-            # also a MiMo variant, so it speaks the same XML format — no
-            # legacy fallback needed in the common case.
             model = VISION_MODEL
         else:
             turn_index = max(0, len(self.messages) // 2 - 1)
@@ -1667,13 +1506,8 @@ class LineageAgent:
                 "tokens":      0,
             }
 
-        # ── Record assistant message verbatim (XML and all) ────────────────
-        # MiMo wants to see its own tool_call XML in the conversation
-        # history — that's how it knows what it already did and avoids
-        # re-doing the same work next turn.
         self.messages.append({"role": "assistant", "content": raw_text or ""})
 
-        # ── Parse the XML ───────────────────────────────────────────────────
         parsed = _parse_response(raw_text)
 
         if parsed["thought"]:
@@ -1686,7 +1520,6 @@ class LineageAgent:
                 self.project_id,
             )
 
-        # ── Safety-check bash ───────────────────────────────────────────────
         safe_bash = ""
         if parsed["bash"]:
             bash_content = self.token_sub.expand(parsed["bash"])
@@ -1695,7 +1528,6 @@ class LineageAgent:
             else:
                 log_agent("agent", "Blocked dangerous command", self.project_id)
 
-        # ── Expand blob tokens in file contents ─────────────────────────────
         for wf in parsed["write_files"]:
             wf["content"] = self.token_sub.expand(wf["content"])
 
@@ -1709,7 +1541,7 @@ class LineageAgent:
 
         return {
             "message":     parsed["message"],
-            "write_files": parsed["write_files"],     # max BATCH_LIMIT entries
+            "write_files": parsed["write_files"],
             "commands":    [safe_bash] if safe_bash else [],
             "done":        done,
             "tokens":      self.total_tokens,
@@ -1722,18 +1554,6 @@ class LineageAgent:
         write_observation: str = "",
         bash_observation:  str = "",
     ) -> None:
-        """
-        Sandbox calls this AFTER executing the tool calls from the previous
-        turn, so the next LLM call has proper context.
-
-        sandbox_manager:
-            result = await agent.run(...)
-            # ... execute result["write_files"] and result["commands"] ...
-            agent.record_tool_results(
-                result["_parsed"],
-                bash_observation=shell_stdout,
-            )
-        """
         write_paths = [wf.get("path", "") for wf in parsed.get("write_files", []) if wf.get("path")]
         if write_observation and not bash_observation:
             bash_observation = write_observation
