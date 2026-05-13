@@ -91,7 +91,6 @@
       pointer-events: none; z-index: 0;
     }
 
-    /* ─── LAYOUT ─── */
     .shell { display: flex; width: 100%; height: 100vh; position: relative; z-index: 1; }
 
     /* ─── LEFT PANEL ─── */
@@ -108,7 +107,6 @@
       pointer-events: none;
     }
 
-    /* ─── TOPBAR ─── */
     .topbar {
       height: 48px; padding: 0 14px;
       display: flex; align-items: center; justify-content: space-between;
@@ -141,7 +139,6 @@
     .icon-btn.accent { color: var(--accent-light); background: var(--accent-dim); border-color: rgba(0,102,255,0.2); }
     .icon-btn.accent:hover { background: rgba(0,102,255,0.2); }
 
-    /* ─── STATUS STRIP ─── */
     .status-strip {
       padding: 8px 14px;
       border-bottom: 1px solid var(--border);
@@ -157,7 +154,6 @@
     .prog-wrap { width: 80px; height: 1.5px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
     .prog-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.4s var(--ease); }
 
-    /* ─── CHAT ─── */
     .chat {
       flex: 1; overflow-y: auto;
       padding: 20px 16px;
@@ -194,7 +190,6 @@
     }
     @keyframes fadeUp { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
-    /* ─── ACTIVITY ─── */
     .activity-group {
       display: flex; flex-direction: column; gap: 2px;
       padding-left: 10px;
@@ -240,7 +235,6 @@
       color: #6070a0; max-height: 140px; overflow-y: auto;
     }
 
-    /* ─── INPUT ─── */
     .input-area {
       padding: 12px 14px;
       border-top: 1px solid var(--border);
@@ -332,7 +326,6 @@
     .pill-btn.warn:hover { background: rgba(239,154,70,0.15); }
     .pill-btn.gh { background: rgba(255,255,255,0.03); color: var(--text); border-color: rgba(255,255,255,0.08); }
 
-    /* ─── CONTENT AREA ─── */
     .content { flex: 1; display: flex; min-height: 0; }
 
     /* ─── FILE TREE ─── */
@@ -370,9 +363,28 @@
     .node .ico { font-size: 13px; flex-shrink: 0; display: flex; align-items: center; opacity: 0.8; }
 
     /* ─── STAGE ─── */
-    .stage { flex: 1; min-width: 0; background: #01010a; display: flex; flex-direction: column; }
+    .stage { flex: 1; min-width: 0; background: #01010a; display: flex; flex-direction: column; position: relative; }
     #editor { flex: 1; height: 100%; overflow: hidden; }
     #preview { width: 100%; height: 100%; border: 0; display: none; background: #fff; }
+
+    /* ─── GAME FRAME shown during agent run ─── */
+    #gameFrame {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      border: 0;
+      display: none;
+      background: var(--bg);
+      z-index: 10;
+      /* subtle fade-in */
+      opacity: 0;
+      transition: opacity 0.4s var(--ease);
+    }
+    #gameFrame.visible {
+      display: block;
+    }
+    #gameFrame.faded {
+      opacity: 1;
+    }
 
     .preview-empty {
       display: none; flex: 1; align-items: center; justify-content: center;
@@ -391,7 +403,6 @@
     #editor-loading-overlay img { width: 256px; height: 256px; object-fit: contain; opacity: 0.9; }
     #editor-loading-overlay p { color: var(--text-muted); font-size: 11px; letter-spacing: 2px; font-weight: 400; }
 
-    /* ─── WAVE LOADER ─── */
     .wave { display: flex; gap: 2px; align-items: center; opacity: 0; transition: opacity 0.3s; }
     .wave.active { opacity: 1; }
     .wave span { width: 2px; height: 10px; background: var(--accent); border-radius: 2px; animation: wv 1s infinite ease-in-out; }
@@ -399,13 +410,11 @@
     .wave span:nth-child(3) { animation-delay: 0.24s; }
     @keyframes wv { 0%,100%{transform:scaleY(0.5);opacity:0.4;} 50%{transform:scaleY(1.8);opacity:1;} }
 
-    /* ─── SCROLLBAR ─── */
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.1); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(0,102,255,0.22); }
 
-    /* ─── SPIN ─── */
     @keyframes spin { 100%{ transform: rotate(360deg); } }
   </style>
 </head>
@@ -419,7 +428,6 @@
 
 <div class="shell">
 
-<!-- ──────────────── LEFT PANEL ──────────────── -->
 <aside class="left">
 
   <div class="topbar">
@@ -472,7 +480,6 @@
 
 </aside>
 
-<!-- ──────────────── MAIN AREA ──────────────── -->
 <section class="main">
 
   <div class="main-topbar">
@@ -528,6 +535,10 @@
     <div class="stage">
       <div id="editor"></div>
       <div id="imageViewer" style="display:none;flex:1;align-items:center;justify-content:center;overflow:auto;background:#01010a;padding:20px;"></div>
+
+      <!-- Game page shown while agent is running -->
+      <iframe id="gameFrame" src="" title="Building..."></iframe>
+
       <iframe
         id="preview"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals allow-downloads allow-pointer-lock allow-top-navigation-by-user-activation allow-presentation"
@@ -566,9 +577,15 @@ import { marked } from 'https://esm.sh/marked@9.1.2';
 import DOMPurify from 'https://esm.sh/dompurify@3.0.6';
 
 const PROJECT_ID = "{{ project_id }}";
-const INITIAL_PROMPT = "{{ initial_prompt or '' }}";
+
+// Read from session-injected Jinja variable — null on refresh (session already popped)
+const INITIAL_PROMPT = {{ initial_prompt | tojson }};
+
 const HAS_SUPABASE = {{ 'true' if has_supabase else 'false' }};
 const PROJECT_HAS_DB = {{ 'true' if project_has_db else 'false' }};
+
+// Game page URL shown while agent is building
+const GAME_URL = `/projects/${PROJECT_ID}/game`;
 
 window.isAgentWorking = false;
 let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
@@ -578,6 +595,7 @@ const activityRefs = new Map();
 
 const $ = id => document.getElementById(id);
 const chat = $("chat");
+const gameFrame = $("gameFrame");
 
 const PREFIXES = [
   /TAKE YOUR TIME AND THINK DEEPLY\. Before writing any code, carefully plan your architecture, reason through edge cases, and think about potential failure points\. Quality and thoroughness over speed and do this:\s*/gi,
@@ -643,19 +661,14 @@ function addActivityCard(id, verb, target, short) {
     <span class="act-label">${short || verb}${target ? `<span class="act-target">${target}</span>` : ''}</span>
     <span class="act-status"></span>
   `;
-
   const outputWrap = document.createElement('div'); outputWrap.className = 'act-output';
   const inner = document.createElement('div'); inner.className = 'act-output-inner';
   outputWrap.appendChild(inner);
-
   const wrap = document.createElement('div');
   wrap.appendChild(card); wrap.appendChild(outputWrap);
   group.appendChild(wrap);
-
   activityRefs.set(id, { cardEl: card, outputEl: inner, hasOutput: false });
-  card.onclick = () => {
-    if (activityRefs.get(id)?.hasOutput) card.classList.toggle('expanded');
-  };
+  card.onclick = () => { if (activityRefs.get(id)?.hasOutput) card.classList.toggle('expanded'); };
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -691,6 +704,46 @@ function loadChatHistory() {
   } catch(e) {}
 }
 
+// ── GAME FRAME: show while agent is running, hide after ───────────────────
+function showGameFrame() {
+  // Only load the src once to avoid reloading on every agent call
+  if (!gameFrame.src || !gameFrame.src.includes('/game')) {
+    gameFrame.src = GAME_URL;
+  }
+  gameFrame.classList.add('visible');
+  // Small delay so display:block is painted before opacity transitions
+  requestAnimationFrame(() => requestAnimationFrame(() => gameFrame.classList.add('faded')));
+
+  // Hide code editor and file tree while game is showing
+  $("editor").style.display = "none";
+  $("imageViewer").style.display = "none";
+}
+
+function hideGameFrame() {
+  gameFrame.classList.remove('faded');
+  // Wait for fade-out transition then hide
+  setTimeout(() => {
+    gameFrame.classList.remove('visible');
+  }, 400);
+}
+
+function showPreviewAfterDone() {
+  hideGameFrame();
+  // If sandbox is live, switch to preview tab automatically
+  if (sandboxUrl) {
+    setTimeout(() => {
+      switchTab("preview");
+      $("preview").src = sandboxUrl;
+      $("preview").style.display = "block";
+      $("previewEmpty").style.display = "none";
+    }, 450); // wait for game frame to fade out
+  } else {
+    // Just restore code view
+    switchTab("code");
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────
+
 function setInputState(locked) {
   window.isAgentWorking = locked;
   const p = $("prompt"), b = $("runAgent");
@@ -701,9 +754,13 @@ function setInputState(locked) {
   if (locked) {
     if (p) p.placeholder = "Gorilla is thinking...";
     if (b) b.innerHTML = '<i class="ph ph-spinner" style="animation:spin 0.9s linear infinite;"></i>';
+    // Show game page as soon as agent locks the UI
+    showGameFrame();
   } else {
     if (p) p.placeholder = "What shall we build?";
     if (b) b.innerHTML = '<i class="ph-fill ph-paper-plane-tilt"></i>';
+    // Agent is done — fade out game, show preview
+    showPreviewAfterDone();
   }
 }
 
@@ -888,8 +945,8 @@ function switchTab(tab) {
     } else { $("editor").style.display = "block"; $("imageViewer").style.display = "none"; }
   }
 }
-$("tabCode").onclick = () => switchTab("code");
-$("tabPreview").onclick = () => switchTab("preview");
+$("tabCode").onclick = () => { if (!window.isAgentWorking) switchTab("code"); };
+$("tabPreview").onclick = () => { if (!window.isAgentWorking) switchTab("preview"); };
 
 async function bootSandboxIfNeeded() {
   if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { $("preview").src = sandboxUrl; return; }
@@ -914,19 +971,21 @@ function startStream() {
     const m = JSON.parse(e.data);
     if (m.type === "status") {
       setProgress(m.text);
-      if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
+      if (/Done|Ready|Error/i.test(m.text)) {
+        resetGroup();
+        setInputState(false); // ← this calls showPreviewAfterDone() internally
+      }
       if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) {
         updateSandboxStatus("Live");
-        if (sandboxUrl && $("tabPreview").classList.contains("active")) {
-          setTimeout(() => { $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none"; }, 600);
-        }
+        // Don't interrupt game frame — sandbox url is stored, used after agent is done
       }
       if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
     }
     else if (m.type === "progress") setProgress(m.text, m.pct);
     else if (m.type === "sandbox_url") {
       sandboxUrl = m.url; updateSandboxStatus("Live");
-      if ($("tabPreview").classList.contains("active")) {
+      // Only switch to preview immediately if agent is NOT currently working
+      if (!window.isAgentWorking && $("tabPreview").classList.contains("active")) {
         const iframe = $("preview");
         iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
         const checkPort = setInterval(async () => {
@@ -964,7 +1023,7 @@ async function triggerAgent(promptText) {
     await addNarration("To use a database, please link your Supabase account from Dashboard settings.", false); return;
   }
   if (isDbReq && !PROJECT_HAS_DB) formData.append("is_db_request", "true");
-  setInputState(true);
+  setInputState(true); // ← shows game frame
   addUserMessage(cleanPromptText(promptText) || "Please update to match this image.");
   formData.append("prompt", promptText || "Please update to match this image.");
   if (currentAttachedImage) formData.append("image_base64", currentAttachedImage);
@@ -998,7 +1057,8 @@ if (promptEl) promptEl.addEventListener("keydown", (e) => {
   await refreshFiles();
   try { await loadFile(currentFile); } catch(e) {}
   startStream(); setProgress("Ready", 0); hideLoader();
-  if (INITIAL_PROMPT && INITIAL_PROMPT.length > 0) setTimeout(() => triggerAgent(INITIAL_PROMPT), 800);
+  // INITIAL_PROMPT is null on refresh (session popped), fires only once on first load
+  if (INITIAL_PROMPT) setTimeout(() => triggerAgent(INITIAL_PROMPT), 800);
 })();
 </script>
 </body>

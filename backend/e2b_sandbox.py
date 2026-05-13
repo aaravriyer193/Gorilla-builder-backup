@@ -1,13 +1,32 @@
 """
-E2B Sandbox Manager — Speed-optimised
-========================================================
+E2B Sandbox Manager v15 — tool-call native
+============================================
 
-Speed fixes applied:
-  - Parallel port health checks instead of sequential curl calls
-  - npm run dev readiness detected via log polling (no fixed sleep)
-  - Tar upload chunk size increased 10× (50KB → 500KB, fewer round-trips)
-  - File tree cached on session (30s TTL) to avoid full FS dump every turn
-  - Reviewer gated: only fires on substantial new builds, not edits/debug
+Changes vs previous version:
+  - Handles agent v15's write_files list natively:
+      * All files written in parallel via asyncio.gather (not sequential bash)
+      * Uses the E2B files API (sbx.files.write) when available,
+        falls back to heredoc bash for compatibility
+      * No more heredoc pollution in the command log for file writes
+  - Calls agent.record_tool_results() after each tool-call turn so the
+    next LLM message has proper role=tool context (avoids repeat work)
+  - No-command fallback updated: distinguishes write-only turns (expected)
+    from genuinely empty turns (stall recovery)
+  - classify_command updated to handle write_file / run_bash / mark_done
+    tool names for activity card labeling
+  - Linter-in-the-loop now triggered by write_files paths, not heredoc regex
+  - Reviewer remains gated the same way (skip edits/debug/short sessions)
+  - All existing speed fixes preserved:
+      * Parallel port health checks
+      * Vite ready-signal polling (no fixed sleep)
+      * 500KB tar chunk upload
+      * 30s file tree cache with explicit invalidation
+
+FIX (sync): Before the final post-agent sync, the SYNC_MARKER is reset to
+  epoch and content_hashes is cleared for all agent-written files. This
+  guarantees _sync_once's `find -newer` picks up every file the agent
+  wrote, even if they were written in earlier turns whose per-turn syncs
+  already ran and advanced the marker past those files.
 """
 
 from __future__ import annotations
@@ -35,22 +54,21 @@ from backend.ai.lineage_agent import LineageAgent, log_agent, review_output
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-E2B_API_KEY = os.getenv("E2B_API_KEY", "")
+E2B_API_KEY      = os.getenv("E2B_API_KEY", "")
 SANDBOX_TEMPLATE = os.getenv("E2B_TEMPLATE", "base")
-IDLE_TIMEOUT_S = 900
+IDLE_TIMEOUT_S   = 900
 BILLING_TOKENS_PER_HOUR = 50_000
-BILLING_TICK_S = 1
-APP_DIR = "/home/user/app"
-MAX_COMMANDS_PER_TURN = 1600
-MAX_TURNS_PER_REQUEST = 80
-SYNC_MARKER = "/tmp/.gorilla_sync_marker"
-FILE_READ_SENTINEL = "═══GORILLA_FILE_BOUNDARY_9f8c═══"
+BILLING_TICK_S   = 1
+APP_DIR          = "/home/user/app"
+MAX_COMMANDS_PER_TURN   = 1600
+MAX_TURNS_PER_REQUEST   = 80
+SYNC_MARKER      = "/tmp/.gorilla_sync_marker"
+FILE_READ_SENTINEL    = "═══GORILLA_FILE_BOUNDARY_9f8c═══"
 FILE_CONTENT_SENTINEL = "═══GORILLA_CONTENT_START_9f8c═══"
 
 DEFAULT_PREVIEW_PORT = 8080
-DEFAULT_SERVER_PORT = 3000
+DEFAULT_SERVER_PORT  = 3000
 
-# Speed fix: poll dev.log for this pattern instead of sleeping a fixed duration
 READY_SIGNAL_CMD = (
     "timeout 25 bash -c '"
     "while ! grep -qE \"ready in|Local:|listening on\" /tmp/dev.log 2>/dev/null; "
@@ -58,7 +76,6 @@ READY_SIGNAL_CMD = (
     "tail -5 /tmp/dev.log 2>/dev/null'"
 )
 
-# Keywords that indicate an edit/debug request — reviewer skipped for these
 _EDIT_KEYWORDS = frozenset([
     "fix", "change", "update", "edit", "debug", "adjust", "tweak",
     "modify", "rename", "move", "delete", "remove", "add a", "add the",
@@ -95,32 +112,53 @@ def _is_binary_path(p: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Command classifier — for UI activity cards
+# Command classifier — updated for v15 tool names
 # ---------------------------------------------------------------------------
 def classify_command(cmd: str) -> Dict[str, str]:
-    c = cmd.strip()
+    """
+    Returns {verb, target, short} for activity card display.
+    Handles both raw bash strings and v15 synthetic descriptors like
+    'write_file:src/App.tsx' that the agent turn loop injects.
+    """
+    c   = cmd.strip()
     low = c.lower()
+
+    # v15 synthetic descriptors (injected by _emit_write_activity)
+    if c.startswith("write_file:"):
+        path = c[len("write_file:"):]
+        return {"verb": "edit", "target": path, "short": f"Write {path}"}
+    if c.startswith("run_bash:"):
+        snippet = c[len("run_bash:"):].strip()[:60]
+        return {"verb": "execute", "target": "", "short": snippet or "Run command"}
+    if c == "mark_done":
+        return {"verb": "done", "target": "", "short": "Task complete"}
+
+    # Legacy bash classifiers (unchanged)
     m = re.match(r"cat\s+>>?\s+['\"]?([^\s'\"<]+)['\"]?\s+<<", c)
     if m:
         return {"verb": "edit", "target": m.group(1), "short": f"Edit {m.group(1)}"}
     if low.startswith("mkdir"):
         m = re.search(r"mkdir\s+(?:-p\s+)?['\"]?([^\s'\"]+)", c)
-        return {"verb": "create", "target": m.group(1) if m else "", "short": f"Create dir {m.group(1) if m else ''}"}
+        return {"verb": "create", "target": m.group(1) if m else "",
+                "short": f"Create dir {m.group(1) if m else ''}"}
     if low.startswith("rm"):
         m = re.search(r"rm\s+(?:-\S+\s+)*['\"]?([^\s'\"]+)", c)
-        return {"verb": "delete", "target": m.group(1) if m else "", "short": f"Delete {m.group(1) if m else ''}"}
+        return {"verb": "delete", "target": m.group(1) if m else "",
+                "short": f"Delete {m.group(1) if m else ''}"}
     if low.startswith("npm install") or low.startswith("npm i "):
         return {"verb": "install", "target": "", "short": "Install dependencies"}
     if low.startswith("npm run"):
         m = re.search(r"npm\s+run\s+(\S+)", c)
-        return {"verb": "execute", "target": m.group(1) if m else "", "short": f"Run {m.group(1) if m else 'script'}"}
+        return {"verb": "execute", "target": m.group(1) if m else "",
+                "short": f"Run {m.group(1) if m else 'script'}"}
     if low.startswith("curl"):
         if "supabase.com" in c and "database/query" in c:
             return {"verb": "database", "target": "migration", "short": "Run SQL migration"}
         return {"verb": "fetch", "target": "", "short": "API call"}
     if low.startswith("cat ") or low.startswith("tail ") or low.startswith("head "):
         m = re.match(r"\S+\s+(?:-\S+\s+)*['\"]?([^\s'\"]+)", c)
-        return {"verb": "read", "target": m.group(1) if m else "", "short": f"Read {m.group(1) if m else 'file'}"}
+        return {"verb": "read", "target": m.group(1) if m else "",
+                "short": f"Read {m.group(1) if m else 'file'}"}
     if low.startswith("grep ") or low.startswith("find "):
         return {"verb": "scan", "target": "", "short": "Search files"}
     if low.startswith("python"):
@@ -133,55 +171,59 @@ def classify_command(cmd: str) -> Dict[str, str]:
 
 @dataclass
 class SandboxSession:
-    project_id: str
-    sandbox: Any
-    sandbox_id: str
-    owner_id: str
+    project_id:  str
+    sandbox:     Any
+    sandbox_id:  str
+    owner_id:    str
     preview_port: int = DEFAULT_PREVIEW_PORT
-    url: Optional[str] = None
-    created_at: float = field(default_factory=time.time)
+    url:         Optional[str] = None
+    created_at:  float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
-    last_bill_at: float = field(default_factory=time.time)
+    last_bill_at:  float = field(default_factory=time.time)
     total_billed_tokens: int = 0
     deps_installed: bool = False
     content_hashes: Dict[str, str] = field(default_factory=dict)
     _billing_task: Optional[asyncio.Task] = field(default=None, repr=False)
     agent: Optional[Any] = field(default=None, repr=False)
-    # Speed fix: cached file tree to avoid full FS dump every agent turn
-    _cached_tree: Dict[str, str] = field(default_factory=dict, repr=False)
-    _tree_cached_at: float = field(default=0.0, repr=False)
+    _cached_tree:    Dict[str, str] = field(default_factory=dict, repr=False)
+    _tree_cached_at: float          = field(default=0.0,          repr=False)
+    # Whether the sandbox's E2B SDK supports the files API (vs bash fallback)
+    _has_files_api: bool = field(default=False, repr=False)
+    # Tracks every relative path the agent has written this session,
+    # so the final sync can force-include them regardless of marker age.
+    _agent_written_paths: Set[str] = field(default_factory=set, repr=False)
 
 
 class E2BSandboxManager:
     def __init__(
         self,
-        db_upsert_fn: Callable,
-        db_delete_fn: Callable,
+        db_upsert_fn:       Callable,
+        db_delete_fn:       Callable,
         db_upsert_batch_fn: Optional[Callable],
-        add_tokens_fn: Callable,
-        emit_log_fn: Callable,
-        emit_status_fn: Callable,
-        emit_file_changed_fn: Callable,
-        emit_file_deleted_fn: Callable,
-        fetch_files_fn: Callable,
-        list_db_paths_fn: Callable,
-        progress_bus: Any = None,
+        add_tokens_fn:      Callable,
+        emit_log_fn:        Callable,
+        emit_status_fn:     Callable,
+        emit_file_changed_fn:  Callable,
+        emit_file_deleted_fn:  Callable,
+        fetch_files_fn:     Callable,
+        list_db_paths_fn:   Callable,
+        progress_bus:       Any = None,
     ):
-        self._sessions: Dict[str, SandboxSession] = {}
-        self._db_upsert = db_upsert_fn
-        self._db_delete = db_delete_fn
+        self._sessions:      Dict[str, SandboxSession]  = {}
+        self._db_upsert      = db_upsert_fn
+        self._db_delete      = db_delete_fn
         self._db_upsert_batch = db_upsert_batch_fn
-        self._add_tokens = add_tokens_fn
-        self._emit_log = emit_log_fn
-        self._emit_status = emit_status_fn
+        self._add_tokens     = add_tokens_fn
+        self._emit_log       = emit_log_fn
+        self._emit_status    = emit_status_fn
         self._emit_file_changed = emit_file_changed_fn
         self._emit_file_deleted = emit_file_deleted_fn
-        self._fetch_files = fetch_files_fn
-        self._list_db_paths = list_db_paths_fn
-        self._progress_bus = progress_bus
+        self._fetch_files    = fetch_files_fn
+        self._list_db_paths  = list_db_paths_fn
+        self._progress_bus   = progress_bus
         self._idle_monitor_task: Optional[asyncio.Task] = None
-        self._boot_locks: Dict[str, asyncio.Lock] = {}
-        self._turn_locks: Dict[str, asyncio.Lock] = {}
+        self._boot_locks:  Dict[str, asyncio.Lock] = {}
+        self._turn_locks:  Dict[str, asyncio.Lock] = {}
         self._activity_counter: Dict[str, int] = {}
 
     # -----------------------------------------------------------
@@ -248,14 +290,13 @@ class E2BSandboxManager:
             return f"https://{sbx.sandbox_id}-{port}.e2b.dev"
 
     # -----------------------------------------------------------
-    # Batched boot-time file upload via tar
-    # Speed fix: chunk size increased from 50KB to 500KB = 10× fewer SSH round-trips
+    # Batched boot-time file upload via tar (unchanged)
     # -----------------------------------------------------------
     @staticmethod
     def _build_tar_base64(file_tree: Dict[str, str]) -> Tuple[str, int, Dict[str, str]]:
-        buf = io.BytesIO()
+        buf    = io.BytesIO()
         hashes: Dict[str, str] = {}
-        count = 0
+        count  = 0
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
             for path, content in file_tree.items():
                 if not path or content is None:
@@ -265,8 +306,8 @@ class E2BSandboxManager:
                 data = content.encode("utf-8", errors="replace")
                 if len(data) > 1_000_000:
                     continue
-                ti = tarfile.TarInfo(name=path)
-                ti.size = len(data)
+                ti       = tarfile.TarInfo(name=path)
+                ti.size  = len(data)
                 ti.mtime = int(time.time())
                 tf.addfile(ti, io.BytesIO(data))
                 hashes[path] = hashlib.md5(data).hexdigest()
@@ -282,13 +323,13 @@ class E2BSandboxManager:
             return self._upload_files_slow(sbx, file_tree)
         try:
             sbx.commands.run("rm -f /tmp/bundle.b64 && touch /tmp/bundle.b64", timeout=5)
-            # Speed fix: 500KB chunks instead of 50KB — reduces round-trips by 10×
             for i in range(0, len(b64), 500_000):
                 chunk = b64[i:i + 500_000]
-                meta = base64.b64encode(chunk.encode()).decode()
+                meta  = base64.b64encode(chunk.encode()).decode()
                 sbx.commands.run(f"echo '{meta}' | base64 -d >> /tmp/bundle.b64", timeout=10)
             result = sbx.commands.run(
-                f"mkdir -p {APP_DIR} && cat /tmp/bundle.b64 | base64 -d | tar -xzf - -C {APP_DIR} && rm -f /tmp/bundle.b64",
+                f"mkdir -p {APP_DIR} && cat /tmp/bundle.b64 | base64 -d | "
+                f"tar -xzf - -C {APP_DIR} && rm -f /tmp/bundle.b64",
                 timeout=60,
             )
             if result.exit_code != 0:
@@ -300,9 +341,9 @@ class E2BSandboxManager:
 
     @staticmethod
     def _upload_files_slow(sbx, file_tree: Dict[str, str]) -> Tuple[int, Dict[str, str]]:
-        hashes: Dict[str, str] = {}
-        count = 0
-        dirs_created: Set[str] = set()
+        hashes:       Dict[str, str] = {}
+        count         = 0
+        dirs_created: Set[str]       = set()
         for path, content in file_tree.items():
             if not path or content is None:
                 continue
@@ -320,9 +361,107 @@ class E2BSandboxManager:
         return count, hashes
 
     # -----------------------------------------------------------
+    # Native file write  (v15 — replaces heredoc for agent writes)
+    # -----------------------------------------------------------
+    def _write_one_file_sync(self, sbx, rel_path: str, content: str) -> bool:
+        """Synchronous — meant to be called via asyncio.to_thread."""
+        full = f"{APP_DIR}/{rel_path}"
+        dirp = "/".join(full.split("/")[:-1])
+
+        # Try E2B files API (clean, no heredoc quoting issues)
+        try:
+            sbx.commands.run(f"mkdir -p '{dirp}'", timeout=5)
+            sbx.files.write(full, content)
+            return True
+        except AttributeError:
+            pass  # SDK doesn't have files API — fall through
+        except Exception as e:
+            log_agent("agent", f"files.write failed for {rel_path}: {e}")
+
+        # Heredoc fallback (handles any content including backticks)
+        try:
+            sbx.commands.run(f"mkdir -p '{dirp}'", timeout=5)
+            safe = content.replace("GORILLA_EOF", "GORILLA__EOF")
+            result = sbx.commands.run(
+                f"cat > '{full}' << 'GORILLA_EOF'\n{safe}\nGORILLA_EOF",
+                timeout=20,
+            )
+            return (result.exit_code == 0)
+        except Exception as e:
+            log_agent("agent", f"heredoc fallback failed for {rel_path}: {e}")
+            return False
+
+    async def _write_files_parallel(
+        self,
+        project_id: str,
+        write_files: List[Dict[str, str]],
+    ) -> Tuple[List[str], str]:
+        """
+        Write all files from a write_file batch concurrently.
+
+        Returns:
+          written_paths  — list of rel paths successfully written
+          observation    — summary string fed back to the agent
+        """
+        session = self._sessions.get(project_id)
+        if not session or not write_files:
+            return [], ""
+
+        sbx = session.sandbox
+
+        async def _write_one(wf: Dict[str, str]) -> Tuple[str, bool]:
+            rel  = wf.get("path", "").strip()
+            body = wf.get("content", "")
+            reason = wf.get("reason", "")
+
+            if not rel:
+                return rel, False
+
+            # Emit activity card for this file write
+            activity_id = self._next_activity_id(project_id)
+            self._emit_activity_start(
+                project_id, activity_id,
+                "edit", rel, f"Write {rel}",
+            )
+            ok = await asyncio.to_thread(self._write_one_file_sync, sbx, rel, body)
+            self._emit_activity_end(project_id, activity_id, 0 if ok else 1)
+
+            if ok:
+                # Update content hash so sync knows about this file
+                h = hashlib.md5(body.encode("utf-8", errors="replace")).hexdigest()
+                session.content_hashes[rel] = h
+                # ── FIX: track every path the agent writes so the final
+                #    sync can force-include it regardless of marker age.
+                session._agent_written_paths.add(rel)
+                log_agent("agent", f"wrote {rel}", project_id)
+            else:
+                log_agent("agent", f"FAILED to write {rel}", project_id)
+
+            return rel, ok
+
+        results  = await asyncio.gather(*[_write_one(wf) for wf in write_files])
+        written  = [p for p, ok in results if ok]
+        failed   = [p for p, ok in results if not ok]
+
+        # Invalidate tree cache — files changed on disk
+        session._tree_cached_at = 0.0
+
+        # Build observation for agent (short — writes don't produce output)
+        lines = []
+        if written:
+            lines.append(f"Wrote {len(written)} file(s): {', '.join(written)}")
+        if failed:
+            lines.append(f"FAILED to write: {', '.join(failed)}")
+        obs = "\n".join(lines)
+
+        return written, obs
+
+    # -----------------------------------------------------------
     # Lifecycle
     # -----------------------------------------------------------
-    async def ensure_running(self, project_id: str, env_vars: Dict[str, str], owner_id: str) -> SandboxSession:
+    async def ensure_running(
+        self, project_id: str, env_vars: Dict[str, str], owner_id: str
+    ) -> SandboxSession:
         if project_id in self._sessions:
             s = self._sessions[project_id]
             s.last_activity = time.time()
@@ -366,12 +505,19 @@ class E2BSandboxManager:
 
         if env_vars:
             try:
-                env_lines = "\n".join(f"{k}={v}" for k, v in env_vars.items() if v)
+                env_lines   = "\n".join(f"{k}={v}" for k, v in env_vars.items() if v)
                 shell_lines = "\n".join(f'export {k}="{v}"' for k, v in env_vars.items() if v)
                 await asyncio.to_thread(
                     sbx.commands.run,
-                    f"cat > {APP_DIR}/.env << 'GORILLA_EOF'\n{env_lines}\nGORILLA_EOF && "
+                    f"cat > {APP_DIR}/.env << 'GORILLA_EOF'\n{env_lines}\nGORILLA_EOF",
+                )
+                await asyncio.to_thread(
+                    sbx.commands.run,
                     f"cat > {APP_DIR}/.gorilla_env << 'GORILLA_EOF'\n{shell_lines}\nGORILLA_EOF",
+                )
+                await asyncio.to_thread(
+                    sbx.commands.run,
+                    f"set -a && source {APP_DIR}/.env && set +a",
                 )
             except Exception as e:
                 self._emit_log(project_id, "sandbox", f"env write warning: {e}")
@@ -400,15 +546,16 @@ class E2BSandboxManager:
         except Exception as e:
             log_agent("agent", f"Error reporter inject skipped: {e}", project_id)
 
-        # node_modules pre-baked in template — always treated as cached
-        deps_cached = True
-        preview_port = self._detect_preview_port(file_tree)
+        # Detect E2B files API availability
+        has_files_api = hasattr(sbx, "files") and hasattr(getattr(sbx, "files", None), "write")
 
+        preview_port = self._detect_preview_port(file_tree)
         session = SandboxSession(
             project_id=project_id, sandbox=sbx, sandbox_id=sbx.sandbox_id,
             owner_id=owner_id, preview_port=preview_port,
             url=self._sandbox_url_for_port(sbx, preview_port),
-            deps_installed=deps_cached, content_hashes=hashes,
+            deps_installed=True, content_hashes=hashes,
+            _has_files_api=has_files_api,
         )
         self._sessions[project_id] = session
 
@@ -429,7 +576,7 @@ class E2BSandboxManager:
             if not content or not content.startswith("http"):
                 continue
             full_path = f"{APP_DIR}/{path}"
-            dirp = "/".join(full_path.split("/")[:-1])
+            dirp      = "/".join(full_path.split("/")[:-1])
             try:
                 result = await asyncio.to_thread(
                     sbx.commands.run,
@@ -451,7 +598,7 @@ class E2BSandboxManager:
             self._boot_locks.pop(project_id, None)
             self._turn_locks.pop(project_id, None)
             return
-        now = time.time()
+        now     = time.time()
         elapsed = (now - session.last_bill_at) / 3600.0
         if elapsed > 0.01:
             prorated = int(BILLING_TOKENS_PER_HOUR * elapsed)
@@ -504,8 +651,8 @@ class E2BSandboxManager:
                 return ""
             lines = []
             for e in errors[:10]:
-                msg = e.get("message", str(e))
-                src = e.get("source", "")
+                msg   = e.get("message", str(e))
+                src   = e.get("source", "")
                 etype = e.get("type", "error")
                 stack = e.get("stack", "")
                 entry = f"  [{etype}] {msg}"
@@ -519,18 +666,11 @@ class E2BSandboxManager:
             return ""
 
     # -----------------------------------------------------------
-    # Speed fix: parallel port health checks
-    # Both ports are checked concurrently, then we merge the results.
-    # Previously: sequential curl calls with up to 30s total wait.
-    # Now: both checks fire at once, total wait = max(fe_wait, api_wait).
+    # Parallel port health checks (unchanged)
     # -----------------------------------------------------------
     async def _check_ports_parallel(
         self, session: SandboxSession, project_id: str
     ) -> Tuple[bool, str, bool, str]:
-        """
-        Returns (frontend_ok, fe_content, api_ok, api_content).
-        Polls up to ~24s (12 attempts × 2s) per port, concurrently.
-        """
         async def check_port(port: int) -> Tuple[bool, str]:
             for _ in range(12):
                 await asyncio.sleep(2)
@@ -544,7 +684,7 @@ class E2BSandboxManager:
                     if content and "Cannot GET" not in content:
                         return True, content
                     if content:
-                        return False, content  # got a response, but bad
+                        return False, content
                 except Exception:
                     pass
             return False, ""
@@ -556,7 +696,7 @@ class E2BSandboxManager:
         return fe_ok, fe_content, api_ok, api_content
 
     # -----------------------------------------------------------
-    # Agent turn — mini-SWE-agent loop
+    # Agent turn — v15 tool-call native loop
     # -----------------------------------------------------------
     async def run_agent_turn(
         self, project_id, user_request, user_id, env_vars,
@@ -591,7 +731,7 @@ class E2BSandboxManager:
         except Exception:
             pass
 
-        # Auto-kill ports before agent starts
+        # Auto-kill stale port holders
         try:
             await asyncio.to_thread(
                 session.sandbox.commands.run,
@@ -606,18 +746,17 @@ class E2BSandboxManager:
             session.agent = LineageAgent(project_id)
         agent = session.agent
 
-        all_commands: List[str] = []
-        final_message = ""
-        total_tokens = 0
-        turn_count = 0
-        previous_output: Optional[str] = None
-        last_raw_output = ""
+        all_commands:   List[str] = []
+        final_message             = ""
+        total_tokens              = 0
+        turn_count                = 0
+        previous_output:  Optional[str] = None
+        last_raw_output           = ""
 
-        # Speed fix: use cached file tree (TTL 30s) to avoid a full FS dump
-        # at the start of every agent turn. Cache is invalidated after each sync.
+        # Use cached file tree (TTL 30s)
         now = time.time()
         if (now - session._tree_cached_at) > 30 or not session._cached_tree:
-            session._cached_tree = await self._read_tree_from_sandbox(project_id)
+            session._cached_tree    = await self._read_tree_from_sandbox(project_id)
             session._tree_cached_at = time.time()
         tree = session._cached_tree
 
@@ -637,9 +776,9 @@ class E2BSandboxManager:
                 previous_command_output=previous_output,
                 agent_skills=agent_skills if turn == 0 else None,
             )
-            turn_tokens = result.get("tokens", 0) - total_tokens
-            total_tokens = result.get("tokens", 0)
 
+            turn_tokens   = result.get("tokens", 0) - total_tokens
+            total_tokens  = result.get("tokens", 0)
             if turn_tokens > 0:
                 try:
                     self._add_tokens(session.owner_id, turn_tokens)
@@ -647,8 +786,8 @@ class E2BSandboxManager:
                 except Exception:
                     pass
 
-            # Save generated plan as .gorilla/todo.md on first turn
-            if turn == 0 and hasattr(agent, '_plan_injected') and agent._plan_injected:
+            # Save plan as .gorilla/todo.md on first turn
+            if turn == 0 and getattr(agent, "_plan_injected", False):
                 try:
                     first_user_msg = agent.messages[1].get("content", "") if len(agent.messages) > 1 else ""
                     if isinstance(first_user_msg, str) and "follow it step by step" in first_user_msg:
@@ -663,13 +802,16 @@ class E2BSandboxManager:
                                     plan_content = plan_content[:idx]
                             await asyncio.to_thread(
                                 session.sandbox.commands.run,
-                                f"mkdir -p {APP_DIR}/.gorilla && cat > {APP_DIR}/.gorilla/todo.md << 'GORILLA_EOF'\n{plan_content.strip()}\nGORILLA_EOF",
+                                f"mkdir -p {APP_DIR}/.gorilla && "
+                                f"cat > {APP_DIR}/.gorilla/todo.md << 'GORILLA_EOF'\n"
+                                f"{plan_content.strip()}\nGORILLA_EOF",
                                 timeout=5,
                             )
                             log_agent("agent", "Saved plan to .gorilla/todo.md", project_id)
                 except Exception as e:
                     log_agent("agent", f"Failed to save todo.md: {e}", project_id)
 
+            # Narrate
             msg = result.get("message", "")
             if msg:
                 final_message = msg
@@ -680,163 +822,134 @@ class E2BSandboxManager:
                     except Exception:
                         pass
 
-            commands = result.get("commands", [])
+            write_files: List[Dict[str, str]] = result.get("write_files", [])
+            commands:    List[str]            = result.get("commands", [])
+            parsed_internal                   = result.get("_parsed", {})
+
+            # ── Phase 1: parallel file writes ─────────────────────────────
+            write_obs = ""
+            written_paths: List[str] = []
+
+            if write_files:
+                written_paths, write_obs = await self._write_files_parallel(
+                    project_id, write_files
+                )
+                all_commands.extend(f"write_file:{wf['path']}" for wf in write_files)
+
+                # Run linter on any written .tsx?  files
+                tsx_paths = [p for p in written_paths if p.endswith((".ts", ".tsx"))]
+                if tsx_paths:
+                    lint_obs = await self._lint_paths(project_id, tsx_paths)
+                    if lint_obs:
+                        write_obs += f"\n\n{lint_obs}"
+
+            # ── Phase 2: bash execution ────────────────────────────────────
+            bash_obs = ""
 
             if result.get("done", False) and not commands:
+                # Feed tool results back so history is consistent, then exit
+                if parsed_internal:
+                    agent.record_tool_results(
+                        parsed_internal,
+                        write_observation=write_obs,
+                        bash_observation="",
+                    )
                 break
 
-            if not commands and not result.get("done", False):
+            if commands:
+                # Auto-background npm run dev
+                fixed: List[str] = []
+                for cmd in commands:
+                    if re.search(r'npm run dev\s*$', cmd.strip()) and '&' not in cmd:
+                        cmd = cmd.rstrip() + ' > /tmp/dev.log 2>&1 &'
+                        log_agent("agent", "Auto-backgrounded npm run dev", project_id)
+                    elif re.search(r'npm run dev\s*>', cmd.strip()) and '&' not in cmd:
+                        cmd = cmd.rstrip() + ' &'
+                        log_agent("agent", "Auto-backgrounded npm run dev (had redirect)", project_id)
+                    fixed.append(cmd)
+                commands = fixed
+
+                all_commands.extend(commands)
+                cmd_results = await self._execute_commands_streaming(project_id, commands)
+
+                output_parts: List[str] = []
+                for r in cmd_results:
+                    stdout    = (r.get("stdout") or "").strip()
+                    stderr    = (r.get("stderr") or "").strip()
+                    exit_code = r.get("exit_code", 0)
+                    if stdout:
+                        output_parts.append(stdout[:3000])
+                    if stderr:
+                        output_parts.append(f"STDERR: {stderr[:1500]}")
+                    if exit_code != 0:
+                        output_parts.append(f"[exit code: {exit_code}]")
+
+                bash_obs = (
+                    "\n".join(output_parts)[:6000]
+                    if output_parts
+                    else "Command ran successfully with no output."
+                )
+
+                # Vite readiness + health check
+                for cmd in commands:
+                    if "npm run dev" in cmd:
+                        bash_obs = await self._post_dev_server_checks(
+                            project_id, session, bash_obs
+                        )
+                        break
+
+                # Console errors
+                console_errs = await self._poll_console_errors(project_id)
+                if console_errs:
+                    bash_obs += f"\n\n{console_errs}"
+                    log_agent("agent", f"Console errors: {console_errs[:150]}", project_id)
+
+                last_raw_output = bash_obs
+
+            elif not write_files:
+                # Genuinely empty turn — stall recovery
                 previous_output = (
                     "OBSERVATION:\n"
-                    "No commands detected. Provide your next step in a "
-                    "```bash``` code block, or write GORILLA_DONE if finished."
+                    "No actions detected. Use write_file to write files, "
+                    "run_bash to execute commands, or mark_done if finished."
                 )
+                # Don't call record_tool_results — no tool_calls were made
                 continue
 
-            # Auto-background fix
-            fixed_commands = []
-            for cmd in commands:
-                if re.search(r'npm run dev\s*$', cmd.strip()) and '&' not in cmd:
-                    cmd = cmd.rstrip() + ' > /tmp/dev.log 2>&1 &'
-                    log_agent("agent", "Auto-backgrounded npm run dev", project_id)
-                elif re.search(r'npm run dev\s*>', cmd.strip()) and '&' not in cmd:
-                    cmd = cmd.rstrip() + ' &'
-                    log_agent("agent", "Auto-backgrounded npm run dev (had redirect)", project_id)
-                fixed_commands.append(cmd)
-            commands = fixed_commands
+            # Feed tool results back into agent message history
+            if parsed_internal:
+                agent.record_tool_results(
+                    parsed_internal,
+                    write_observation=write_obs,
+                    bash_observation=bash_obs,
+                )
 
-            all_commands.extend(commands)
-            cmd_results = await self._execute_commands_streaming(project_id, commands)
+            # Build the OBSERVATION that the agent sees next turn.
+            obs_parts: List[str] = []
+            if write_obs:
+                obs_parts.append(write_obs)
+            if bash_obs:
+                obs_parts.append(bash_obs)
+            if not obs_parts:
+                obs_parts.append("Files written successfully.")
 
-            # Build OBSERVATION
-            output_parts = []
-            for r in cmd_results:
-                stdout = (r.get("stdout") or "").strip()
-                stderr = (r.get("stderr") or "").strip()
-                exit_code = r.get("exit_code", 0)
-                if stdout:
-                    output_parts.append(stdout[:3000])
-                if stderr:
-                    output_parts.append(f"STDERR: {stderr[:1500]}")
-                if exit_code != 0:
-                    output_parts.append(f"[exit code: {exit_code}]")
-
-            raw_output = "\n".join(output_parts)[:6000] if output_parts else "Your command ran successfully and did not produce any output."
-            last_raw_output = raw_output
-
-            # Speed fix: after npm run dev, poll dev.log for the ready signal
-            # instead of sleeping a fixed 5s. Exits as soon as Vite prints
-            # "ready in Xms" — typically 1-3s instead of always waiting 5s+.
-            for cmd in commands:
-                if "npm run dev" in cmd:
-                    try:
-                        log_agent("agent", "Waiting for Vite ready signal...", project_id)
-                        ready_result = await asyncio.to_thread(
-                            session.sandbox.commands.run,
-                            READY_SIGNAL_CMD,
-                            timeout=30,
-                        )
-                        ready_output = (ready_result.stdout or "").strip()
-                        log_agent("agent", f"Vite ready: {ready_output[:80]}", project_id)
-
-                        # 1. Check Vite compile errors from log
-                        error_check = await asyncio.to_thread(
-                            session.sandbox.commands.run,
-                            "grep -i -E 'error|failed|Cannot find|could not be resolved|SyntaxError' "
-                            "/tmp/dev.log 2>/dev/null | grep -v 'node_modules' | head -30",
-                            timeout=10,
-                        )
-                        vite_errors = (error_check.stdout or "").strip()
-                        if vite_errors:
-                            raw_output += f"\n\nVITE COMPILE ERRORS:\n{vite_errors}"
-
-                        # 2. Speed fix: check both ports concurrently
-                        fe_ok, fe_content, api_ok, api_content = await self._check_ports_parallel(
-                            session, project_id
-                        )
-
-                        if not fe_ok:
-                            if fe_content:
-                                raw_output += f"\n\nWARNING: Frontend returned 'Cannot GET' — check vite.config and index.html.\nResponse: {fe_content[:200]}"
-                            else:
-                                raw_output += "\n\nWARNING: Frontend port returned empty response — Vite may have crashed. Check /tmp/dev.log."
-
-                        if "Cannot GET /" in api_content:
-                            raw_output += "\n\nNOTE: Express on :3000 is running (no root GET / route is normal)."
-                        elif not api_content:
-                            raw_output += "\n\nWARNING: Express on :3000 returned nothing — server.js may have crashed. Check /tmp/dev.log."
-
-                        # 3. Ensure Express has the console-error drain endpoint
-                        inject_express = (
-                            f"grep -q '__gorilla_errors' {APP_DIR}/server.js 2>/dev/null || "
-                            f"cat >> {APP_DIR}/server.js << 'GORILLA_EOF'\n"
-                            f"// Gorilla browser error tunnel\n"
-                            f"const _gErrs = [];\n"
-                            f"app.post('/api/__gorilla_errors', (req, res) => {{\n"
-                            f"  if (req.body) {{ _gErrs.push(req.body); if (_gErrs.length > 50) _gErrs.shift(); }}\n"
-                            f"  res.json({{ok: true}});\n"
-                            f"}});\n"
-                            f"app.get('/api/__gorilla_errors', (req, res) => {{\n"
-                            f"  res.json(_gErrs.splice(0));\n"
-                            f"}});\n"
-                            f"GORILLA_EOF"
-                        )
-                        await asyncio.to_thread(
-                            session.sandbox.commands.run, inject_express, timeout=5
-                        )
-
-                        log_agent("agent", f"Health check done. fe_ok={fe_ok} api_ok={api_ok} vite_errors={bool(vite_errors)}", project_id)
-                    except Exception as e:
-                        log_agent("agent", f"Health check failed: {e}", project_id)
-                    break
-
-            # Linter-in-the-loop
-            for cmd in commands:
-                m = re.search(r"cat\s+>\s+['\"]?(\S+\.tsx?)['\"]?\s+<<", cmd)
-                if m:
-                    lint_path = m.group(1)
-                    try:
-                        lint_result = await asyncio.to_thread(
-                            session.sandbox.commands.run,
-                            f"cd {APP_DIR} && npx tsc --noEmit {lint_path} 2>&1 | head -20",
-                            timeout=15,
-                        )
-                        lint_out = (lint_result.stdout or "").strip()
-                        if lint_out and ("error TS" in lint_out or "Error" in lint_out):
-                            raw_output += f"\n\nLINT ERRORS in {lint_path}:\n{lint_out[:800]}"
-                    except Exception:
-                        pass
-
-            # Poll browser console errors
-            console_errs = await self._poll_console_errors(project_id)
-            if console_errs:
-                raw_output += f"\n\n{console_errs}"
-                log_agent("agent", f"Console errors captured: {console_errs[:150]}", project_id)
-
-            last_raw_output = raw_output
-            previous_output = raw_output
+            previous_output = "\n\n".join(obs_parts)
 
             if result.get("done", False):
                 break
 
-        # Speed fix: reviewer only fires on substantial new builds.
-        # Skipped for debug runs, short sessions, and edit/fix/tweak requests.
-        # This eliminates a full LLM round-trip (~2-4s) for the common case.
-        request_lower = (user_request or "").lower()
+        # -----------------------------------------------------------
+        # Reviewer (same gating as before)
+        # -----------------------------------------------------------
+        request_lower  = (user_request or "").lower()
         is_edit_request = any(kw in request_lower for kw in _EDIT_KEYWORDS)
-        should_review = (
-            not is_debug
-            and turn_count > 3
-            and not is_edit_request
-        )
+        should_review   = not is_debug and turn_count > 3 and not is_edit_request
 
         if should_review:
             try:
                 current_tree = await self._read_tree_from_sandbox(project_id)
-                # Invalidate cache since we just re-read the tree
-                session._cached_tree = current_tree
+                session._cached_tree    = current_tree
                 session._tree_cached_at = time.time()
-
                 tree_summary = "\n".join(
                     f"  {p}" for p in sorted(current_tree.keys()) if not p.endswith(".b64")
                 )
@@ -852,21 +965,69 @@ class E2BSandboxManager:
                         error_context=review_fixes,
                     )
                     total_tokens += fix_result.get("tokens", 0)
-                    fix_cmds = fix_result.get("commands", [])
+                    fix_write_files = fix_result.get("write_files", [])
+                    fix_cmds        = fix_result.get("commands", [])
+                    if fix_write_files:
+                        await self._write_files_parallel(project_id, fix_write_files)
                     if fix_cmds:
                         all_commands.extend(fix_cmds)
                         await self._execute_commands_streaming(project_id, fix_cmds)
             except Exception as e:
                 log_agent("agent", f"Reviewer error: {e}", project_id)
 
-        # Sync to database
+        # -----------------------------------------------------------
+        # ── FIX: Before the final sync, reset the SYNC_MARKER to
+        #    epoch and evict all agent-written paths from content_hashes.
+        #
+        #    Why this is needed:
+        #      _sync_once uses `find -newer SYNC_MARKER` to discover
+        #      changed files.  SYNC_MARKER is advanced (touch'd) at the
+        #      end of every _sync_once call.  Files written in earlier
+        #      turns were already older than the marker by the time the
+        #      final sync runs, so `find -newer` silently skips them.
+        #      Even if they somehow appeared in changed_files, the
+        #      content_hashes check would mark them unchanged and skip
+        #      the DB upsert a second time.
+        #
+        #      The safest fix is two lines:
+        #        1. Reset the marker to epoch → find -newer catches everything
+        #        2. Evict agent-written paths from content_hashes → hash
+        #           check can't false-positive skip them
+        # -----------------------------------------------------------
+        session = self._sessions.get(project_id)
+        if session and session._agent_written_paths:
+            try:
+                # Reset marker to epoch so find -newer catches all files
+                await asyncio.to_thread(
+                    session.sandbox.commands.run,
+                    f"touch -t 197001010000 {SYNC_MARKER}",
+                    timeout=5,
+                )
+                # Evict hashes so _sync_once doesn't skip "already seen" files
+                for p in session._agent_written_paths:
+                    session.content_hashes.pop(p, None)
+                log_agent(
+                    "agent",
+                    f"Pre-sync: reset marker + evicted {len(session._agent_written_paths)} hashes",
+                    project_id,
+                )
+            except Exception as e:
+                log_agent("agent", f"Pre-sync reset failed (non-fatal): {e}", project_id)
+
+        # -----------------------------------------------------------
+        # Sync
+        # -----------------------------------------------------------
         self._emit_status(project_id, "Syncing to database...")
         synced, deleted = await self._sync_once(project_id)
-        # Invalidate tree cache after sync so next turn reads fresh
-        session._tree_cached_at = 0.0
+
+        # Clear the written-paths set now that the sync has run
+        if session:
+            session._agent_written_paths.clear()
+            session._tree_cached_at = 0.0
+
         self._emit_log(project_id, "sync", f"Synced {synced} changed, removed {deleted} deleted")
 
-        url = session.url
+        url = session.url if session else None
         self._emit(project_id, {"type": "sandbox_url", "url": url})
 
         return {
@@ -878,7 +1039,114 @@ class E2BSandboxManager:
         }
 
     # -----------------------------------------------------------
-    # Streaming executor
+    # Post-dev-server health checks (extracted for clarity)
+    # -----------------------------------------------------------
+    async def _post_dev_server_checks(
+        self, project_id: str, session: SandboxSession, current_obs: str
+    ) -> str:
+        """Run after npm run dev: poll for ready, check ports, inject Express drain."""
+        obs = current_obs
+        try:
+            log_agent("agent", "Waiting for Vite ready signal...", project_id)
+            ready_result = await asyncio.to_thread(
+                session.sandbox.commands.run, READY_SIGNAL_CMD, timeout=30,
+            )
+            ready_output = (ready_result.stdout or "").strip()
+            log_agent("agent", f"Vite ready: {ready_output[:80]}", project_id)
+
+            # Check for compile errors in log
+            error_check = await asyncio.to_thread(
+                session.sandbox.commands.run,
+                "grep -i -E 'error|failed|Cannot find|could not be resolved|SyntaxError' "
+                "/tmp/dev.log 2>/dev/null | grep -v 'node_modules' | head -30",
+                timeout=10,
+            )
+            vite_errors = (error_check.stdout or "").strip()
+            if vite_errors:
+                obs += f"\n\nVITE COMPILE ERRORS:\n{vite_errors}"
+
+            # Parallel port health checks
+            fe_ok, fe_content, api_ok, api_content = await self._check_ports_parallel(
+                session, project_id
+            )
+
+            if not fe_ok:
+                if fe_content:
+                    obs += (
+                        f"\n\nWARNING: Frontend returned 'Cannot GET' — "
+                        f"check vite.config and index.html.\nResponse: {fe_content[:200]}"
+                    )
+                else:
+                    obs += (
+                        "\n\nWARNING: Frontend port returned empty response — "
+                        "Vite may have crashed. Check /tmp/dev.log."
+                    )
+
+            if "Cannot GET /" in api_content:
+                obs += "\n\nNOTE: Express on :3000 is running (no root GET / route is normal)."
+            elif not api_content:
+                obs += (
+                    "\n\nWARNING: Express on :3000 returned nothing — "
+                    "server.js may have crashed. Check /tmp/dev.log."
+                )
+
+            # Inject the console-error drain into Express
+            inject_express = (
+                f"grep -q '__gorilla_errors' {APP_DIR}/server.js 2>/dev/null || "
+                f"cat >> {APP_DIR}/server.js << 'GORILLA_EOF'\n"
+                f"// Gorilla browser error tunnel\n"
+                f"const _gErrs = [];\n"
+                f"app.post('/api/__gorilla_errors', (req, res) => {{\n"
+                f"  if (req.body) {{ _gErrs.push(req.body); if (_gErrs.length > 50) _gErrs.shift(); }}\n"
+                f"  res.json({{ok: true}});\n"
+                f"}});\n"
+                f"app.get('/api/__gorilla_errors', (req, res) => {{\n"
+                f"  res.json(_gErrs.splice(0));\n"
+                f"}});\n"
+                f"GORILLA_EOF"
+            )
+            await asyncio.to_thread(session.sandbox.commands.run, inject_express, timeout=5)
+
+            log_agent(
+                "agent",
+                f"Health done. fe_ok={fe_ok} api_ok={api_ok} vite_errors={bool(vite_errors)}",
+                project_id,
+            )
+        except Exception as e:
+            log_agent("agent", f"Health check failed: {e}", project_id)
+
+        return obs
+
+    # -----------------------------------------------------------
+    # Linter helper — called after write_files on .ts/.tsx paths
+    # -----------------------------------------------------------
+    async def _lint_paths(self, project_id: str, paths: List[str]) -> str:
+        session = self._sessions.get(project_id)
+        if not session:
+            return ""
+        written_set = set(paths)
+        try:
+            lint_result = await asyncio.to_thread(
+                session.sandbox.commands.run,
+                f"cd {APP_DIR} && npx tsc --noEmit 2>&1 | head -40",
+                timeout=20,
+            )
+            lint_out = (lint_result.stdout or "").strip()
+            if not lint_out:
+                return ""
+            relevant = [
+                line for line in lint_out.splitlines()
+                if any(p.replace("/", os.sep) in line or p in line for p in written_set)
+                and ("error TS" in line or "Error" in line)
+            ]
+            if not relevant:
+                return ""
+            return "LINT ERRORS:\n" + "\n".join(relevant[:20])
+        except Exception:
+            return ""
+
+    # -----------------------------------------------------------
+    # Streaming executor (unchanged)
     # -----------------------------------------------------------
     async def _execute_commands_streaming(self, project_id, commands):
         session = self._sessions.get(project_id)
@@ -891,19 +1159,21 @@ class E2BSandboxManager:
         for cmd in commands[:MAX_COMMANDS_PER_TURN]:
             if not cmd or not cmd.strip():
                 continue
+            if cmd.startswith("write_file:"):
+                continue  # synthetic descriptor — not a real shell command
 
             classification = classify_command(cmd)
-            activity_id = self._next_activity_id(project_id)
+            activity_id    = self._next_activity_id(project_id)
             self._emit_activity_start(
                 project_id, activity_id,
                 classification["verb"], classification["target"],
                 classification["short"],
             )
 
-            if cmd.startswith("cd ") or cmd.startswith("/"):
-                effective = cmd
-            else:
-                effective = f"cd {APP_DIR} && source .gorilla_env 2>/dev/null; {cmd}"
+            effective = (
+                cmd if (cmd.startswith("cd ") or cmd.startswith("/"))
+                else f"cd {APP_DIR} && source .gorilla_env 2>/dev/null; {cmd}"
+            )
 
             stdout_buf: List[str] = []
             stderr_buf: List[str] = []
@@ -938,7 +1208,7 @@ class E2BSandboxManager:
             self._emit_activity_end(project_id, activity_id, exit_code)
             results.append({
                 "command": cmd, "stdout": "".join(stdout_buf),
-                "stderr": "".join(stderr_buf), "exit_code": exit_code,
+                "stderr":  "".join(stderr_buf), "exit_code": exit_code,
             })
 
         try:
@@ -969,7 +1239,7 @@ class E2BSandboxManager:
             return -1
 
     # -----------------------------------------------------------
-    # Batched tree read — with robust path stripping
+    # Batched tree read (unchanged)
     # -----------------------------------------------------------
     async def _read_tree_from_sandbox(self, project_id: str) -> Dict[str, str]:
         session = self._sessions.get(project_id)
@@ -1001,7 +1271,7 @@ class E2BSandboxManager:
             if FILE_CONTENT_SENTINEL not in chunk:
                 continue
             header, _, body = chunk.partition(FILE_CONTENT_SENTINEL)
-            path = _strip_app_prefix(header)
+            path            = _strip_app_prefix(header)
             if not path:
                 continue
             content = body[:-1] if body.endswith("\n") else body
@@ -1049,7 +1319,7 @@ class E2BSandboxManager:
         return tree
 
     # -----------------------------------------------------------
-    # Batched sync — with robust path stripping
+    # Batched sync
     # -----------------------------------------------------------
     async def _sync_once(self, project_id: str) -> Tuple[int, int]:
         session = self._sessions.get(project_id)
@@ -1073,7 +1343,7 @@ class E2BSandboxManager:
 
         try:
             result = await asyncio.to_thread(session.sandbox.commands.run, changed_dump_cmd)
-            dump = result.stdout or ""
+            dump   = result.stdout or ""
         except Exception as e:
             self._emit_log(project_id, "sync", f"Sync failed: {e}")
             return (0, 0)
@@ -1084,7 +1354,7 @@ class E2BSandboxManager:
                 if FILE_CONTENT_SENTINEL not in chunk:
                     continue
                 header, _, body = chunk.partition(FILE_CONTENT_SENTINEL)
-                path = _strip_app_prefix(header)
+                path            = _strip_app_prefix(header)
                 if not path:
                     continue
                 content = body[:-1] if body.endswith("\n") else body
@@ -1094,8 +1364,9 @@ class E2BSandboxManager:
                     continue
                 changed_files[path] = content
 
-        rows: List[Dict[str, Any]] = []
-        current_sandbox_paths: Set[str] = set(changed_files.keys())
+        rows:                  List[Dict[str, Any]] = []
+        current_sandbox_paths: Set[str]             = set(changed_files.keys())
+
         for rel, content in changed_files.items():
             h = hashlib.md5(content.encode("utf-8", errors="replace")).hexdigest()
             if session.content_hashes.get(rel) == h:
@@ -1132,7 +1403,7 @@ class E2BSandboxManager:
 
         deleted_count = 0
         try:
-            db_paths = set(self._list_db_paths(project_id) or [])
+            db_paths  = set(self._list_db_paths(project_id) or [])
             to_delete = db_paths - current_sandbox_paths - {".env", ".gorilla_env"}
             for p in to_delete:
                 try:
@@ -1153,7 +1424,7 @@ class E2BSandboxManager:
         return (len(rows), deleted_count)
 
     # -----------------------------------------------------------
-    # Dev server (for /sandbox/start endpoint, NOT used in agent loop)
+    # Dev server (for /sandbox/start endpoint)
     # -----------------------------------------------------------
     async def start_dev_server(self, project_id: str) -> Tuple[Optional[str], Optional[str]]:
         session = self._sessions.get(project_id)
@@ -1174,14 +1445,12 @@ class E2BSandboxManager:
         except Exception:
             pass
 
-        bound = False
         for _ in range(15):
             await asyncio.sleep(1)
             try:
                 check = await asyncio.to_thread(session.sandbox.commands.run,
                     f"curl -s -o /dev/null -w '%{{http_code}}' http://localhost:{session.preview_port} || echo fail")
                 if "200" in (check.stdout or "") or "304" in (check.stdout or ""):
-                    bound = True
                     break
             except Exception:
                 pass
@@ -1196,17 +1465,15 @@ class E2BSandboxManager:
         session = self._sessions.get(project_id)
         if not session:
             return False
-        full = f"{APP_DIR}/{rel_path}"
-        dirp = "/".join(full.split("/")[:-1])
         try:
-            safe = content.replace("GORILLA_EOF", "GORILLA__EOF")
-            await asyncio.to_thread(session.sandbox.commands.run,
-                f"mkdir -p '{dirp}' && cat > '{full}' << 'GORILLA_EOF'\n{safe}\nGORILLA_EOF")
-            session.content_hashes[rel_path] = hashlib.md5(content.encode("utf-8", errors="replace")).hexdigest()
-            # Invalidate tree cache so the next agent turn sees the new file
-            session._tree_cached_at = 0.0
-            session.last_activity = time.time()
-            return True
+            ok = await asyncio.to_thread(self._write_one_file_sync, session.sandbox, rel_path, content)
+            if ok:
+                session.content_hashes[rel_path] = hashlib.md5(
+                    content.encode("utf-8", errors="replace")
+                ).hexdigest()
+                session._tree_cached_at = 0.0
+                session.last_activity   = time.time()
+            return ok
         except Exception as e:
             print(f"⚠️ write_file failed: {e}")
             return False
@@ -1218,15 +1485,14 @@ class E2BSandboxManager:
         try:
             await asyncio.to_thread(session.sandbox.commands.run, f"rm -f '{APP_DIR}/{rel_path}'")
             session.content_hashes.pop(rel_path, None)
-            # Invalidate tree cache
             session._tree_cached_at = 0.0
-            session.last_activity = time.time()
+            session.last_activity   = time.time()
             return True
         except Exception:
             return False
 
     # -----------------------------------------------------------
-    # Billing + idle monitor
+    # Billing + idle monitor (unchanged)
     # -----------------------------------------------------------
     async def _billing_loop(self, project_id: str) -> None:
         accumulated = 0
@@ -1236,16 +1502,16 @@ class E2BSandboxManager:
                 session = self._sessions.get(project_id)
                 if not session:
                     return
-                now = time.time()
+                now     = time.time()
                 elapsed = (now - session.last_bill_at) / 3600.0
                 if elapsed <= 0:
                     continue
                 prorated = int(BILLING_TOKENS_PER_HOUR * elapsed)
                 if prorated <= 0:
                     continue
-                accumulated += prorated
+                accumulated              += prorated
                 session.total_billed_tokens += prorated
-                session.last_bill_at = now
+                session.last_bill_at     = now
                 if accumulated >= int(BILLING_TOKENS_PER_HOUR / 360):
                     try:
                         self._add_tokens(session.owner_id, accumulated)
