@@ -1,9 +1,233 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>404 · System Failure · gor://a</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <title>404 · Gor://a</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    :root {
+      --bg: #000000;
+      --sidebar-bg: #03030a;
+      --border: rgba(0, 120, 255, 0.07);
+      --border-hover: rgba(0, 120, 255, 0.3);
+      --accent: #0066ff;
+      --accent-dim: rgba(0, 102, 255, 0.09);
+      --accent-light: #3385ff;
+      --text: #d0d8f0;
+      --text-muted: #2a3050;
+      --text-mid: #6070a0;
+      --radius: 8px;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── SIDEBAR ── */
+    aside {
+      width: 260px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 28px 14px;
+      z-index: 10;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    aside::after {
+      content: '';
+      position: absolute; top: 0; right: 0; width: 1px; height: 100%;
+      background: linear-gradient(to bottom, rgba(0,102,255,0.15), rgba(0,102,255,0.03) 50%, rgba(0,102,255,0.08));
+      pointer-events: none;
+    }
+
+    .logo {
+      font-size: 22px; font-weight: 350; color: var(--text);
+      display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
+      padding-left: 10px; letter-spacing: -0.5px; text-decoration: none;
+    }
+    .logo svg { width: 24px; height: 24px; }
+
+    nav { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+
+    nav a {
+      color: var(--text-muted); text-decoration: none; padding: 9px 10px;
+      border-radius: var(--radius); font-size: 13.5px;
+      transition: all 0.15s var(--ease-out);
+      display: flex; align-items: center; gap: 10px;
+      border: 1px solid transparent; font-weight: 300;
+    }
+    nav a:hover {
+      background: rgba(0,102,255,0.06); color: var(--text);
+      border-color: rgba(0,102,255,0.1);
+    }
+    nav a i { font-size: 16px; opacity: 0.3; }
+    nav a:hover i { opacity: 1; color: var(--accent); }
+
+    .profile-container {
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .user-profile {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px; border-radius: var(--radius);
+    }
+
+    .avatar {
+      width: 34px; height: 34px;
+      background: var(--accent);
+      border: 1px solid rgba(0,102,255,0.4);
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 400; color: #fff;
+    }
+
+    .user-info { display: flex; flex-direction: column; font-size: 13px; line-height: 1.3; }
+    .user-name { color: var(--text); font-weight: 400; }
+    .user-plan { color: var(--text-muted); font-size: 11px; font-weight: 300; }
+
+    /* ── MAIN ── */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      position: relative;
+      z-index: 1;
+      padding: 40px;
+      text-align: center;
+    }
+
+    main::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    .four-oh-four {
+      font-size: clamp(100px, 16vw, 180px);
+      font-weight: 300;
+      letter-spacing: -6px;
+      color: var(--text);
+      line-height: 1;
+      position: relative;
+      z-index: 1;
+      animation: fadeUp 0.6s var(--ease-out) both;
+    }
+
+    .four-oh-four span { color: var(--accent); }
+
+    .rule {
+      width: 32px; height: 1px;
+      background: var(--border);
+      margin: 28px auto;
+      position: relative; z-index: 1;
+      animation: fadeUp 0.6s var(--ease-out) 0.1s both;
+    }
+
+    .headline {
+      font-size: 14px;
+      color: var(--text-mid);
+      font-weight: 300;
+      position: relative; z-index: 1;
+      animation: fadeUp 0.6s var(--ease-out) 0.15s both;
+    }
+
+    .sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-weight: 300;
+      position: relative; z-index: 1;
+      animation: fadeUp 0.6s var(--ease-out) 0.2s both;
+    }
+
+    .actions {
+      display: flex; gap: 8px;
+      margin-top: 32px;
+      position: relative; z-index: 1;
+      animation: fadeUp 0.6s var(--ease-out) 0.25s both;
+    }
+
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      padding: 9px 20px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 400; text-decoration: none;
+      transition: all 0.15s var(--ease-out);
+      display: inline-flex; align-items: center; gap: 6px;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.3);
+    }
+    .btn-primary:hover { background: #0055ee; transform: translateY(-1px); box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.45); }
+
+    .btn-secondary {
+      background: transparent; color: var(--text-muted);
+      padding: 9px 20px; border-radius: var(--radius);
+      border: 1px solid var(--border);
+      font-size: 13px; font-weight: 300; text-decoration: none;
+      transition: all 0.15s var(--ease-out);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-secondary:hover {
+      border-color: var(--border-hover); color: var(--text);
+      background: var(--accent-dim); transform: translateY(-1px);
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+
+<body>
+
+
+  <main>
+    <div class="four-oh-four"><span>4</span>0<span>4</span></div>
+    <div class="rule"></div>
+    <p class="headline">Page not found</p>
+    <p class="sub">This page doesn't exist or was moved.</p>
+    <div class="actions">
+      <a class="btn-primary" href="/dashboard">
+        <i class="ph ph-squares-four" style="font-size:14px;"></i>
+        Back to dashboard
+      </a>
+      <a class="btn-secondary" href="javascript:history.back()">
+        <i class="ph ph-arrow-left" style="font-size:14px;"></i>
+        Go back
+      </a>
+    </div>
+  </main>
 
 </body>
 </html>

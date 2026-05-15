@@ -2,14 +2,12 @@
 Lineage Agent v17 — MiMo-native (Qwen3-Coder XML), batch-limited, naturally agentic
 ====================================================================================
 
-PATCH: Live pricing via OpenRouter /api/v1/models
-  - Removed all hardcoded per-token weight heuristics (frontier/mimo/else branches)
-  - _fetch_model_price() fetches prompt+completion prices live after each turn
-  - weight = int((prompt_tokens * prompt_price + completion_tokens * completion_price) * 1_000_000)
-  - Results cached per model for 5 minutes to avoid a round-trip on every turn
-  - Fails open (price=0) so a bad fetch never crashes billing
-
-Everything else is identical to v17.
+FIXES applied on top of v17+live-pricing:
+  1. _system_prompt_set guard now also checks has_supabase — rebuilds if state changed
+  2. _has_supabase tracked properly so guard comparison is always accurate
+  3. SUPABASE_ADDON now MANDATES Supabase usage — no SQLite fallback allowed
+  4. expand_prompt and generate_plan both receive has_supabase correctly
+  5. EXPANDER and PLANNER supabase addons strengthened to be explicit mandates
 """
 
 from __future__ import annotations
@@ -25,7 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 # ---------------------------------------------------------------------------
-# Config — full MiMo family. Same dialect on every routing branch.
+# Config
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
@@ -100,7 +98,7 @@ def _render_token_limit_message() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Legacy shims (kept for app.py compatibility)
+# Legacy shims
 # ---------------------------------------------------------------------------
 _HISTORY: Dict[str, list] = {}
 HISTORY_CAP = 100
@@ -315,7 +313,7 @@ def _format_tools_for_prompt() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Context management — history compression
+# Context management
 # ---------------------------------------------------------------------------
 _token_estimate_cache: List[Any] = []
 
@@ -477,13 +475,13 @@ You work in small, observable steps. Each turn you do ONE of three things:
 2. **Implement (small batch)** — write up to 2 files, then optionally run a quick command to install/restart. After this you stop and look at what happened.
 3. **Verify or finish** — run the verification command, read the output, and either fix or call mark_done.
 
-**The hard rule: at most 2 write_file calls per turn.** This is non-negotiable. If you're building something that needs 10 files, that's 5 turns — and that's good, because between each turn you get to see the dev server's hot-reload output and catch problems early. Bad codebases come from agents that try to write everything at once and ship a tangled mess. You write a focused pair of files, observe, then continue with the next pair informed by what you just saw.
+**The hard rule: at most 2 write_file calls per turn.** This is non-negotiable. If you're building something that needs 10 files, that's 5 turns — and that's good, because between each turn you get to see the dev server's hot-reload output and catch problems early.
 
-This is closer to how a human engineer works: you don't write the whole app then hit save once. You write Navbar.tsx + index.css together, alt-tab to the browser, see it render, then move on to Footer.tsx + Hero.tsx. The two-file batch is your unit of progress.
+**Exploration is capped at 1 turn.** Do not spend more than one turn reading files. Read everything you need in a single chained cat command, then start building immediately on the next turn.
 
 **Order of operations within a build:**
 
-Turn 1: Explore — read existing src/App.tsx, server.js, src/index.css to understand the starting point.
+Turn 1: Explore — ONE run_bash with a chained cat to read src/App.tsx, server.js, src/index.css all at once.
 Turn 2: Foundation — write src/index.css (full design system) + maybe src/App.tsx skeleton.
 Turn 3-N: Components — Navbar + Footer in one turn, then two pages in the next, etc.
 Turn N+1: Backend — one or two route files at a time.
@@ -529,8 +527,6 @@ You bring a senior engineer's judgment to each decision. When the spec is open, 
 6. `server.js` — mount all routes (solo write, or paired with the last route file)
 7. run_bash: npm install (if needed) → start → verify both 200s
 
-This order makes the live preview look good from the very first hot-reload, and the small batches mean you catch each new component's import errors immediately instead of debugging a wall of failures at the end.
-
 # Frontend quality
 
 Interfaces feel rich and domain-appropriate. A SaaS dashboard is quiet and work-focused; a game can be expressive. Use lucide-react icons, keep border-radius ≤ 8px, build tooltips for icon-only buttons, no decorative gradient orbs, ensure text fits all viewports.
@@ -568,7 +564,7 @@ Two practical examples of well-formed turns:
 
 Single file write:
 ```
-I'll set up the design system foundation first — this is the file every component will pull from. --> Never use literal new lines in your thoughts. They will not show.
+I'll set up the design system foundation first.
 
 <tool_call>
 <function=write_file>
@@ -618,7 +614,7 @@ Need to see the existing routing before I touch anything.
 <tool_call>
 <function=run_bash>
 <parameter=command>
-cat src/App.tsx
+cat src/App.tsx server.js src/index.css 2>/dev/null | head -300
 </parameter>
 </function>
 </tool_call>
@@ -656,28 +652,42 @@ Built the dashboard with Navbar, three pages, and the items API route. Both serv
 # Conditional addons
 # ---------------------------------------------------------------------------
 
+# FIX 3 & 5: Supabase addon now explicitly MANDATES usage — no SQLite fallback
 SUPABASE_ADDON = r"""
 
-Supabase is Active. Env vars Are active. Package `@supabase/supabase-js` is installed.
+# Supabase — MANDATORY
 
+Supabase is provisioned and active for this project. The env vars `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_PROJECT_REF`, and `SUPABASE_MGMT_TOKEN` are already set in `.env`.
+
+**You MUST use Supabase for ALL data persistence. Do NOT use SQLite, lowdb, JSON files, in-memory stores, localStorage, or any other database. There are no exceptions.**
+
+Frontend client (already installed — `@supabase/supabase-js`):
 ```ts
 import { createClient } from '@supabase/supabase-js';
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 ```
-You must provision your own DB using the CLI
 
-Run migrations via run_bash:
-```
+Run migrations via the management API (use your own project, not the user's existing data):
+```bash
 cat > /tmp/migration.sql << 'SQL'
-CREATE TABLE IF NOT EXISTS items (...);
+CREATE TABLE IF NOT EXISTS items (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now()
+);
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own" ON items USING (auth.uid() = user_id);
 SQL
 curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" \
+  -H "Content-Type: application/json" \
   -d "$(cat /tmp/migration.sql | jq -Rs '{query: .}')"
 ```
-Do not try an poke around with the users projects unless instructed, make a new project for this project as poking around with the users supabase, may not at all be safe.
+
+Always run migrations before writing frontend code that reads from the DB. Always enable RLS and write policies for every table.
 """
 
 DEBUG_ADDON = r"""
@@ -686,11 +696,15 @@ DEBUG_ADDON = r"""
 You are fixing a specific bug. Turn 1: run_bash to read the error log. Turn 2 (or later): write_file with the smallest possible fix. Then verify. Do not refactor. Do not add features. The 2-file batch limit still applies — most bugs need only one file changed anyway.
 """
 
+# FIX 4 & 5: Expander addon is now an explicit mandate, not a suggestion
 EXPANDER_SUPABASE_ADDON = """
-Supabase is available for data persistence. Plan to use it when users need to save data across sessions or share data between users. Specify tables, columns, and which need Row Level Security. Don't force it on purely client-side apps. YOU MUST SPECIFY TO USE IT UNLESS IT IS TRULY NOT REQUIRED."""
 
+Supabase is provisioned and active. The spec MUST include Supabase for all data persistence — do NOT spec SQLite, JSON files, or any other storage. Design tables, RLS policies, and which data is persisted. Supabase is non-negotiable for this project."""
+
+# FIX 4 & 5: Planner addon is now an explicit mandate
 PLANNER_SUPABASE_ADDON = """
-Supabase is available. Include migrations when the app genuinely stores persistent data.YOU MUST SPECIFY TO USE IT UNLESS IT IS TRULY NOT REQUIRED."""
+
+Supabase is provisioned and active. The plan MUST include a migration step (run_bash: curl to Supabase management API) before any frontend DB reads. Do NOT plan for SQLite, JSON files, or any other storage. Every table must have RLS enabled."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -750,6 +764,7 @@ async def expand_prompt(
         return short_prompt
 
     system = _build_expander_system(gorilla_proxy_url)
+    # FIX 4: always pass has_supabase correctly so the addon is injected
     if has_supabase:
         system += "\n" + EXPANDER_SUPABASE_ADDON
 
@@ -794,10 +809,12 @@ The agent uses three tools: write_file (max 2 per turn), run_bash, mark_done.
 
 Produce a markdown checklist where each item = ONE turn of the agent (one tool_call block, max 2 invokes).
 
-**Hard rule: at most 2 file writes per checklist item.** If you'd want 5 components in one step, split into 3 steps (2+2+1). This keeps the agent honest about observing intermediate results.
+**Hard rule: at most 2 file writes per checklist item.** If you'd want 5 components in one step, split into 3 steps (2+2+1).
+
+**Hard rule: exploration is capped at 1 turn.** The first step reads everything needed in a single chained cat command. There is no second explore step.
 
 **Step order:**
-1. Explore — run_bash: cat src/App.tsx server.js src/index.css
+1. Explore — run_bash: cat src/App.tsx server.js src/index.css (all in ONE command, chained)
 2. write_file: src/index.css (one big design system file — solo)
 3. write_file (batch of 2): Navbar.tsx + Footer.tsx
 4. write_file (batch of 2): page A + page B
@@ -821,7 +838,7 @@ Produce a markdown checklist where each item = ONE turn of the agent (one tool_c
 - [ ] run_bash: start server + verify 200 200
 ```
 
-Rules: 6–12 items. Every batch item names exactly 2 files. First step explores. Last step verifies. For debug/minor tasks: 2-3 items. Output only the checklist."""
+Rules: 6–12 items. Every batch item names exactly 2 files. First step explores with ONE chained command. Last step verifies. For debug/minor tasks: 2-3 items. Output only the checklist."""
 
 
 async def generate_plan(
@@ -832,6 +849,7 @@ async def generate_plan(
     gorilla_proxy_url: str = "",
 ) -> Optional[str]:
     system = _build_planner_system(gorilla_proxy_url)
+    # FIX 4: always pass has_supabase correctly so the addon is injected
     if has_supabase:
         system += "\n" + PLANNER_SUPABASE_ADDON
 
@@ -1077,36 +1095,14 @@ def _is_safe(cmd: str) -> bool:
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Live model price fetching
-#
-#  OpenRouter's /api/v1/models endpoint returns pricing as dollar amounts
-#  per token (e.g. "0.0000001"). We fetch this once per model per 5 minutes
-#  and cache it. On any fetch failure we return (0.0, 0.0) so billing never
-#  hard-crashes the agent loop.
-#
-#  The returned `weight` from _call_llm is:
-#    int((prompt_tokens * prompt_$/token + completion_tokens * completion_$/token) * 1_000_000)
-#
-#  This gives the cost in micro-dollars (millionths of a dollar), which
-#  callers deduct directly from the user's balance.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# { model_id: (prompt_price_per_token, completion_price_per_token) }
 _model_price_cache:     Dict[str, Tuple[float, float]] = {}
 _model_price_cache_ttl: Dict[str, float]               = {}
-_PRICE_CACHE_TTL_S = 300  # 5 minutes
+_PRICE_CACHE_TTL_S = 300
 
 
 async def _fetch_model_price(model: str) -> Tuple[float, float]:
-    """
-    Return (prompt_price_per_token, completion_price_per_token) in USD.
-
-    OpenRouter prices are already per-token (not per-million), so no
-    division is needed here. The caller multiplies by 1_000_000 to get
-    micro-dollars for billing.
-
-    Caches results for _PRICE_CACHE_TTL_S seconds. Falls back to (0, 0)
-    on any network/parse error so the agent never crashes due to pricing.
-    """
     now = time.monotonic()
     cached_at = _model_price_cache_ttl.get(model, 0)
     if model in _model_price_cache and (now - cached_at) < _PRICE_CACHE_TTL_S:
@@ -1138,7 +1134,6 @@ async def _fetch_model_price(model: str) -> Tuple[float, float]:
                 )
                 return (prompt_price, completion_price)
 
-        # Model not found in the list — cache zero so we don't hammer the API
         log_agent("agent", f"Model '{model}' not found in /api/v1/models — price=0")
 
     except Exception as e:
@@ -1150,7 +1145,7 @@ async def _fetch_model_price(model: str) -> Tuple[float, float]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LLM call — XML-native, live pricing
+#  LLM call
 # ═══════════════════════════════════════════════════════════════════════════
 
 async def _call_llm(
@@ -1212,10 +1207,6 @@ async def _call_llm(
     elif reasoning and "<tool_call>" not in content and not content.strip():
         content = str(reasoning)
 
-    # ── Live pricing ────────────────────────────────────────────────────────
-    # Fetch the actual per-token prices from OpenRouter and compute real cost.
-    # weight is returned in micro-dollars (millionths of a USD) so the caller
-    # can deduct it directly from a user balance stored as an integer.
     u = data.get("usage", {})
     prompt_tokens     = u.get("prompt_tokens",     0)
     completion_tokens = u.get("completion_tokens", 0)
@@ -1290,7 +1281,7 @@ def _pick_model(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LineageAgent  v17
+#  LineageAgent  v17 — fixed
 # ═══════════════════════════════════════════════════════════════════════════
 
 class LineageAgent:
@@ -1303,6 +1294,7 @@ class LineageAgent:
         self._plan_injected     = False
         self._prompt_expanded   = False
         self._gorilla_proxy_url: str  = ""
+        # FIX 1 & 2: track supabase state so the guard can detect changes
         self._has_supabase:      bool = False
 
     def _ensure_system_prompt(
@@ -1312,7 +1304,11 @@ class LineageAgent:
         is_debug: bool,
         agent_skills: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if self._system_prompt_set:
+        # FIX 1: rebuild if has_supabase changed since last build,
+        # not just whether it was set at all. This handles the case where
+        # the agent is cached and reused across requests where supabase
+        # state changes (e.g. first call had has_supabase=False).
+        if self._system_prompt_set and has_supabase == self._has_supabase:
             return
 
         prompt = SYSTEM_PROMPT_BODY.replace(
@@ -1320,6 +1316,7 @@ class LineageAgent:
             gorilla_proxy_url or "https://your-proxy.ngrok-free.dev",
         )
 
+        # FIX 3: Supabase addon is now a hard mandate, not a suggestion
         if has_supabase:
             prompt += "\n" + SUPABASE_ADDON
         if is_debug:
@@ -1336,7 +1333,18 @@ class LineageAgent:
                 self.project_id,
             )
 
-        self.messages = [{"role": "system", "content": prompt}]
+        if self._system_prompt_set:
+            # Rebuilding due to supabase state change — replace system message in place
+            log_agent("agent", f"System prompt rebuilt — has_supabase changed to {has_supabase}", self.project_id)
+            if self.messages and self.messages[0].get("role") == "system":
+                self.messages[0] = {"role": "system", "content": prompt}
+            else:
+                self.messages.insert(0, {"role": "system", "content": prompt})
+        else:
+            self.messages = [{"role": "system", "content": prompt}]
+
+        # FIX 2: update tracked state AFTER building so guard comparison is accurate
+        self._has_supabase      = has_supabase
         self._system_prompt_set = True
 
     def _extract_prompt_image(self, file_tree: Dict[str, str]) -> Optional[str]:
@@ -1381,8 +1389,9 @@ class LineageAgent:
 
         if gorilla_proxy_url:
             self._gorilla_proxy_url = gorilla_proxy_url
-        self._has_supabase = has_supabase
 
+        # FIX 2: _ensure_system_prompt now reads self._has_supabase for comparison,
+        # so set gorilla_proxy_url first but let _ensure handle the supabase tracking.
         self._ensure_system_prompt(gorilla_proxy_url, has_supabase, is_debug, agent_skills)
 
         compressed  = self.token_sub.compress_tree(file_tree)
@@ -1410,6 +1419,7 @@ class LineageAgent:
 
             if not is_debug and user_request:
                 if not self._prompt_expanded:
+                    # FIX 4: pass has_supabase so expander knows to mandate it
                     effective_request = await expand_prompt(
                         user_request,
                         has_supabase=has_supabase,
@@ -1419,6 +1429,7 @@ class LineageAgent:
                     self._prompt_expanded = True
 
                 if not self._plan_injected and bool(file_tree):
+                    # FIX 4: pass has_supabase so planner knows to mandate it
                     plan = await generate_plan(
                         effective_request,
                         tree_str,
@@ -1485,7 +1496,8 @@ class LineageAgent:
 
         log_agent(
             "agent",
-            f"v17 model={model.split('/')[-1]} step={len(self.messages) // 2} batch_limit={BATCH_LIMIT}",
+            f"v17 model={model.split('/')[-1]} step={len(self.messages) // 2} "
+            f"batch_limit={BATCH_LIMIT} supabase={has_supabase}",
             self.project_id,
         )
 
