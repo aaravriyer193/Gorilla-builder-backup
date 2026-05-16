@@ -6,201 +6,178 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <style>
     :root {
-      --bg: #000000;
-      --sidebar-bg: #03030a;
-      --border: rgba(0, 120, 255, 0.07);
-      --border-hover: rgba(0, 120, 255, 0.3);
-      --accent: #0066ff;
-      --accent-dim: rgba(0, 102, 255, 0.09);
-      --accent-light: #3385ff;
-      --text: #d0d8f0;
-      --text-muted: #2a3050;
-      --text-mid: #6070a0;
-      --radius: 8px;
+      --bg: #0a0b0d;
+      --bg-2: #101114;
+      --fg: #e8e8eb;
+      --muted: #8a8c95;
+      --dim: #4a4c55;
+      --faint: #25272d;
+      --line: rgba(255,255,255,0.10);
+      --line-2: rgba(255,255,255,0.18);
+      --blue: oklch(0.74 0.16 248);
+      --blue-2: oklch(0.62 0.2 252);
+      --blue-dim: oklch(0.4 0.12 252);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; margin: 0; padding: 0; }
+    * { box-sizing: border-box; outline: none; margin: 0; padding: 0; }
 
     body {
-      background: var(--bg);
-      color: var(--text);
-      height: 100vh;
-      display: flex;
-      overflow: hidden;
-      font-weight: 300;
-      -webkit-font-smoothing: antialiased;
+      background: var(--bg); color: var(--fg);
+      height: 100vh; display: flex; overflow: hidden;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-weight: 300; -webkit-font-smoothing: antialiased;
     }
 
+    /* dot grid */
     body::before {
-      content: '';
-      position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
-      pointer-events: none; z-index: 0;
+      content: "";
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
     }
-
-    /* ── SIDEBAR ── */
-    aside {
-      width: 260px;
-      background: var(--sidebar-bg);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      padding: 28px 14px;
-      z-index: 10;
-      position: relative;
-      flex-shrink: 0;
-    }
-
-    aside::after {
-      content: '';
-      position: absolute; top: 0; right: 0; width: 1px; height: 100%;
-      background: linear-gradient(to bottom, rgba(0,102,255,0.15), rgba(0,102,255,0.03) 50%, rgba(0,102,255,0.08));
-      pointer-events: none;
-    }
-
-    .logo {
-      font-size: 22px; font-weight: 350; color: var(--text);
-      display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
-      padding-left: 10px; letter-spacing: -0.5px; text-decoration: none;
-    }
-    .logo svg { width: 24px; height: 24px; }
-
-    nav { display: flex; flex-direction: column; gap: 1px; flex: 1; }
-
-    nav a {
-      color: var(--text-muted); text-decoration: none; padding: 9px 10px;
-      border-radius: var(--radius); font-size: 13.5px;
-      transition: all 0.15s var(--ease-out);
-      display: flex; align-items: center; gap: 10px;
-      border: 1px solid transparent; font-weight: 300;
-    }
-    nav a:hover {
-      background: rgba(0,102,255,0.06); color: var(--text);
-      border-color: rgba(0,102,255,0.1);
-    }
-    nav a i { font-size: 16px; opacity: 0.3; }
-    nav a:hover i { opacity: 1; color: var(--accent); }
-
-    .profile-container {
-      margin-top: auto;
-      padding-top: 16px;
-      border-top: 1px solid var(--border);
-    }
-
-    .user-profile {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px; border-radius: var(--radius);
-    }
-
-    .avatar {
-      width: 34px; height: 34px;
-      background: var(--accent);
-      border: 1px solid rgba(0,102,255,0.4);
-      border-radius: var(--radius);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 13px; font-weight: 400; color: #fff;
-    }
-
-    .user-info { display: flex; flex-direction: column; font-size: 13px; line-height: 1.3; }
-    .user-name { color: var(--text); font-weight: 400; }
-    .user-plan { color: var(--text-muted); font-size: 11px; font-weight: 300; }
 
     /* ── MAIN ── */
     main {
       flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       flex-direction: column;
-      position: relative;
-      z-index: 1;
-      padding: 40px;
-      text-align: center;
+      position: relative; z-index: 1;
+      padding: 40px; text-align: center;
     }
 
-    main::before {
-      content: '';
-      position: absolute; inset: 0;
-      background-image:
-        linear-gradient(var(--border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 48px 48px;
-      pointer-events: none;
-    }
-
-    .four-oh-four {
-      font-size: clamp(100px, 16vw, 180px);
-      font-weight: 300;
-      letter-spacing: -6px;
-      color: var(--text);
-      line-height: 1;
+    /* ASCII-window wrapper for the 404 content */
+    .window-404 {
       position: relative;
-      z-index: 1;
+      border: 3px double rgba(255,255,255,0.22);
+      background: var(--bg);
+      padding: 64px 80px 56px;
+      display: flex; flex-direction: column; align-items: center;
       animation: fadeUp 0.6s var(--ease-out) both;
     }
 
-    .four-oh-four span { color: var(--accent); }
+    .w-chrome {
+      position: absolute; top: -10px; left: 14px;
+      background: var(--bg); padding: 0 8px;
+      font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted);
+    }
+    .w-title {
+      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+      background: var(--bg); padding: 0 14px;
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      letter-spacing: 0.2em; color: var(--fg);
+      text-transform: uppercase; white-space: nowrap;
+    }
 
+    /* ── BIG 404 ── */
+    .four-oh-four {
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(80px, 14vw, 160px);
+      font-weight: 500;
+      letter-spacing: -0.05em;
+      color: var(--fg);
+      line-height: 1;
+      position: relative; z-index: 1;
+      animation: fadeUp 0.6s var(--ease-out) 0.05s both;
+    }
+    .four-oh-four .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+
+    /* dim big text watermark behind */
+    .four-oh-four::before {
+      content: "404";
+      position: absolute; inset: 0;
+      font-size: inherit; font-weight: 700; letter-spacing: inherit;
+      color: var(--faint); z-index: -1;
+      transform: translate(3px, 3px);
+      pointer-events: none;
+    }
+
+    /* ── DIVIDER ── */
     .rule {
-      width: 32px; height: 1px;
-      background: var(--border);
+      width: 40px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--line-2), transparent);
       margin: 28px auto;
       position: relative; z-index: 1;
-      animation: fadeUp 0.6s var(--ease-out) 0.1s both;
+      animation: fadeUp 0.6s var(--ease-out) 0.12s both;
     }
 
-    .headline {
-      font-size: 14px;
-      color: var(--text-mid);
-      font-weight: 300;
-      position: relative; z-index: 1;
+    /* ── COPY ── */
+    .eyebrow {
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
+      margin-bottom: 10px;
       animation: fadeUp 0.6s var(--ease-out) 0.15s both;
     }
+    .eyebrow::before { content: "// "; color: var(--dim); }
+
+    .headline {
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(20px, 2.5vw, 28px); font-weight: 400;
+      letter-spacing: -0.02em; color: var(--fg); line-height: 1.05;
+      animation: fadeUp 0.6s var(--ease-out) 0.18s both;
+    }
+    .headline .accent { color: var(--blue); font-style: italic; font-weight: 400; }
 
     .sub {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 6px;
-      font-weight: 300;
-      position: relative; z-index: 1;
-      animation: fadeUp 0.6s var(--ease-out) 0.2s both;
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      letter-spacing: 0.1em; color: var(--muted);
+      margin-top: 8px; line-height: 1.65;
+      animation: fadeUp 0.6s var(--ease-out) 0.22s both;
     }
 
+    /* ── BUTTONS ── */
     .actions {
       display: flex; gap: 8px;
-      margin-top: 32px;
-      position: relative; z-index: 1;
-      animation: fadeUp 0.6s var(--ease-out) 0.25s both;
+      margin-top: 36px;
+      animation: fadeUp 0.6s var(--ease-out) 0.28s both;
     }
 
     .btn-primary {
-      background: var(--accent); color: #fff;
-      padding: 9px 20px; border-radius: var(--radius);
-      font-size: 13px; font-weight: 400; text-decoration: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+      background: var(--blue); color: #fff;
+      padding: 10px 18px; border: none; cursor: pointer;
       transition: all 0.15s var(--ease-out);
-      display: inline-flex; align-items: center; gap: 6px;
-      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.3);
+      display: inline-flex; align-items: center; gap: 7px;
+      text-decoration: none; font-weight: 400;
     }
-    .btn-primary:hover { background: #0055ee; transform: translateY(-1px); box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.45); }
+    .btn-primary:hover { background: var(--blue-2); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(1px); }
 
     .btn-secondary {
-      background: transparent; color: var(--text-muted);
-      padding: 9px 20px; border-radius: var(--radius);
-      border: 1px solid var(--border);
-      font-size: 13px; font-weight: 300; text-decoration: none;
-      transition: all 0.15s var(--ease-out);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+      background: transparent; color: var(--muted);
+      padding: 10px 18px; border: 1px solid var(--line);
+      cursor: pointer; transition: all 0.15s var(--ease-out);
+      display: inline-flex; align-items: center; gap: 7px;
+      text-decoration: none; font-weight: 400;
+    }
+    .btn-secondary:hover { border-color: var(--line-2); color: var(--fg); background: rgba(255,255,255,0.03); transform: translateY(-1px); }
+    .btn-secondary:active { transform: translateY(1px); }
+
+    /* ── LOGO bottom ── */
+    .logo-mark {
+      position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 500; letter-spacing: -0.02em;
+      color: var(--dim); text-decoration: none;
       display: inline-flex; align-items: center; gap: 6px;
+      transition: color 0.15s;
     }
-    .btn-secondary:hover {
-      border-color: var(--border-hover); color: var(--text);
-      background: var(--accent-dim); transform: translateY(-1px);
-    }
+    .logo-mark .proto { color: var(--blue-dim); }
+    .logo-mark:hover { color: var(--fg); }
+    .logo-mark:hover .proto { color: var(--blue); }
+
+    .logo-icon { width: 14px; height: 14px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 14px; height: 14px; fill: currentColor; }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
@@ -211,22 +188,46 @@
 
 <body>
 
-
   <main>
-    <div class="four-oh-four"><span>4</span>0<span>4</span></div>
-    <div class="rule"></div>
-    <p class="headline">Page not found</p>
-    <p class="sub">This page doesn't exist or was moved.</p>
-    <div class="actions">
-      <a class="btn-primary" href="/dashboard">
-        <i class="ph ph-squares-four" style="font-size:14px;"></i>
-        Back to dashboard
-      </a>
-      <a class="btn-secondary" href="javascript:history.back()">
-        <i class="ph ph-arrow-left" style="font-size:14px;"></i>
-        Go back
-      </a>
+    <div class="window-404">
+      <span class="w-chrome">≡ ×</span>
+      <span class="w-title">[ ERROR / NOT FOUND ]</span>
+
+      <div class="four-oh-four"><span class="accent">4</span>0<span class="accent">4</span></div>
+
+      <div class="rule"></div>
+
+      <div class="eyebrow">Page not found</div>
+      <h1 class="headline">This page doesn't<br/><span class="accent">exist.</span></h1>
+      <p class="sub">It was moved, deleted, or never existed in the first place.</p>
+
+      <div class="actions">
+        <a class="btn-primary" href="/dashboard">
+          <i class="ph ph-squares-four" style="font-size:13px;"></i>
+          Back to Dashboard →
+        </a>
+        <a class="btn-secondary" href="javascript:history.back()">
+          <i class="ph ph-arrow-left" style="font-size:13px;"></i>
+          Go Back
+        </a>
+      </div>
     </div>
+
+    <a href="/" class="logo-mark">
+      <span class="logo-icon">
+        <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
+            <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+            <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+            <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+            <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+            <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+            <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+          </g>
+        </svg>
+      </span>
+      gor://a
+    </a>
   </main>
 
 </body>
