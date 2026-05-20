@@ -2751,7 +2751,7 @@ async def app_auth_github_init(request: Request, auth_id: str):
     scope = "user:email"
     site_url = os.getenv('SITE_URL')
     redirect_uri = urllib.parse.quote(f"{site_url}/api/v1/app-auth/github/callback")
-    auth_url = f"https://github.com/login/oauth/authorize?client_id={GITHUB_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}&state={auth_id}"
+    auth_url = f"https://github.com/login/oauth/authorize?client_id={GITHUB_APPAUTH_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}&state={auth_id}"
     return RedirectResponse(auth_url)
 
 @app.get("/api/v1/app-auth/google/callback")
@@ -2808,8 +2808,8 @@ async def app_auth_github_callback(request: Request, code: str, state: str):
         res = await client.post(
             "https://github.com/login/oauth/access_token", 
             data={
-                "client_id": GITHUB_CLIENT_ID,
-                "client_secret": GITHUB_CLIENT_SECRET,
+                "client_id": GITHUB_APPAUTH_CLIENT_ID,
+                "client_secret": GITHUB_APP_AUTH_CLIENT_SECRET,
                 "code": code,
                 "redirect_uri": f"{site_url}/api/v1/app-auth/github/callback"
             },
