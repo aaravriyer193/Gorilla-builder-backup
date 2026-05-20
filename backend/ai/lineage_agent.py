@@ -42,7 +42,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 MODEL         = os.getenv("LINEAGE_MODEL",   "xiaomi/mimo-v2.5")
 SMART_MODEL   = os.getenv("SMART_MODEL",     "xiaomi/mimo-v2.5-pro")
-PLANNER_MODEL = os.getenv("PLANNER_MODEL",   "xiaomi/mimo-v2.5")
+PLANNER_MODEL = os.getenv("PLANNER_MODEL",   "xiaomi/mimo-v2.5-pro")
 VISION_MODEL  = os.getenv("VISION_MODEL",    "xiaomi/mimo-v2.5")
 
 OPENROUTER_URL = os.getenv(
@@ -986,7 +986,9 @@ For minor tasks or bug fixes: restate the task in 1–2 sentences. No expansion 
 
 If an image is attached, treat it as a UI mockup — extract layout, palette, and flows.
 
-Output only the spec. No preamble."""
+Output only the expanded prompt. NO CODE. NO SPEC
+
+"""
 
 
 async def expand_prompt(
