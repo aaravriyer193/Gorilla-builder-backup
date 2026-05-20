@@ -1,15 +1,26 @@
 """
-Lineage Agent v17 — MiMo-native (Qwen3-Coder XML), batch-limited, naturally agentic
-====================================================================================
+Lineage Agent v18 — Claude Code-style power, MiMo-native (Qwen3 XML)
+====================================================================
 
-PATCH: Live pricing via OpenRouter /api/v1/models
-  - Removed all hardcoded per-token weight heuristics (frontier/mimo/else branches)
-  - _fetch_model_price() fetches prompt+completion prices live after each turn
-  - weight = int((prompt_tokens * prompt_price + completion_tokens * completion_price) * 1_000_000)
-  - Results cached per model for 5 minutes to avoid a round-trip on every turn
-  - Fails open (price=0) so a bad fetch never crashes billing
+Major upgrades from v17:
+  - 8 tools (was 3): write_file, edit_file, run_bash, read_files, list_dir,
+    grep_search, glob_files, web_search, web_fetch, mark_done
+  - Differentiated batch limits: writes capped at 3 per turn (was 2), but
+    read/search/exploration tools are UNLIMITED per turn — like Claude Code,
+    the agent can read 10 files + grep + list_dir in a single turn.
+  - edit_file does surgical str_replace edits (cheap, fast, focused)
+  - grep_search uses ripgrep (rg) for blazing-fast code search
+  - web_search / web_fetch for live docs lookup (MCP-style)
+  - Tighter system prompt that teaches multi-tool parallelism
+  - Same Supabase / AI proxy / auth mandates preserved exactly
 
-Everything else is identical to v17.
+The system prompt explicitly teaches the agent to:
+  "On exploration turns, fire 5-10 read/grep/list tools in parallel.
+   On implementation turns, fire 1-3 write tools.
+   The batch limit only applies to WRITES."
+
+This matches Claude Code's mental model: cheap parallel reads, careful
+sequential writes.
 """
 
 from __future__ import annotations
@@ -25,7 +36,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 # ---------------------------------------------------------------------------
-# Config — full MiMo family. Same dialect on every routing branch.
+# Config
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
@@ -44,7 +55,10 @@ SITE_NAME = os.getenv("SITE_NAME", "Gorilla Builder")
 MAX_CONTEXT_TOKENS = 230_000
 CHARS_PER_TOKEN    = 4
 
-BATCH_LIMIT = 2
+# v18: writes capped at 3 (was 2). Reads/searches are unlimited.
+WRITE_BATCH_LIMIT = 3
+# Total tool calls per turn (safety cap — well above typical usage)
+TOTAL_BATCH_LIMIT = 12
 
 if not OPENROUTER_API_KEY:
     raise RuntimeError("OPENROUTER_API_KEY must be set")
@@ -100,7 +114,7 @@ def _render_token_limit_message() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Legacy shims (kept for app.py compatibility)
+# Legacy shims
 # ---------------------------------------------------------------------------
 _HISTORY: Dict[str, list] = {}
 HISTORY_CAP = 100
@@ -182,16 +196,20 @@ class TokenSubstitution:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Tool definitions
+# Tool definitions — v18 expanded toolset
 # ═══════════════════════════════════════════════════════════════════════════
 
 AGENT_TOOL_DEFS = [
+    # ─── WRITE TOOLS (batch-limited) ─────────────────────────────────────
     {
         "name": "write_file",
+        "category": "write",
         "description": (
-            "Write the full content of a single file to /home/user/app. "
-            "Overwrites the file if it exists. Call this twice in the SAME tool_call "
-            "block to write two files in parallel (max 2 per turn — see batching rules)."
+            "Write the FULL content of a file to /home/user/app, overwriting if "
+            "it exists. Use this for new files or when rewriting an entire file. "
+            "For small edits to an existing file, prefer edit_file (much cheaper). "
+            f"WRITE BATCH LIMIT: at most {WRITE_BATCH_LIMIT} write_file/edit_file "
+            f"calls combined per turn."
         ),
         "parameters": {
             "type": "object",
@@ -202,7 +220,7 @@ AGENT_TOOL_DEFS = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "Full file content. No line numbers, no diff markers — just the raw file.",
+                    "description": "Full file content. No line numbers, no diff markers — raw file bytes.",
                 },
                 "reason": {
                     "type": "string",
@@ -213,12 +231,134 @@ AGENT_TOOL_DEFS = [
         },
     },
     {
-        "name": "run_bash",
+        "name": "edit_file",
+        "category": "write",
         "description": (
-            "Run a bash command in the sandbox at /home/user/app. "
-            "Use AFTER any write_file calls in the same turn (or alone for read-only "
-            "operations like cat, ls, curl). Prefer one &&-chained command over multiple "
-            "separate calls. NEVER use heredocs to write files — use write_file for that."
+            "Surgically edit an existing file by replacing one unique snippet with "
+            "another. The `old_str` must appear EXACTLY ONCE in the file — copy it "
+            "verbatim (including whitespace) from a previous read_files output. "
+            "Much cheaper than write_file for small changes (a single import, a "
+            "prop tweak, a className fix). Counts against the WRITE BATCH LIMIT."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Relative path from /home/user/app.",
+                },
+                "old_str": {
+                    "type": "string",
+                    "description": "The exact text to replace. Must be unique in the file.",
+                },
+                "new_str": {
+                    "type": "string",
+                    "description": "The replacement text. May be empty to delete.",
+                },
+            },
+            "required": ["path", "old_str", "new_str"],
+        },
+    },
+
+    # ─── EXPLORATION TOOLS (unlimited per turn) ──────────────────────────
+    {
+        "name": "read_files",
+        "category": "read",
+        "description": (
+            "Read up to 10 files in parallel. Use this AGGRESSIVELY on exploration "
+            "turns — reading 8 files in one tool call is free and fast. Returns each "
+            "file's content prefixed with its path. Skip files known to be huge "
+            "(package-lock.json, *.b64). Counts against TOTAL batch limit only."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "paths": {
+                    "type": "string",
+                    "description": (
+                        "Comma- or newline-separated list of relative paths from "
+                        "/home/user/app. Example: src/App.tsx, server.js, src/index.css"
+                    ),
+                },
+            },
+            "required": ["paths"],
+        },
+    },
+    {
+        "name": "list_dir",
+        "category": "read",
+        "description": (
+            "List the contents of a directory (one level deep) with file sizes. "
+            "Cheaper than ls + stat in bash. Returns a clean tree summary."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Relative path from /home/user/app. Use '.' for the project root.",
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "grep_search",
+        "category": "read",
+        "description": (
+            "Search the codebase for a regex pattern using ripgrep — extremely fast. "
+            "Returns file:line:match for up to 100 hits. Use this instead of bash "
+            "grep when hunting for symbols, imports, or wiring. Perfect for "
+            "'where is this component used?' or 'which file imports X?'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Regex pattern (ripgrep syntax — same as PCRE basics).",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Optional subdirectory to limit search to (e.g. 'src/components'). Default: project root.",
+                },
+                "file_glob": {
+                    "type": "string",
+                    "description": "Optional file glob filter (e.g. '*.tsx', '*.{ts,tsx}'). Default: all text files.",
+                },
+            },
+            "required": ["pattern"],
+        },
+    },
+    {
+        "name": "glob_files",
+        "category": "read",
+        "description": (
+            "Find files matching a glob pattern. Returns up to 200 paths. "
+            "Use for 'show me all page components' or 'list every route file'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern, e.g. 'src/**/*.tsx', 'routes/*.js', '**/*.config.*'.",
+                },
+            },
+            "required": ["pattern"],
+        },
+    },
+
+    # ─── BASH (unlimited per turn but use sparingly) ─────────────────────
+    {
+        "name": "run_bash",
+        "category": "exec",
+        "description": (
+            "Run a bash command in the sandbox at /home/user/app. Use for npm "
+            "install, starting the dev server, curl health checks, running "
+            "migrations. NEVER use heredocs to write files — use write_file. "
+            "NEVER use bash to read files — use read_files. NEVER use bash grep "
+            "— use grep_search. Prefer one &&-chained command over multiple calls."
         ),
         "parameters": {
             "type": "object",
@@ -235,12 +375,55 @@ AGENT_TOOL_DEFS = [
             "required": ["command"],
         },
     },
+
+    # ─── WEB TOOLS (MCP-style) ───────────────────────────────────────────
+    {
+        "name": "web_search",
+        "category": "web",
+        "description": (
+            "Search the web for documentation, error messages, or API references. "
+            "Use when you hit an unfamiliar error or need current library docs. "
+            "Returns top 5 results with titles + snippets."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query. Keep it short and specific (3-8 words).",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "web_fetch",
+        "category": "web",
+        "description": (
+            "Fetch the contents of a URL as text (HTML stripped). Use to pull "
+            "an exact docs page after web_search points to it. Returns up to "
+            "12KB of text content."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "Full URL with https:// prefix.",
+                },
+            },
+            "required": ["url"],
+        },
+    },
+
+    # ─── COMPLETION ──────────────────────────────────────────────────────
     {
         "name": "mark_done",
+        "category": "done",
         "description": (
-            "Signal the task is complete. Only call this AFTER both ports have been "
-            "verified to return 200 and the build genuinely matches the spec. "
-            "Provide a short, user-facing summary of what was built or fixed."
+            "Signal the task is complete. Only call this AFTER both ports have "
+            "been verified to return 200 and the build matches the spec. Provide "
+            "a short user-facing summary."
         ),
         "parameters": {
             "type": "object",
@@ -290,7 +473,7 @@ def _format_tools_for_prompt() -> str:
     parts.append("</tools>")
     parts.extend([
         "",
-        "If you choose to call a function ONLY reply in the following format with NO suffix:",
+        "Call functions with this exact XML format inside a single <tool_call> wrapper:",
         "",
         "<tool_call>",
         "<function=example_function_name>",
@@ -303,19 +486,19 @@ def _format_tools_for_prompt() -> str:
         "</function>",
         "</tool_call>",
         "",
-        "Reminder:",
-        "- Function calls MUST follow the specified format above",
-        "- Required parameters MUST be specified",
-        "- Only call functions that are listed above",
-        f"- At MOST {BATCH_LIMIT} <function=...> blocks per <tool_call> wrapper (the batch limit)",
-        "- You may provide brief reasoning in plain text BEFORE the <tool_call>, but NOT after",
-        "- After </tool_call>, stop generating — the results come back next turn",
+        "BATCHING RULES:",
+        f"  - WRITE TOOLS (write_file, edit_file): max {WRITE_BATCH_LIMIT} per turn combined.",
+        "  - READ TOOLS (read_files, list_dir, grep_search, glob_files): unlimited per turn.",
+        "  - On exploration turns, fire 4-8 read/grep tools IN PARALLEL inside one <tool_call>.",
+        f"  - Total functions per <tool_call> capped at {TOTAL_BATCH_LIMIT}.",
+        "  - Brief plain-text reasoning is allowed BEFORE <tool_call>, never after.",
+        "  - After </tool_call>, stop — results come back next turn.",
     ])
     return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
-# Context management — history compression
+# Context management
 # ---------------------------------------------------------------------------
 _token_estimate_cache: List[Any] = []
 
@@ -366,17 +549,36 @@ def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> l
         content = str(m.get("content", ""))
 
         if role == "assistant":
-            paths = re.findall(
+            # Summarize tool calls compactly
+            write_paths = re.findall(
                 r"<function=write_file>[\s\S]*?<parameter=path>\s*([^\s<][^<]*?)\s*</parameter>",
+                content,
+            )
+            edit_paths = re.findall(
+                r"<function=edit_file>[\s\S]*?<parameter=path>\s*([^\s<][^<]*?)\s*</parameter>",
                 content,
             )
             cmds = re.findall(
                 r"<function=run_bash>[\s\S]*?<parameter=command>\s*([^<]+?)\s*</parameter>",
                 content,
             )
+            reads = re.findall(
+                r"<function=read_files>[\s\S]*?<parameter=paths>\s*([^<]+?)\s*</parameter>",
+                content,
+            )
+            greps = re.findall(
+                r"<function=grep_search>[\s\S]*?<parameter=pattern>\s*([^<]+?)\s*</parameter>",
+                content,
+            )
             summary_parts = []
-            if paths:
-                summary_parts.append(f"wrote: {', '.join(p.strip() for p in paths[:3])}")
+            if write_paths:
+                summary_parts.append(f"wrote: {', '.join(p.strip() for p in write_paths[:3])}")
+            if edit_paths:
+                summary_parts.append(f"edited: {', '.join(p.strip() for p in edit_paths[:3])}")
+            if reads:
+                summary_parts.append(f"read: {reads[0].strip()[:60]}")
+            if greps:
+                summary_parts.append(f"grep: {greps[0].strip()[:40]}")
             if cmds:
                 first_cmd = cmds[0].strip().split("\n")[0][:80]
                 summary_parts.append(f"ran: {first_cmd}")
@@ -413,7 +615,7 @@ def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> l
 
 
 # ---------------------------------------------------------------------------
-# Observation noise filter
+# Observation noise filter (unchanged from v17)
 # ---------------------------------------------------------------------------
 _VITE_NOISE_RE = re.compile(
     r"""(
@@ -464,35 +666,55 @@ def _filter_observation(raw: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  SYSTEM PROMPT  v17
+#  SYSTEM PROMPT  v18 — multi-tool parallelism
 # ═══════════════════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT_BODY = r"""You are Gorilla, a senior full-stack engineer. You share one workspace with the user: an Ubuntu sandbox running React + Vite on port 8080 and Express on port 3000. Your job is to build real, working SaaS apps — not mockups — and stay with the work until it's genuinely done.
 
-# How you work
+# How you work — the rhythm
 
-You work in small, observable steps. Each turn you do ONE of three things:
+You alternate between two modes:
 
-1. **Explore** — read files, list directories, check logs. Use this when you need information before deciding what to build or fix.
-2. **Implement (small batch)** — write up to 2 files, then optionally run a quick command to install/restart. After this you stop and look at what happened.
-3. **Verify or finish** — run the verification command, read the output, and either fix or call mark_done.
+**EXPLORE mode** — when you don't yet know enough to write good code. Fire many read tools IN PARALLEL inside a single <tool_call>:
+- `read_files` (up to 10 files at once)
+- `list_dir` (cheap directory tree)
+- `grep_search` (ripgrep — find symbols, imports, wiring)
+- `glob_files` (find by pattern)
 
-**The hard rule: at most 2 write_file calls per turn.** This is non-negotiable. If you're building something that needs 10 files, that's 5 turns — and that's good, because between each turn you get to see the dev server's hot-reload output and catch problems early. Bad codebases come from agents that try to write everything at once and ship a tangled mess. You write a focused pair of files, observe, then continue with the next pair informed by what you just saw.
+There is NO batch limit on read/search tools. A good first turn fires 4-8 of them in one wrapper.
 
-This is closer to how a human engineer works: you don't write the whole app then hit save once. You write Navbar.tsx + index.css together, alt-tab to the browser, see it render, then move on to Footer.tsx + Hero.tsx. The two-file batch is your unit of progress.
+**IMPLEMENT mode** — when you know what to build. Use `write_file` for new files, `edit_file` for surgical changes. HARD LIMIT: at most 3 write_file/edit_file calls per turn combined. This guardrail keeps each turn observable — between turns you see Vite's hot-reload output.
 
-**Order of operations within a build:**
+# Pick the right write tool
 
-Turn 1: Explore — read existing src/App.tsx, server.js, src/index.css to understand the starting point.
-Turn 2: Foundation — write src/index.css (full design system) + maybe src/App.tsx skeleton.
-Turn 3-N: Components — Navbar + Footer in one turn, then two pages in the next, etc.
-Turn N+1: Backend — one or two route files at a time.
-Final turn: run dev server, curl both ports, mark_done.
+- **`write_file`** — new files, or when more than ~30% of an existing file is changing. Provides the FULL content.
+- **`edit_file`** — small surgical changes (add an import, change one prop, fix a className, mount a route). Cheaper, faster, less context burned. The `old_str` must appear exactly once and match verbatim — copy it from a previous read_files output.
+
+Prefer `edit_file` whenever you're touching one piece of an existing file. It saves tokens and reduces the chance of introducing regressions.
+
+# Order of operations for a greenfield build
+
+Turn 1 — EXPLORE (one tool_call, many parallel reads):
+```
+read_files(paths="src/App.tsx, server.js, src/index.css, package.json, vite.config.ts")
+list_dir(path=".")
+glob_files(pattern="src/**/*.tsx")
+```
+
+Turn 2 — Foundation: `write_file: src/index.css` (the full design system).
+
+Turn 3 — Shared chrome: `write_file: Navbar.tsx + Footer.tsx` (2 in batch).
+
+Turn 4-N — Pages and routes in batches of 2-3 writes per turn.
+
+Turn N+1 — Wire it up: `edit_file: src/App.tsx` to add the routes (surgical), `edit_file: server.js` to mount the API.
+
+Final turn — `run_bash` to start dev + verify both ports 200, then `mark_done`.
 
 # Environment
 
 - Ubuntu 22 / Node 20 / Python 3.11 — working directory `/home/user/app`
-- Dev server: `npm run dev` starts Vite on :8080 and Express on :3000 concurrently.
+- Dev server: **already running in the background** (pre-warmed on sandbox boot). Vite on :8080, Express on :3000. Don't run `pkill -f vite` or `pkill -f 'npm run dev'` followed by a restart — that's the freeze pattern. Just `curl` the ports to verify, or `tail /tmp/dev.log` to debug. If — and only if — both ports return non-200 after a fix, restart with: `cd /home/user/app && npm run dev > /tmp/dev.log 2>&1 </dev/null & disown`.
 - Vite has HMR — frontend file writes hot-reload; no restart needed for `src/` changes.
 - Pre-installed: react, react-dom, react-router-dom, vite, @vitejs/plugin-react, typescript, tailwindcss, postcss, autoprefixer, clsx, tailwind-merge, class-variance-authority, @radix-ui/*, lucide-react, express, cors, body-parser, dotenv, concurrently
 - Source layout: `src/` (React), `src/components/ui/` (shadcn), `routes/` (Express), `public/generated/` (AI images)
@@ -520,76 +742,94 @@ Base URL: `{GORILLA_PROXY}` — pass `$GORILLA_API_KEY` as the Authorization Bea
 
 You bring a senior engineer's judgment to each decision. When the spec is open, you choose conservatively and in sympathy with what's already in the codebase. You prefer established patterns and keep edits tightly scoped.
 
-**Greenfield build order** (one batch per turn):
-1. `src/index.css` — complete design system (custom properties, dark palette, typography, Google Font)
-2. Shared components — Navbar + Footer (one turn) → primitives (next turn if needed)
-3. Page components — two independent pages per turn until done
-4. Backend routes — one or two route files per turn
-5. `src/App.tsx` — wire all routes, auth guards (solo write, paired with one other small edit if any)
-6. `server.js` — mount all routes (solo write, or paired with the last route file)
-7. run_bash: npm install (if needed) → start → verify both 200s
-
-This order makes the live preview look good from the very first hot-reload, and the small batches mean you catch each new component's import errors immediately instead of debugging a wall of failures at the end.
-
 # Frontend quality
 
 Interfaces feel rich and domain-appropriate. A SaaS dashboard is quiet and work-focused; a game can be expressive. Use lucide-react icons, keep border-radius ≤ 8px, build tooltips for icon-only buttons, no decorative gradient orbs, ensure text fits all viewports.
 
 # When something goes wrong
 
-Read first. One run_bash call:
+First, gather context in parallel — don't do five sequential reads:
 ```
-cat /tmp/dev.log | tail -60
+grep_search(pattern="useState", path="src/components/Broken.tsx")
+read_files(paths="src/components/Broken.tsx, src/App.tsx")
+run_bash(command="tail -60 /tmp/dev.log")
 ```
-Then make the smallest fix that addresses the root cause. Don't refactor on the way to a fix. If a component is missing an import, add the import — don't rewrite the component.
+
+Then make the smallest fix that addresses the root cause — usually a single `edit_file`. Don't refactor on the way to a fix. If a component is missing an import, `edit_file` to add the import — don't rewrite the file.
 
 # Verification before done
 
+The sandbox pre-warms the dev server on boot and runs an automated health check on touched-dev turns — both ports are usually already responding before you act. Verify manually:
+
 ```
-curl -so /dev/null -w '%{http_code}' http://localhost:8080 && \
+curl -so /dev/null -w '%{http_code}' http://localhost:8080
 curl -so /dev/null -w '%{http_code}' http://localhost:3000
 ```
 
-Both must return 200 before you call mark_done.
+Both must return 200 before `mark_done`. If you see `tail` showing errors, fix them with `edit_file` and try again.
 
-DELETE the dev.log each time you read it to prevent cache.
+# Looking things up
+
+If you hit an unfamiliar error or need to confirm a library's current API, use `web_search` then `web_fetch` on the best result. This is much faster than guessing or trial-and-error rebuilds.
 
 # Autonomy
 
-Stay with the work until the task is handled end to end. Work through blockers rather than stopping and asking — unless something is genuinely impossible without user input.
+Stay with the work until it's handled end to end. Work through blockers rather than stopping and asking — unless something is genuinely impossible without user input.
 
 # Tool call mechanics
 
-You have three tools: write_file, run_bash, mark_done. The tool definitions and the exact XML format you must use are documented in the # Tools section below this one.
+The mental model: every turn ends with a single <tool_call>...</tool_call> block. Inside, place one or more <function=name>...</function> sub-blocks. The exact format and limits are documented in the # Tools section below.
 
-The mental model: every turn ends with a single <tool_call>...</tool_call> block. Inside that block you place 1 or 2 <function=name>...</function> sub-blocks (the batch limit). Before the <tool_call> you can write a brief plain-text thought (1-3 sentences) explaining what you're doing. After the </tool_call> you stop — the next turn starts after the sandbox executes your calls and shows you the result.
+Examples of well-formed turns:
 
-Two practical examples of well-formed turns:
-
-Single file write:
+**Parallel exploration (one tool_call, many reads):**
 ```
-I'll set up the design system foundation first — this is the file every component will pull from. --> Never use literal new lines in your thoughts. They will not show.
+I'll get the lay of the land before deciding what to build.
 
 <tool_call>
-<function=write_file>
+<function=list_dir>
 <parameter=path>
-src/index.css
+.
 </parameter>
-<parameter=content>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk');
-:root { --bg: #0a0a0f; --fg: #f5f5f7; }
-body { background: var(--bg); color: var(--fg); font-family: 'Space Grotesk', sans-serif; }
+</function>
+<function=read_files>
+<parameter=paths>
+src/App.tsx, server.js, src/index.css, package.json
 </parameter>
-<parameter=reason>
-design system foundation
+</function>
+<function=glob_files>
+<parameter=pattern>
+src/**/*.tsx
 </parameter>
 </function>
 </tool_call>
 ```
 
-Two files in one batch:
+**Surgical edit (one write, one verify):**
 ```
-Building the shared chrome — Navbar and Footer can ship together since they don't depend on each other.
+The Footer is missing from App.tsx — adding it inside the layout wrapper.
+
+<tool_call>
+<function=edit_file>
+<parameter=path>
+src/App.tsx
+</parameter>
+<parameter=old_str>
+      <Navbar />
+      <main>
+</parameter>
+<parameter=new_str>
+      <Navbar />
+      <Footer />
+      <main>
+</parameter>
+</function>
+</tool_call>
+```
+
+**Batched writes (2 new files):**
+```
+Shipping Navbar and Footer together — they don't depend on each other.
 
 <tool_call>
 <function=write_file>
@@ -611,40 +851,23 @@ src/components/Footer.tsx
 </tool_call>
 ```
 
-Read a file (no batch limit, run_bash is one call):
+**Start + verify (single run_bash, automated health check follows):**
 ```
-Need to see the existing routing before I touch anything.
-
 <tool_call>
 <function=run_bash>
 <parameter=command>
-cat src/App.tsx
+curl -so /dev/null -w 'vite=%{http_code} ' http://localhost:8080 && curl -so /dev/null -w 'api=%{http_code}\n' http://localhost:3000
 </parameter>
 </function>
 </tool_call>
 ```
 
-Verify and finish (two separate turns):
+**Finish:**
 ```
-Both files are written. Time to verify the servers come up clean.
-
-<tool_call>
-<function=run_bash>
-<parameter=command>
-curl -so /dev/null -w '%{http_code}\n' http://localhost:8080 && curl -so /dev/null -w '%{http_code}\n' http://localhost:3000
-</parameter>
-</function>
-</tool_call>
-```
-
-(then next turn, after seeing 200 200:)
-```
-Both ports are healthy. Shipping it.
-
 <tool_call>
 <function=mark_done>
 <parameter=summary>
-Built the dashboard with Navbar, three pages, and the items API route. Both servers are healthy.
+Built the dashboard with Navbar, three pages, and the items API. Both servers healthy.
 </parameter>
 </function>
 </tool_call>
@@ -653,48 +876,74 @@ Built the dashboard with Navbar, three pages, and the items API route. Both serv
 
 
 # ---------------------------------------------------------------------------
-# Conditional addons
+# Conditional addons — Supabase / Debug — preserved from v17
 # ---------------------------------------------------------------------------
 
 SUPABASE_ADDON = r"""
 
-Supabase is Active. Env vars Are active. Package `@supabase/supabase-js` is installed.
+# Supabase — MANDATORY
 
+Supabase is provisioned and active for this project. The env vars `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_PROJECT_REF`, and `SUPABASE_MGMT_TOKEN` are already set in `.env`.
+
+**You MUST use Supabase for ALL data persistence. Do NOT use SQLite, lowdb, JSON files, in-memory stores, localStorage, or any other database. There are no exceptions.**
+
+Frontend client (already installed — `@supabase/supabase-js`):
 ```ts
 import { createClient } from '@supabase/supabase-js';
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 ```
-You must provision your own DB using the CLI
 
-Run migrations via run_bash:
-```
+Run migrations via the management API (use your own project, not the user's existing data):
+```bash
 cat > /tmp/migration.sql << 'SQL'
-CREATE TABLE IF NOT EXISTS items (...);
+CREATE TABLE IF NOT EXISTS items (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now()
+);
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own" ON items USING (auth.uid() = user_id);
 SQL
 curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_TOKEN" \
+  -H "Content-Type: application/json" \
   -d "$(cat /tmp/migration.sql | jq -Rs '{query: .}')"
 ```
-Do not try an poke around with the users projects unless instructed, make a new project for this project as poking around with the users supabase, may not at all be safe.
+
+Always run migrations before writing frontend code that reads from the DB. Always enable RLS and write policies for every table.
 """
 
 DEBUG_ADDON = r"""
 # Debug mode
 
-You are fixing a specific bug. Turn 1: run_bash to read the error log. Turn 2 (or later): write_file with the smallest possible fix. Then verify. Do not refactor. Do not add features. The 2-file batch limit still applies — most bugs need only one file changed anyway.
+You are fixing a specific bug. Use this rhythm:
+
+Turn 1 — Gather context in parallel:
+- `grep_search` for the symbol or error keyword
+- `read_files` for the suspect file plus its callers
+- `run_bash` to tail /tmp/dev.log
+
+Turn 2 — Apply the smallest fix as `edit_file` (almost never write_file).
+
+Turn 3 — Verify with curl.
+
+Do NOT refactor. Do NOT add features. The 3-write batch limit still applies — most bugs need only one `edit_file`.
 """
 
 EXPANDER_SUPABASE_ADDON = """
-Supabase is available for data persistence. Plan to use it when users need to save data across sessions or share data between users. Specify tables, columns, and which need Row Level Security. Don't force it on purely client-side apps. YOU MUST SPECIFY TO USE IT UNLESS IT IS TRULY NOT REQUIRED."""
+
+Supabase is provisioned and active. The spec MUST include Supabase for all data persistence — do NOT spec SQLite, JSON files, or any other storage. Design tables, RLS policies, and which data is persisted. Supabase is non-negotiable for this project."""
 
 PLANNER_SUPABASE_ADDON = """
-Supabase is available. Include migrations when the app genuinely stores persistent data.YOU MUST SPECIFY TO USE IT UNLESS IT IS TRULY NOT REQUIRED."""
+
+Supabase is provisioned and active. The plan MUST include a migration step (run_bash: curl to Supabase management API) before any frontend DB reads. Do NOT plan for SQLite, JSON files, or any other storage. Every table must have RLS enabled."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Prompt Expander
+#  Prompt Expander — unchanged from v17
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_expander_system(gorilla_proxy_url: str) -> str:
@@ -784,44 +1033,49 @@ async def expand_prompt(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Planner
+#  Planner — updated for v18 tool model
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_planner_system(gorilla_proxy_url: str) -> str:
     return f"""You are a project planner for Gorilla Builder — React + Vite + Express full-stack apps.
 
-The agent uses three tools: write_file (max 2 per turn), run_bash, mark_done.
+The agent has these tools:
+  - WRITE (limit 3/turn combined): write_file, edit_file
+  - READ (unlimited/turn): read_files, list_dir, grep_search, glob_files
+  - EXEC: run_bash
+  - WEB: web_search, web_fetch
+  - mark_done
 
-Produce a markdown checklist where each item = ONE turn of the agent (one tool_call block, max 2 invokes).
+Produce a markdown checklist where each item = ONE turn of the agent.
 
-**Hard rule: at most 2 file writes per checklist item.** If you'd want 5 components in one step, split into 3 steps (2+2+1). This keeps the agent honest about observing intermediate results.
+**Hard rule: at most 3 write_file/edit_file calls per checklist item.** If you'd want 6 components in one step, split into 2 steps (3+3).
+
+**Hard rule: exploration is one turn.** The first step batches all reads in parallel (read_files, list_dir, glob_files). Do NOT plan multiple explore steps.
 
 **Step order:**
-1. Explore — run_bash: cat src/App.tsx server.js src/index.css
-2. write_file: src/index.css (one big design system file — solo)
-3. write_file (batch of 2): Navbar.tsx + Footer.tsx
-4. write_file (batch of 2): page A + page B
-5. write_file (batch of 2): page C + maybe a primitive
-6. write_file (batch of 2): backend route file 1 + route file 2
-7. write_file (batch of 2): src/App.tsx + server.js (the wire-up)
-8. run_bash: npm install (only if a package isn't pre-installed)
-9. run_bash: start dev server + verify both ports 200
+1. Explore — parallel reads in one turn: read_files src/App.tsx + server.js + src/index.css + package.json, list_dir ., glob_files src/**/*.tsx
+2. write_file: src/index.css (full design system — solo)
+3. write_file (batch of 2-3): Navbar.tsx + Footer.tsx [+ a primitive]
+4. write_file (batch of 2-3): page A + page B [+ page C]
+5. write_file (batch of 2-3): backend route files
+6. edit_file (batch of 2): wire src/App.tsx + server.js (surgical edits where possible)
+7. run_bash: npm install (only if needed)
+8. run_bash: curl :8080 and :3000 to verify both return 200 (dev server is already running — DO NOT pkill+restart)
 
 **Format:**
 ```
 # Task: <short title>
 
-- [ ] Read structure — run_bash: cat src/App.tsx server.js src/index.css
+- [ ] EXPLORE: read_files App.tsx/server.js/index.css + list_dir + glob src/**/*.tsx
 - [ ] write_file: src/index.css — dark design system, CSS vars, Google Font
-- [ ] write_file (batch): Navbar.tsx + Footer.tsx
-- [ ] write_file (batch): Landing.tsx + Dashboard.tsx
-- [ ] write_file (batch): About.tsx + components/Card.tsx
+- [ ] write_file (batch): Navbar.tsx + Footer.tsx + maybe ThemeProvider
+- [ ] write_file (batch): Landing.tsx + Dashboard.tsx + About.tsx
 - [ ] write_file (batch): routes/api.js + routes/items.js
-- [ ] write_file (batch): src/App.tsx + server.js (wire everything)
-- [ ] run_bash: start server + verify 200 200
+- [ ] edit_file (batch): src/App.tsx wire routes + server.js mount api
+- [ ] run_bash: curl :8080 and :3000 → both 200 (server pre-warmed; no pkill+restart)
 ```
 
-Rules: 6–12 items. Every batch item names exactly 2 files. First step explores. Last step verifies. For debug/minor tasks: 2-3 items. Output only the checklist."""
+Rules: 5–10 items. Every batch names the files. First step is EXPLORE (parallel reads). Last step verifies. For debug/minor tasks: 2-3 items, prefer edit_file. Output only the checklist."""
 
 
 async def generate_plan(
@@ -868,7 +1122,7 @@ async def generate_plan(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Reviewer
+#  Reviewer — unchanged from v17
 # ═══════════════════════════════════════════════════════════════════════════
 
 REVIEWER_SYSTEM = """You are a code reviewer. A developer just finished building a web app. Review the file listing and recent build output for obvious mistakes only.
@@ -901,7 +1155,7 @@ async def review_output(file_tree_summary: str, last_output: str) -> Optional[st
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  XML repair
+#  XML repair — same as v17 but tolerates more tool variety
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _repair_qwen3_xml(text: str) -> str:
@@ -930,12 +1184,15 @@ def _repair_qwen3_xml(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  XML tool-call parser
+#  XML tool-call parser — v18 multi-tool aware
 # ═══════════════════════════════════════════════════════════════════════════
 
 _TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>([\s\S]*?)</tool_call>")
 _FUNCTION_RE        = re.compile(r"<function=([^>\s]+)>([\s\S]*?)</function>")
 _PARAMETER_RE       = re.compile(r"<parameter=([^>\s]+)>([\s\S]*?)</parameter>")
+
+# Map tool name -> category for batch limit enforcement
+_TOOL_CATEGORY = {t["name"]: t.get("category", "exec") for t in AGENT_TOOL_DEFS}
 
 
 def _strip_param_value(raw: str) -> str:
@@ -967,9 +1224,24 @@ def _parse_xml_functions(block_inner: str) -> List[Dict[str, Any]]:
 
 
 def _parse_response(raw_text: str) -> Dict[str, Any]:
+    """
+    v18 output schema:
+        {
+          "thought": str,
+          "write_files":  [{path, content, reason}],      # write_file
+          "edit_files":   [{path, old_str, new_str}],     # edit_file
+          "read_calls":   [{tool, params}],               # read/grep/list/glob/web
+          "bash":         str,                            # joined run_bash commands
+          "done":         bool,
+          "message":      str,
+          "extra_writes_dropped": int,
+        }
+    """
     result = {
         "thought":              "",
         "write_files":          [],
+        "edit_files":           [],
+        "read_calls":           [],
         "bash":                 "",
         "done":                 False,
         "message":              "",
@@ -991,17 +1263,35 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
         for block_inner in blocks:
             all_functions.extend(_parse_xml_functions(block_inner))
 
+        # Cap total functions at TOTAL_BATCH_LIMIT (safety)
+        if len(all_functions) > TOTAL_BATCH_LIMIT:
+            log_agent("agent", f"⚠ Capping {len(all_functions)} functions at {TOTAL_BATCH_LIMIT}")
+            all_functions = all_functions[:TOTAL_BATCH_LIMIT]
+
+        write_count = 0
         for fn in all_functions:
             n = fn["name"]
             p = fn["params"]
 
             if n == "write_file":
-                if len(result["write_files"]) < BATCH_LIMIT:
+                if write_count < WRITE_BATCH_LIMIT:
                     result["write_files"].append({
                         "path":    p.get("path", "").strip(),
                         "content": p.get("content", ""),
                         "reason":  p.get("reason", "").strip(),
                     })
+                    write_count += 1
+                else:
+                    result["extra_writes_dropped"] += 1
+
+            elif n == "edit_file":
+                if write_count < WRITE_BATCH_LIMIT:
+                    result["edit_files"].append({
+                        "path":    p.get("path", "").strip(),
+                        "old_str": p.get("old_str", ""),
+                        "new_str": p.get("new_str", ""),
+                    })
+                    write_count += 1
                 else:
                     result["extra_writes_dropped"] += 1
 
@@ -1014,21 +1304,33 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
                 result["done"]    = True
                 result["message"] = p.get("summary", "Done.").strip()
 
+            elif n in ("read_files", "list_dir", "grep_search", "glob_files",
+                       "web_search", "web_fetch"):
+                result["read_calls"].append({"tool": n, "params": p})
+
+            else:
+                log_agent("agent", f"Unknown tool: {n}")
+
         result["bash"] = "\n\n".join(bash_parts)
 
         if not result["message"]:
             if result["thought"]:
                 result["message"] = result["thought"].split("\n")[0][:300]
             else:
-                paths = [w["path"] for w in result["write_files"]]
+                paths = (
+                    [w["path"] for w in result["write_files"]] +
+                    [e["path"] for e in result["edit_files"]]
+                )
                 if paths:
                     result["message"] = f"Working on {', '.join(paths)}"
+                elif result["read_calls"]:
+                    result["message"] = "Exploring the codebase..."
                 elif result["bash"]:
                     result["message"] = ""
 
         return result
 
-    # Legacy fallback
+    # Legacy fallback (GORILLA_DONE / fenced bash)
     if "GORILLA_DONE" in raw_text:
         result["done"] = True
         parts   = raw_text.split("GORILLA_DONE", 1)
@@ -1077,36 +1379,14 @@ def _is_safe(cmd: str) -> bool:
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Live model price fetching
-#
-#  OpenRouter's /api/v1/models endpoint returns pricing as dollar amounts
-#  per token (e.g. "0.0000001"). We fetch this once per model per 5 minutes
-#  and cache it. On any fetch failure we return (0.0, 0.0) so billing never
-#  hard-crashes the agent loop.
-#
-#  The returned `weight` from _call_llm is:
-#    int((prompt_tokens * prompt_$/token + completion_tokens * completion_$/token) * 1_000_000)
-#
-#  This gives the cost in micro-dollars (millionths of a dollar), which
-#  callers deduct directly from the user's balance.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# { model_id: (prompt_price_per_token, completion_price_per_token) }
 _model_price_cache:     Dict[str, Tuple[float, float]] = {}
 _model_price_cache_ttl: Dict[str, float]               = {}
-_PRICE_CACHE_TTL_S = 300  # 5 minutes
+_PRICE_CACHE_TTL_S = 300
 
 
 async def _fetch_model_price(model: str) -> Tuple[float, float]:
-    """
-    Return (prompt_price_per_token, completion_price_per_token) in USD.
-
-    OpenRouter prices are already per-token (not per-million), so no
-    division is needed here. The caller multiplies by 1_000_000 to get
-    micro-dollars for billing.
-
-    Caches results for _PRICE_CACHE_TTL_S seconds. Falls back to (0, 0)
-    on any network/parse error so the agent never crashes due to pricing.
-    """
     now = time.monotonic()
     cached_at = _model_price_cache_ttl.get(model, 0)
     if model in _model_price_cache and (now - cached_at) < _PRICE_CACHE_TTL_S:
@@ -1138,7 +1418,6 @@ async def _fetch_model_price(model: str) -> Tuple[float, float]:
                 )
                 return (prompt_price, completion_price)
 
-        # Model not found in the list — cache zero so we don't hammer the API
         log_agent("agent", f"Model '{model}' not found in /api/v1/models — price=0")
 
     except Exception as e:
@@ -1150,7 +1429,7 @@ async def _fetch_model_price(model: str) -> Tuple[float, float]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LLM call — XML-native, live pricing
+#  LLM call
 # ═══════════════════════════════════════════════════════════════════════════
 
 async def _call_llm(
@@ -1212,10 +1491,6 @@ async def _call_llm(
     elif reasoning and "<tool_call>" not in content and not content.strip():
         content = str(reasoning)
 
-    # ── Live pricing ────────────────────────────────────────────────────────
-    # Fetch the actual per-token prices from OpenRouter and compute real cost.
-    # weight is returned in micro-dollars (millionths of a USD) so the caller
-    # can deduct it directly from a user balance stored as an integer.
     u = data.get("usage", {})
     prompt_tokens     = u.get("prompt_tokens",     0)
     completion_tokens = u.get("completion_tokens", 0)
@@ -1290,7 +1565,7 @@ def _pick_model(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LineageAgent  v17
+#  LineageAgent v18
 # ═══════════════════════════════════════════════════════════════════════════
 
 class LineageAgent:
@@ -1312,7 +1587,7 @@ class LineageAgent:
         is_debug: bool,
         agent_skills: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if self._system_prompt_set:
+        if self._system_prompt_set and has_supabase == self._has_supabase:
             return
 
         prompt = SYSTEM_PROMPT_BODY.replace(
@@ -1336,7 +1611,16 @@ class LineageAgent:
                 self.project_id,
             )
 
-        self.messages = [{"role": "system", "content": prompt}]
+        if self._system_prompt_set:
+            log_agent("agent", f"System prompt rebuilt — has_supabase changed to {has_supabase}", self.project_id)
+            if self.messages and self.messages[0].get("role") == "system":
+                self.messages[0] = {"role": "system", "content": prompt}
+            else:
+                self.messages.insert(0, {"role": "system", "content": prompt})
+        else:
+            self.messages = [{"role": "system", "content": prompt}]
+
+        self._has_supabase      = has_supabase
         self._system_prompt_set = True
 
     def _extract_prompt_image(self, file_tree: Dict[str, str]) -> Optional[str]:
@@ -1349,11 +1633,17 @@ class LineageAgent:
     def _append_observation(
         self,
         write_paths:      List[str],
+        edit_paths:       List[str],
+        read_observation: str,
         bash_observation: str,
     ) -> None:
         parts: List[str] = []
         if write_paths:
             parts.append("Files written: " + ", ".join(write_paths))
+        if edit_paths:
+            parts.append("Files edited: " + ", ".join(edit_paths))
+        if read_observation:
+            parts.append(read_observation[:10000])
         if bash_observation:
             filtered = _filter_observation(bash_observation)[:8000]
             parts.append("Bash output:\n" + filtered)
@@ -1381,7 +1671,6 @@ class LineageAgent:
 
         if gorilla_proxy_url:
             self._gorilla_proxy_url = gorilla_proxy_url
-        self._has_supabase = has_supabase
 
         self._ensure_system_prompt(gorilla_proxy_url, has_supabase, is_debug, agent_skills)
 
@@ -1403,7 +1692,7 @@ class LineageAgent:
 
         if previous_command_output:
             filtered = _filter_observation(previous_command_output)
-            self.messages.append({"role": "user", "content": f"OBSERVATION:\n{filtered[:8000]}"})
+            self.messages.append({"role": "user", "content": f"OBSERVATION:\n{filtered[:12000]}"})
         else:
             effective_request = user_request
             plan_text         = ""
@@ -1428,8 +1717,9 @@ class LineageAgent:
                     )
                     if plan:
                         plan_text = (
-                            "\n\nHere's a plan — follow it step by step. "
-                            "Each item = one turn. Remember the 2-file batch limit:\n"
+                            "\n\nHere's a plan — follow it step by step. Each item "
+                            "= one turn. Use parallel reads on explore turns; "
+                            "respect the 3-write batch limit on implementation turns:\n"
                             + plan
                         )
                         self._plan_injected = True
@@ -1485,7 +1775,8 @@ class LineageAgent:
 
         log_agent(
             "agent",
-            f"v17 model={model.split('/')[-1]} step={len(self.messages) // 2} batch_limit={BATCH_LIMIT}",
+            f"v18 model={model.split('/')[-1]} step={len(self.messages) // 2} "
+            f"write_limit={WRITE_BATCH_LIMIT} supabase={has_supabase}",
             self.project_id,
         )
 
@@ -1501,6 +1792,8 @@ class LineageAgent:
             return {
                 "message":     f"AI error: {str(e)[:150]}",
                 "write_files": [],
+                "edit_files":  [],
+                "read_calls":  [],
                 "commands":    [],
                 "done":        True,
                 "tokens":      0,
@@ -1516,7 +1809,7 @@ class LineageAgent:
         if parsed["extra_writes_dropped"] > 0:
             log_agent(
                 "agent",
-                f"⚠ Dropped {parsed['extra_writes_dropped']} extra writes (batch limit = {BATCH_LIMIT})",
+                f"⚠ Dropped {parsed['extra_writes_dropped']} extra writes (limit = {WRITE_BATCH_LIMIT})",
                 self.project_id,
             )
 
@@ -1530,18 +1823,25 @@ class LineageAgent:
 
         for wf in parsed["write_files"]:
             wf["content"] = self.token_sub.expand(wf["content"])
+        for ef in parsed["edit_files"]:
+            ef["old_str"] = self.token_sub.expand(ef["old_str"])
+            ef["new_str"] = self.token_sub.expand(ef["new_str"])
 
         done   = parsed["done"]
-        writes = len(parsed["write_files"])
+        n_writes = len(parsed["write_files"])
+        n_edits  = len(parsed["edit_files"])
+        n_reads  = len(parsed["read_calls"])
         log_agent(
             "agent",
-            f"{'DONE' if done else f'writes={writes} bash={bool(safe_bash)}'} tok={self.total_tokens}",
+            f"{'DONE' if done else f'writes={n_writes} edits={n_edits} reads={n_reads} bash={bool(safe_bash)}'} tok={self.total_tokens}",
             self.project_id,
         )
 
         return {
             "message":     parsed["message"],
             "write_files": parsed["write_files"],
+            "edit_files":  parsed["edit_files"],
+            "read_calls":  parsed["read_calls"],
             "commands":    [safe_bash] if safe_bash else [],
             "done":        done,
             "tokens":      self.total_tokens,
@@ -1552,12 +1852,14 @@ class LineageAgent:
         self,
         parsed:            Dict[str, Any],
         write_observation: str = "",
+        read_observation:  str = "",
         bash_observation:  str = "",
     ) -> None:
         write_paths = [wf.get("path", "") for wf in parsed.get("write_files", []) if wf.get("path")]
-        if write_observation and not bash_observation:
+        edit_paths  = [ef.get("path", "") for ef in parsed.get("edit_files",  []) if ef.get("path")]
+        if write_observation and not bash_observation and not read_observation:
             bash_observation = write_observation
-        self._append_observation(write_paths, bash_observation)
+        self._append_observation(write_paths, edit_paths, read_observation, bash_observation)
 
 
 # ---------------------------------------------------------------------------
@@ -1588,5 +1890,11 @@ __all__ = [
     "_parse_response",
     "_repair_qwen3_xml",
     "AGENT_TOOL_DEFS",
+    "WRITE_BATCH_LIMIT",
+    "TOTAL_BATCH_LIMIT",
+    # Backward-compat alias
     "BATCH_LIMIT",
 ]
+
+# Backward-compatible alias for code that imported BATCH_LIMIT
+BATCH_LIMIT = WRITE_BATCH_LIMIT

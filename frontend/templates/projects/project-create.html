@@ -4,284 +4,238 @@
   <meta charset="UTF-8" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Create Project · Gor://a Builder</title>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <style>
     :root {
-      --bg: #000000;
-      --panel-bg: rgba(4, 4, 12, 0.99);
-      --border: rgba(0, 120, 255, 0.07);
-      --border-hover: rgba(0, 120, 255, 0.3);
-      --accent: #0066ff;
-      --accent-light: #3385ff;
-      --accent-glow: rgba(0, 102, 255, 0.25);
-      --text: #d0d8f0;
-      --text-muted: #2a3050;
-      --radius: 8px;
-      --radius-sm: 5px;
-      --radius-lg: 10px;
-      --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
+      --bg: #0a0b0d;
+      --bg-2: #101114;
+      --fg: #e8e8eb;
+      --muted: #8a8c95;
+      --dim: #4a4c55;
+      --faint: #25272d;
+      --line: rgba(255,255,255,0.10);
+      --line-2: rgba(255,255,255,0.18);
+      --blue: oklch(0.74 0.16 248);
+      --blue-2: oklch(0.62 0.2 252);
+      --blue-dim: oklch(0.4 0.12 252);
+      --amber: oklch(0.78 0.13 80);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-
-      --shadow-paper:
-        0 1px 0 rgba(0,100,255,0.04) inset,
-        0 1px 3px rgba(0,0,0,0.8),
-        0 2px 8px rgba(0,0,0,0.7);
     }
 
-    body.premium {
-      --accent: #3385ff;
-      --accent-glow: rgba(51, 133, 255, 0.3);
-    }
-
-    * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; }
+    * { box-sizing: border-box; outline: none; }
 
     body {
-      margin: 0; background: var(--bg); color: var(--text);
+      margin: 0; background: var(--bg); color: var(--fg);
       min-height: 100vh; display: flex; align-items: center; justify-content: center;
       overflow: hidden; font-weight: 300;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .noise-overlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background-image: var(--noise); pointer-events: none; z-index: 0;
-    }
-    .glow-spot {
-      position: fixed; width: 700px; height: 700px;
-      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-      opacity: 0.35; pointer-events: none; z-index: 0;
-      top: -250px; left: 50%; transform: translateX(-50%); filter: blur(100px);
-    }
-    .glow-spot-2 {
-      position: fixed; width: 400px; height: 400px;
-      background: radial-gradient(circle, rgba(0, 102, 255, 0.1) 0%, transparent 70%);
-      opacity: 0.5; pointer-events: none; z-index: 0;
-      bottom: -100px; right: 15%; filter: blur(80px);
-    }
-    .grid-overlay {
-      position: fixed; inset: 0;
-      background-image:
-        linear-gradient(rgba(0, 102, 255, 0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 102, 255, 0.025) 1px, transparent 1px);
-      background-size: 60px 60px;
-      pointer-events: none; z-index: 0;
-      mask-image: radial-gradient(ellipse 60% 50% at 50% 40%, black, transparent);
+    /* dot grid */
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
     }
 
-    /* --- CARD --- */
+    /* ── CARD — double-border ASCII window ── */
     .card {
       width: min(480px, 90%);
-      background: linear-gradient(180deg, rgba(6, 6, 16, 0.95) 0%, rgba(2, 2, 8, 0.98) 100%);
-      border: 1px solid var(--border);
-      backdrop-filter: blur(30px);
-      border-radius: var(--radius-lg);
-      padding: 40px;
+      background: var(--bg);
+      border: 3px double rgba(255,255,255,0.22);
       position: relative; z-index: 1;
-      box-shadow:
-        0 1px 0 rgba(0,102,255,0.05) inset,
-        0 24px 60px -10px rgba(0,0,0,0.9),
-        0 8px 16px rgba(0,0,0,0.5);
-      animation: cardEntry 0.7s var(--ease-out) forwards;
+      padding: 48px 40px 40px;
+      animation: cardEntry 0.6s var(--ease-out) forwards;
       opacity: 0;
     }
-
     @keyframes cardEntry {
-      from { opacity: 0; transform: translateY(30px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    .card::before {
-      content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      opacity: 0.5;
+    /* floating chrome */
+    .w-chrome {
+      position: absolute; top: -10px; left: 14px;
+      background: var(--bg); padding: 0 8px;
+      font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted);
     }
+    .w-title {
+      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+      background: var(--bg); padding: 0 14px;
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      letter-spacing: 0.2em; color: var(--fg);
+      text-transform: uppercase; white-space: nowrap;
+    }
+
+    /* ── HEADINGS ── */
+    .eyebrow {
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
+      margin-bottom: 12px;
+    }
+    .eyebrow::before { content: "// "; color: var(--dim); }
 
     h1 {
-      margin: 0 0 8px; font-size: 28px; font-weight: 300;
-      letter-spacing: -0.5px; color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 26px; font-weight: 400; letter-spacing: -0.03em;
+      margin: 0 0 6px; color: var(--fg); line-height: 1.05;
     }
-    p.subtitle { margin: 0 0 32px; color: var(--text-muted); font-size: 14px; font-weight: 300; }
+    h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
 
-    .form-group { margin-bottom: 20px; }
+    p.subtitle {
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      letter-spacing: 0.08em; color: var(--muted);
+      margin: 0 0 28px; line-height: 1.65;
+    }
+
+    /* ── PROMPT PREVIEW ── */
+    .prompt-preview {
+      background: var(--bg-2); border: 1px solid var(--line);
+      border-left: 2px solid var(--blue-dim);
+      padding: 12px 14px;
+      margin-bottom: 24px;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .prompt-icon { color: var(--blue); font-size: 16px; margin-top: 2px; flex-shrink: 0; }
+    .prompt-content { flex: 1; min-width: 0; }
+    .prompt-content strong {
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--muted); display: block; margin-bottom: 6px; font-weight: 400;
+    }
+    .prompt-content .prompt-text {
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      letter-spacing: 0.04em; color: var(--fg);
+      display: block; word-break: break-word; font-weight: 300; line-height: 1.55;
+    }
+
+    /* ── MODE BADGE ── */
+    .mode-badge {
+      display: none; align-items: center; gap: 5px;
+      font-family: 'DM Mono', monospace;
+      font-size: 9px; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 3px 8px; margin-bottom: 8px; border: 1px solid var(--line);
+    }
+    .mode-badge .badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .mode-badge.fast { color: var(--blue); border-color: var(--blue-dim); }
+    .mode-badge.fast .badge-dot { background: var(--blue); }
+    .mode-badge.normal { color: var(--fg); border-color: var(--line-2); }
+    .mode-badge.normal .badge-dot { background: var(--fg); }
+    .mode-badge.deep { color: oklch(0.72 0.12 280); border-color: oklch(0.4 0.1 280); }
+    .mode-badge.deep .badge-dot { background: oklch(0.72 0.12 280); }
+
+    .stashed-thumbnail {
+      width: 36px; height: 36px;
+      object-fit: cover; border: 1px solid var(--line); flex-shrink: 0;
+    }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom: 18px; }
     label {
-      display: block; font-size: 10px; color: var(--text-muted); margin-bottom: 8px;
-      text-transform: uppercase; letter-spacing: 1.5px; font-weight: 400;
+      display: block;
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.18em;
+      color: var(--dim); margin-bottom: 8px; font-weight: 400;
     }
 
     input, textarea {
-      width: 100%;
-      background: rgba(0,0,0,0.6);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 13px 16px;
-      border-radius: var(--radius);
+      width: 100%; background: var(--bg-2); border: 1px solid var(--line);
+      color: var(--fg); padding: 12px 14px;
       font-size: 14px; font-weight: 300;
       font-family: 'DM Sans', sans-serif;
       transition: all 0.2s var(--ease-out);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.6) inset, 0 1px 0 rgba(0,102,255,0.02);
     }
-    input:focus, textarea:focus {
-      border-color: rgba(0,102,255,0.35);
-      background: rgba(0,0,0,0.75);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.7) inset, 0 0 0 3px rgba(0,102,255,0.08), 0 0 20px rgba(0,102,255,0.04);
-    }
-    input::placeholder, textarea::placeholder { color: rgba(208,216,240,0.18); }
-    textarea { min-height: 100px; resize: none; line-height: 1.5; }
+    input:focus, textarea:focus { border-color: var(--line-2); box-shadow: 0 0 0 3px rgba(255,255,255,0.03); }
+    input::placeholder, textarea::placeholder { color: var(--dim); }
+    textarea { min-height: 90px; resize: none; line-height: 1.55; }
 
-    /* --- PROMPT PREVIEW --- */
-    .prompt-preview {
-      background: rgba(0,102,255,0.025);
-      border: 1px dashed rgba(0,102,255,0.1);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      margin-bottom: 30px;
-      display: flex; gap: 12px; align-items: flex-start;
-    }
-    .prompt-icon { color: var(--accent); font-size: 18px; margin-top: 2px; flex-shrink: 0; }
-    .prompt-content { flex: 1; min-width: 0; }
-    .prompt-content strong {
-      color: var(--text); display: block; font-size: 12px; margin-bottom: 6px;
-      font-weight: 400; letter-spacing: 0.2px;
-    }
-    .prompt-content .prompt-text {
-      color: var(--text-muted); font-size: 12.5px; line-height: 1.45;
-      display: block; word-break: break-word; font-weight: 300;
-    }
-
-    /* --- MODE BADGE --- */
-    .mode-badge {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 9px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase;
-      padding: 3px 8px; border-radius: var(--radius-sm);
-      margin-bottom: 8px;
-      font-family: 'DM Sans', sans-serif;
-    }
-    .mode-badge .badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-    .mode-badge.fast {
-      color: #3385ff; background: rgba(0,102,255,0.08);
-      border: 1px solid rgba(0,102,255,0.2);
-    }
-    .mode-badge.fast .badge-dot { background: #3385ff; box-shadow: 0 0 6px #3385ff; }
-    .mode-badge.normal {
-      color: var(--text); background: rgba(0,102,255,0.05);
-      border: 1px solid rgba(0,102,255,0.12);
-    }
-    .mode-badge.normal .badge-dot { background: var(--text); }
-    .mode-badge.deep {
-      color: #8877ee; background: rgba(102,85,204,0.08);
-      border: 1px solid rgba(102,85,204,0.22);
-    }
-    .mode-badge.deep .badge-dot { background: #8877ee; box-shadow: 0 0 6px #8877ee; }
-
-    .stashed-thumbnail {
-      width: 40px; height: 40px; border-radius: var(--radius-sm);
-      object-fit: cover; border: 1px solid var(--border);
-      flex-shrink: 0;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    }
-
-    /* --- BUTTONS --- */
-    .btn-group { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+    /* ── BUTTONS ── */
+    .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 
     .btn {
-      width: 100%; padding: 13px; border-radius: var(--radius); border: none; cursor: pointer;
-      font-size: 14px; font-weight: 400;
+      width: 100%; padding: 12px;
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      letter-spacing: 0.18em; text-transform: uppercase; font-weight: 400;
+      border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: 8px;
       transition: all 0.15s var(--ease-out);
-      font-family: 'DM Sans', sans-serif;
     }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.08) inset,
-        0 4px 12px rgba(0,0,0,0.5),
-        0 2px 12px rgba(0,102,255,0.4);
-    }
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      background: #0055ee;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,0.1) inset,
-        0 8px 24px rgba(0,0,0,0.6),
-        0 4px 20px rgba(0,102,255,0.55);
-    }
-    .btn-primary:active {
-      transform: translateY(1px);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 1px 4px rgba(0,102,255,0.3);
-    }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: var(--blue-2); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(1px); }
 
     .btn-ghost {
-      background: rgba(0,102,255,0.04);
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 1px 0 rgba(0,102,255,0.02) inset;
+      background: rgba(255,255,255,0.03); color: var(--muted);
+      border: 1px solid var(--line);
     }
-    .btn-ghost:hover {
-      background: rgba(0,102,255,0.08);
-      color: var(--text);
-      transform: translateY(-2px);
-      border-color: rgba(0,102,255,0.2);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.6), 0 1px 0 rgba(0,102,255,0.05) inset;
-    }
-    .btn-ghost:active { transform: translateY(1px); box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--fg); border-color: var(--line-2); transform: translateY(-1px); }
+    .btn-ghost:active { transform: translateY(1px); }
 
     .back-link {
-      display: block; text-align: center; margin-top: 24px;
-      color: var(--text-muted); text-decoration: none; font-size: 12.5px; font-weight: 300;
-      transition: color 0.2s;
+      display: block; text-align: center; margin-top: 20px;
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim); text-decoration: none;
+      border-bottom: 1px dashed transparent;
+      transition: color 0.15s, border-color 0.15s;
     }
-    .back-link:hover { color: var(--text); }
+    .back-link:hover { color: var(--blue); border-color: var(--blue-dim); }
 
-    /* --- LOADING STATE --- */
+    /* ── LOADING STATE ── */
     .loading-state {
-      display: none; text-align: center; padding: 40px 0; position: relative;
+      display: none; text-align: center; padding: 32px 0; position: relative;
     }
     .loading-state.active {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
 
+    /* compiler core */
     .compiler-core {
-      position: relative; width: 120px; height: 120px;
-      margin: 0 auto 40px;
+      position: relative; width: 110px; height: 110px;
+      margin: 0 auto 36px;
       display: flex; align-items: center; justify-content: center;
     }
     .compiler-glow {
       position: absolute; width: 100%; height: 100%;
-      background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
-      opacity: 0.18; filter: blur(25px);
+      background: radial-gradient(circle, var(--blue) 0%, transparent 60%);
+      opacity: 0.12; filter: blur(20px);
       animation: corePulse 2s ease-in-out infinite alternate;
     }
     .figma-icon {
-      width: 50px; height: 50px; z-index: 10;
-      filter: drop-shadow(0 0 15px rgba(26, 188, 254, 0.5));
+      width: 46px; height: 46px; z-index: 10;
+      filter: drop-shadow(0 0 12px rgba(26,188,254,0.5));
       animation: levitate 4s ease-in-out infinite;
     }
     .scanner-line {
-      position: absolute; width: 120%; height: 2px;
+      position: absolute; width: 120%; height: 1px;
       background: #1ABCFE;
-      box-shadow: 0 0 10px #1ABCFE, 0 0 20px #0ACF83;
-      z-index: 15; opacity: 0.85;
+      box-shadow: 0 0 8px #1ABCFE, 0 0 16px #0ACF83;
+      z-index: 15; opacity: 0.8;
       animation: scan 2s linear infinite;
     }
+    /* square tech ring — no border-radius, matches gor://a aesthetic */
     .tech-ring {
-      position: absolute; width: 100%; height: 100%;
-      border: 1px dashed rgba(0, 102, 255, 0.18);
-      border-radius: 50%; z-index: 5;
+      position: absolute; width: 88%; height: 88%;
+      border: 1px dashed var(--line-2);
+      z-index: 5;
       animation: spinAnim 10s linear infinite;
     }
     .tech-ring::before, .tech-ring::after {
       content: ''; position: absolute;
-      width: 6px; height: 6px;
-      background: var(--accent); border-radius: 50%;
-      box-shadow: 0 0 10px var(--accent);
+      width: 5px; height: 5px;
+      background: var(--blue);
+      box-shadow: 0 0 8px var(--blue);
     }
-    .tech-ring::before { top: -3px; left: 50%; transform: translateX(-50%); }
-    .tech-ring::after  { bottom: -3px; left: 50%; transform: translateX(-50%); }
+    .tech-ring::before { top: -2.5px; left: 50%; transform: translateX(-50%); }
+    .tech-ring::after  { bottom: -2.5px; left: 50%; transform: translateX(-50%); }
 
     #matrixCanvas {
       position: absolute; top: -50px; left: -50px;
@@ -290,36 +244,39 @@
     }
 
     .abstract-icon {
-      font-size: 50px; color: var(--accent); z-index: 10;
+      font-size: 46px; color: var(--blue); z-index: 10;
       animation: levitate 3s ease-in-out infinite;
-      filter: drop-shadow(0 0 15px var(--accent-glow));
+      filter: drop-shadow(0 0 12px oklch(0.4 0.12 252));
     }
 
     .loading-title {
-      font-size: 22px; font-weight: 300; color: var(--text);
-      margin-bottom: 14px; letter-spacing: -0.3px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 20px; font-weight: 400; color: var(--fg);
+      margin-bottom: 14px; letter-spacing: -0.02em;
     }
+    .loading-title .accent { color: var(--blue); font-style: italic; }
+
     .loading-subtitle {
-      font-size: 11px; color: var(--accent-light);
-      font-family: 'Courier New', monospace; letter-spacing: 1.5px; text-transform: uppercase;
-      background: rgba(0, 102, 255, 0.06);
-      padding: 6px 14px; border-radius: var(--radius-sm);
-      border: 1px solid rgba(0, 102, 255, 0.15);
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      color: var(--blue); letter-spacing: 0.18em; text-transform: uppercase;
+      background: rgba(255,255,255,0.03);
+      padding: 6px 14px;
+      border: 1px solid var(--blue-dim);
       font-weight: 400;
     }
     .typewriter-text {
       display: inline-block; overflow: hidden; white-space: nowrap;
-      border-right: 2px solid var(--accent);
-      animation: typing 1.5s steps(3) infinite;
+      border-right: 2px solid var(--blue);
+      animation: blinkCursor 1s steps(2) infinite;
     }
 
     @keyframes levitate {
       0%, 100% { transform: translateY(0) scale(1); }
-      50%      { transform: translateY(-8px) scale(1.05); }
+      50%      { transform: translateY(-8px) scale(1.04); }
     }
     @keyframes corePulse {
-      0%   { opacity: 0.1; transform: scale(0.8); }
-      100% { opacity: 0.28; transform: scale(1.2); }
+      0%   { opacity: 0.08; transform: scale(0.8); }
+      100% { opacity: 0.2;  transform: scale(1.2); }
     }
     @keyframes scan {
       0%   { top: -10%; opacity: 0; }
@@ -328,24 +285,20 @@
       100% { top: 110%; opacity: 0; }
     }
     @keyframes spinAnim { 100% { transform: rotate(360deg); } }
-    @keyframes typing {
-      0%, 100% { border-color: transparent; }
-      50%      { border-color: var(--accent); }
-    }
+    @keyframes blinkCursor { 50% { border-color: transparent; } }
   </style>
 </head>
 
 <body class="{% if user.plan == 'premium' %}premium{% endif %}">
 
-  <div class="noise-overlay"></div>
-  <div class="glow-spot"></div>
-  <div class="glow-spot-2"></div>
-  <div class="grid-overlay"></div>
-
   <div class="card" id="mainCard">
+    <span class="w-chrome">≡ ×</span>
+    <span class="w-title">[ PROJECT / INIT ]</span>
 
+    <!-- ── FORM VIEW ── -->
     <div id="formView">
-      <h1>Initialize Project</h1>
+      <div class="eyebrow">New Project</div>
+      <h1>Initialize <span class="accent">project.</span></h1>
       <p class="subtitle">Review details before the AI begins construction.</p>
 
       {% if initial_prompt or stashed_image %}
@@ -354,7 +307,7 @@
         <div class="prompt-content">
           <strong>Prompt Loaded</strong>
 
-          <span class="mode-badge fast" id="modeBadge" style="display:none;">
+          <span class="mode-badge fast" id="modeBadge">
             <span class="badge-dot"></span>
             <span id="modeBadgeLabel">Fast</span>
           </span>
@@ -367,7 +320,7 @@
         </div>
 
         {% if stashed_image %}
-          <img src="{{ stashed_image }}" class="stashed-thumbnail" alt="Uploaded UI Mockup" title="Design attached successfully">
+          <img src="{{ stashed_image }}" class="stashed-thumbnail" alt="Uploaded UI Mockup" title="Design attached">
         {% endif %}
       </div>
       {% endif %}
@@ -386,13 +339,13 @@
 
         <div class="form-group">
           <label>Description</label>
-          <textarea name="description" placeholder="A brief summary of what this app does..." id="descriptionField">{{ initial_prompt }}</textarea>
+          <textarea name="description" placeholder="A brief summary of what this app does…" id="descriptionField">{{ initial_prompt }}</textarea>
         </div>
 
         <div class="btn-group">
           {% if user.plan == 'premium' %}
             <button type="submit" name="xmode" value="false" class="btn btn-ghost">
-              Build it!
+              Build it! →
             </button>
           {% else %}
             <button type="submit" class="btn btn-primary">
@@ -402,9 +355,10 @@
         </div>
       </form>
 
-      <a href="/dashboard" class="back-link">Cancel & Return</a>
+      <a href="/dashboard" class="back-link">← Cancel &amp; Return</a>
     </div>
 
+    <!-- ── LOADING VIEW ── -->
     <div id="loadingView" class="loading-state">
       <div class="compiler-core">
         <canvas id="matrixCanvas"></canvas>
@@ -426,11 +380,11 @@
       </div>
 
       {% if is_figma_link %}
-        <div class="loading-title">Compiling Figma Design</div>
+        <div class="loading-title">Compiling <span class="accent">Figma design.</span></div>
         <div class="loading-subtitle" id="statusText">EXTRACTING_AST <span class="typewriter-text">...</span></div>
-        <p style="margin-top:20px; font-size:12.5px; color:var(--text-muted); opacity:0.8; font-weight:300;">Translating vector layout into React TSX</p>
+        <p style="margin-top:16px; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--dim);">Translating vector layout into React TSX</p>
       {% else %}
-        <div class="loading-title">Initializing Environment</div>
+        <div class="loading-title">Initializing <span class="accent">environment.</span></div>
         <div class="loading-subtitle">BOOTING_VM <span class="typewriter-text">...</span></div>
       {% endif %}
     </div>
@@ -438,17 +392,14 @@
   </div>
 
   <script>
-    // --- Detect and strip mode prefix from the prompt using RegEx ---
     const PREFIXES = [
       {
         regex: /TAKE YOUR TIME AND THINK DEEPLY\. Before writing any code, carefully plan your architecture, reason through edge cases, and think about potential failure points\. Quality and thoroughness over speed and do this:\s*/gi,
-        label: 'Deep',
-        cls: 'deep'
+        label: 'Deep', cls: 'deep'
       },
       {
         regex: /BE TOKEN EFFICIENT AND FAST AND DO THIS:\s*/gi,
-        label: 'Fast',
-        cls: 'fast'
+        label: 'Fast', cls: 'fast'
       }
     ];
 
@@ -460,10 +411,8 @@
 
     function detectAndStrip() {
       if (!hiddenPrompt || !visiblePrompt) return;
-
       const raw = hiddenPrompt.value;
-      let detectedMode = null;
-      let cleanPrompt  = raw;
+      let detectedMode = null, cleanPrompt = raw;
 
       for (const cfg of PREFIXES) {
         if (cfg.regex.test(cleanPrompt)) {
@@ -486,16 +435,13 @@
 
       if (descriptionField) {
         let cleanDesc = descriptionField.value;
-        for (const cfg of PREFIXES) {
-          cleanDesc = cleanDesc.replace(cfg.regex, '').trim();
-        }
+        for (const cfg of PREFIXES) cleanDesc = cleanDesc.replace(cfg.regex, '').trim();
         descriptionField.value = cleanDesc;
       }
     }
 
     detectAndStrip();
 
-    // --- Form submit → loading state ---
     document.getElementById("createForm").addEventListener("submit", function() {
       const buttons = this.querySelectorAll('button[type="submit"]');
       buttons.forEach(btn => {
@@ -504,7 +450,7 @@
         btn.style.cursor  = 'wait';
       });
 
-      document.getElementById("formView").style.display  = "none";
+      document.getElementById("formView").style.display = "none";
       document.getElementById("loadingView").classList.add("active");
 
       const isFigma = {{ 'true' if is_figma_link else 'false' }};
@@ -520,7 +466,6 @@
       }
     });
 
-    // --- Matrix particles ---
     function startMatrixEffect() {
       const canvas = document.getElementById('matrixCanvas');
       if (!canvas) return;
@@ -544,8 +489,8 @@
           const dx = canvas.width/2  - this.x;
           const dy = canvas.height/2 - this.y;
           const mag = Math.sqrt(dx*dx + dy*dy);
-          this.vx   = (dx / mag) * this.speed;
-          this.vy   = (dy / mag) * this.speed;
+          this.vx = (dx / mag) * this.speed;
+          this.vy = (dy / mag) * this.speed;
           this.life = 1;
         }
         update() {
@@ -566,7 +511,6 @@
       }
 
       for (let i = 0; i < 30; i++) particles.push(new Particle());
-
       function animate() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         particles.forEach(p => { p.update(); p.draw(); });

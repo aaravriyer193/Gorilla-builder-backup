@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 
@@ -26,9 +26,9 @@
         "&": { height: "100%", fontSize: "13px", backgroundColor: "transparent", fontFamily: "'DM Mono', monospace" },
         ".cm-scroller": { overflow: "auto", fontFamily: "'DM Mono', monospace" },
         ".cm-content": { fontFamily: "'DM Mono', monospace", padding: "16px 0" },
-        ".cm-gutters": { backgroundColor: "transparent", borderRight: "1px solid rgba(0,102,255,0.07)", color: "#2a3050", minWidth: "44px" },
-        ".cm-activeLineGutter": { backgroundColor: "rgba(0,102,255,0.05)" },
-        ".cm-activeLine": { backgroundColor: "rgba(0,102,255,0.04)" },
+        ".cm-gutters": { backgroundColor: "transparent", borderRight: "1px solid rgba(255,255,255,0.08)", color: "#4a4c55", minWidth: "44px" },
+        ".cm-activeLineGutter": { backgroundColor: "rgba(255,255,255,0.03)" },
+        ".cm-activeLine": { backgroundColor: "rgba(255,255,255,0.02)" },
       });
       let extensions = [
         theme, lineNumbers(), history(),
@@ -49,128 +49,112 @@
 
   <style>
     :root {
-      --bg: #000000;
-      --sidebar-bg: #03030a;
-      --panel-bg: rgba(4, 4, 12, 0.98);
-      --surface: rgba(6, 6, 16, 0.95);
-      --border: rgba(0, 102, 255, 0.07);
-      --border-hover: rgba(0, 102, 255, 0.22);
-      --accent: #0066ff;
-      --accent-dim: rgba(0, 102, 255, 0.12);
-      --accent-glow: rgba(0, 102, 255, 0.18);
-      --accent-light: #3385ff;
-      --text: #d0d8f0;
-      --text-muted: #2a3050;
-      --text-mid: #6070a0;
+      --bg: #0a0b0d;
+      --bg-2: #101114;
+      --fg: #e8e8eb;
+      --muted: #8a8c95;
+      --dim: #4a4c55;
+      --faint: #25272d;
+      --line: rgba(255,255,255,0.10);
+      --line-2: rgba(255,255,255,0.18);
+      --blue: oklch(0.74 0.16 248);
+      --blue-2: oklch(0.62 0.2 252);
+      --blue-dim: oklch(0.4 0.12 252);
       --ok: #3ECF8E;
-      --warn: #f5b544;
+      --warn: oklch(0.78 0.13 80);
       --danger: #e05555;
-      --radius: 8px;
-      --radius-sm: 5px;
-      --radius-lg: 10px;
       --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; margin: 0; padding: 0; }
 
     body {
-      background: var(--bg);
-      color: var(--text);
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      font-weight: 300;
-      font-size: 13.5px;
+      background: var(--bg); color: var(--fg);
+      height: 100vh; overflow: hidden; display: flex;
+      font-weight: 300; font-size: 13.5px;
       -webkit-font-smoothing: antialiased;
     }
 
     body::before {
-      content: '';
-      position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
-      pointer-events: none; z-index: 0;
+      content: "";
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
     }
 
     .shell { display: flex; width: 100%; height: 100vh; position: relative; z-index: 1; }
 
-    /* ─── LEFT PANEL ─── */
     .left {
       width: 420px; min-width: 380px;
-      background: var(--sidebar-bg);
-      border-right: 1px solid var(--border);
+      background: var(--bg);
+      border-right: 3px double rgba(255,255,255,0.15);
       display: flex; flex-direction: column;
       position: relative;
-    }
-    .left::after {
-      content: ''; position: absolute; top: 0; right: 0; width: 1px; height: 100%;
-      background: linear-gradient(to bottom, rgba(0,102,255,0.15), rgba(0,102,255,0.03) 50%, rgba(0,102,255,0.06));
-      pointer-events: none;
     }
 
     .topbar {
       height: 48px; padding: 0 14px;
       display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--line);
       flex-shrink: 0;
     }
 
     .logo {
       display: flex; align-items: center; gap: 8px;
-      font-size: 15px; font-weight: 400; color: var(--text);
-      text-decoration: none; letter-spacing: -0.3px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px; font-weight: 500; letter-spacing: -0.02em;
+      color: var(--fg); text-decoration: none;
     }
-    .logo svg { width: 22px; height: 22px; }
+    .logo-icon { width: 18px; height: 18px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 18px; height: 18px; fill: var(--fg); }
 
     .topbar-actions { display: flex; align-items: center; gap: 4px; }
 
     .icon-btn {
-      width: 32px; height: 32px;
+      width: 30px; height: 30px;
       display: flex; align-items: center; justify-content: center;
-      border-radius: var(--radius-sm);
       border: 1px solid transparent;
-      color: var(--text-muted);
-      cursor: pointer;
+      color: var(--dim); cursor: pointer;
       transition: all 0.15s var(--ease);
-      background: transparent;
-      font-size: 16px;
-      text-decoration: none;
+      background: transparent; font-size: 15px; text-decoration: none;
     }
-    .icon-btn:hover { color: var(--text); border-color: var(--border-hover); background: var(--accent-dim); }
-    .icon-btn.accent { color: var(--accent-light); background: var(--accent-dim); border-color: rgba(0,102,255,0.2); }
-    .icon-btn.accent:hover { background: rgba(0,102,255,0.2); }
+    .icon-btn:hover { color: var(--fg); border-color: var(--line); background: rgba(255,255,255,0.03); }
+    .icon-btn.accent { color: var(--blue); background: rgba(255,255,255,0.03); border-color: var(--line); }
+    .icon-btn.accent:hover { background: rgba(255,255,255,0.06); border-color: var(--line-2); }
 
     .status-strip {
-      padding: 8px 14px;
-      border-bottom: 1px solid var(--border);
+      padding: 7px 14px;
+      border-bottom: 1px solid var(--line);
       display: flex; align-items: center; justify-content: space-between;
-      flex-shrink: 0;
+      flex-shrink: 0; background: var(--bg-2);
     }
     .status-left { display: flex; align-items: center; gap: 8px; }
-    .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--warn); transition: all 0.3s; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--warn); transition: all 0.3s; flex-shrink: 0; }
     .dot.ok { background: var(--ok); box-shadow: 0 0 5px rgba(62,207,142,0.4); }
     .dot.bad { background: var(--danger); }
-    .status-label { font-size: 11px; color: var(--text-muted); font-weight: 400; letter-spacing: 0.3px; }
-
-    .prog-wrap { width: 80px; height: 1.5px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
-    .prog-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.4s var(--ease); }
+    .status-label {
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      color: var(--muted); font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .prog-wrap { width: 80px; height: 1px; background: var(--line); }
+    .prog-bar { height: 100%; width: 0%; background: var(--blue); transition: width 0.4s var(--ease); }
 
     .chat {
       flex: 1; overflow-y: auto;
       padding: 20px 16px;
-      display: flex; flex-direction: column; gap: 12px;
+      display: flex; flex-direction: column; gap: 10px;
       scroll-behavior: smooth;
     }
     .chat::-webkit-scrollbar { width: 3px; }
-    .chat::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.15); border-radius: 2px; }
+    .chat::-webkit-scrollbar-thumb { background: var(--line); }
 
     .msg-user {
       align-self: flex-end; max-width: 82%;
       padding: 9px 13px;
-      border-radius: 12px 12px 3px 12px;
-      background: var(--accent);
-      color: #fff;
-      font-size: 13px; line-height: 1.55;
-      font-weight: 300;
+      background: var(--blue); color: #fff;
+      font-size: 13px; line-height: 1.55; font-weight: 300;
       animation: slideR 0.3s var(--ease);
     }
     @keyframes slideR { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
@@ -178,243 +162,260 @@
     .narration {
       align-self: stretch;
       font-size: 13px; line-height: 1.7;
-      color: var(--text-mid);
-      padding: 2px 0;
+      color: var(--muted); padding: 2px 0;
+      border-left: 2px solid var(--blue-dim);
+      padding-left: 12px;
       animation: fadeUp 0.25s var(--ease);
     }
     .narration p { margin: 0 0 6px; }
     .narration p:last-child { margin: 0; }
     .narration code {
-      background: var(--accent-dim); padding: 1px 5px; border-radius: 3px;
-      font-family: 'DM Mono', monospace; font-size: 11.5px; color: var(--accent-light);
+      background: rgba(255,255,255,0.04); padding: 1px 5px;
+      font-family: 'DM Mono', monospace; font-size: 11.5px; color: var(--blue);
+      border: 1px solid var(--line);
     }
     @keyframes fadeUp { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
     .activity-group {
       display: flex; flex-direction: column; gap: 2px;
-      padding-left: 10px;
-      border-left: 1px solid rgba(0,102,255,0.1);
+      padding-left: 8px;
+      border-left: 1px solid var(--line);
     }
 
     .act {
       display: flex; align-items: center; gap: 8px;
       padding: 7px 10px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: rgba(4,4,12,0.8);
-      font-size: 12px; color: var(--text-mid);
-      cursor: default;
+      border: 1px solid var(--line);
+      background: var(--bg-2);
+      font-size: 11px;
+      font-family: 'DM Mono', monospace; letter-spacing: 0.06em;
+      color: var(--dim); cursor: default;
       transition: all 0.15s var(--ease);
       animation: fadeUp 0.25s var(--ease);
     }
-    .act:hover { border-color: var(--border-hover); }
-    .act.running { border-color: rgba(0,102,255,0.2); background: rgba(0,102,255,0.04); color: var(--text); }
-    .act.done { opacity: 0.6; }
-    .act.done:hover { opacity: 0.9; }
+    .act:hover { border-color: var(--line-2); }
+    .act.running { border-color: var(--blue-dim); background: rgba(255,255,255,0.02); color: var(--muted); }
+    .act.done { opacity: 0.5; }
+    .act.done:hover { opacity: 0.85; }
     .act.failed { border-color: rgba(224,85,85,0.25); color: var(--danger); }
-
-    .act-icon { font-size: 14px; flex-shrink: 0; color: var(--text-muted); }
-    .act.running .act-icon { color: var(--accent-light); }
+    .act-icon { font-size: 13px; flex-shrink: 0; color: var(--dim); }
+    .act.running .act-icon { color: var(--blue); }
     .act.failed .act-icon { color: var(--danger); }
-
-    .act-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
-    .act-target { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); margin-left: 4px; }
-
-    .act-status { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
-    .act.running .act-status { background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+    .act-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .act-target { color: var(--dim); margin-left: 4px; }
+    .act-status { flex-shrink: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--dim); }
+    .act.running .act-status { background: var(--blue); animation: pulse 1.5s ease-in-out infinite; }
     .act.done .act-status { background: var(--ok); }
     .act.failed .act-status { background: var(--danger); }
     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
-
     .act-output { display: none; padding: 0 0 4px 22px; }
     .act.expanded .act-output { display: block; }
     .act-output-inner {
-      background: #02020a; border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 8px 10px;
+      background: var(--bg); border: 1px solid var(--line);
+      padding: 8px 10px;
       font-family: 'DM Mono', monospace; font-size: 11px; line-height: 1.5;
-      color: #6070a0; max-height: 140px; overflow-y: auto;
+      color: var(--dim); max-height: 140px; overflow-y: auto;
     }
 
     .input-area {
       padding: 12px 14px;
-      border-top: 1px solid var(--border);
-      background: rgba(2,2,10,0.9);
+      border-top: 1px solid var(--line);
+      background: var(--bg-2);
       flex-shrink: 0;
     }
     .input-row {
       display: flex; align-items: flex-end; gap: 8px;
-      background: rgba(4,4,14,0.95);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      background: var(--bg);
+      border: 1px solid var(--line);
       padding: 8px 10px;
       transition: border-color 0.2s;
     }
-    .input-row:focus-within { border-color: rgba(0,102,255,0.35); }
-
+    .input-row:focus-within { border-color: var(--line-2); }
     .input-row textarea {
       flex: 1; min-height: 22px; max-height: 120px; resize: none;
-      background: transparent; border: none; color: var(--text);
+      background: transparent; border: none; color: var(--fg);
       font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 300;
       line-height: 1.5;
     }
-    .input-row textarea::placeholder { color: var(--text-muted); }
-
+    .input-row textarea::placeholder { color: var(--dim); }
     .attach-btn {
       width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-      color: var(--text-muted); cursor: pointer; border-radius: 5px; flex-shrink: 0;
-      transition: all 0.15s; font-size: 16px;
+      color: var(--dim); cursor: pointer; flex-shrink: 0;
+      transition: all 0.15s; font-size: 15px;
     }
-    .attach-btn:hover { color: var(--accent-light); background: var(--accent-dim); }
-
+    .attach-btn:hover { color: var(--blue); }
     .send-btn {
       width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-      background: var(--accent); color: #fff; border: none; border-radius: 6px;
+      background: var(--blue); color: #fff; border: none;
       cursor: pointer; flex-shrink: 0; font-size: 14px;
       transition: all 0.15s var(--ease);
     }
-    .send-btn:hover:not(:disabled) { background: #0055ee; transform: translateY(-1px); }
+    .send-btn:hover:not(:disabled) { background: var(--blue-2); transform: translateY(-1px); }
     .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
     #editorImagePreview {
-      display: none; height: 36px; width: 36px;
-      border-radius: 5px; object-fit: cover;
-      border: 1px solid var(--border); flex-shrink: 0; cursor: pointer;
+      display: none; height: 34px; width: 34px;
+      object-fit: cover;
+      border: 1px solid var(--line); flex-shrink: 0; cursor: pointer;
     }
 
-    /* ─── RIGHT SIDE ─── */
     .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
-
     .main-topbar {
       height: 48px; padding: 0 14px;
       display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-      background: var(--sidebar-bg);
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-2);
       flex-shrink: 0;
     }
 
-    .tab-group {
-      display: flex; gap: 1px; padding: 3px;
-      background: rgba(0,0,0,0.4); border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-    }
+    .tab-group { display: inline-flex; border: 1px solid var(--line); }
     .tab {
-      padding: 4px 12px; border-radius: 4px; cursor: pointer;
-      font-size: 12px; font-weight: 400; color: var(--text-muted);
-      transition: all 0.15s; display: flex; align-items: center; gap: 5px;
+      padding: 5px 14px; cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim); font-weight: 400; transition: all 0.15s;
+      display: flex; align-items: center; gap: 5px;
+      border-right: 1px solid var(--line);
     }
-    .tab:hover { color: var(--text); }
-    .tab.active { background: rgba(0,102,255,0.1); color: var(--text); border: 1px solid rgba(0,102,255,0.15); }
+    .tab:last-child { border-right: none; }
+    .tab:hover { color: var(--fg); background: rgba(255,255,255,0.03); }
+    .tab.active { background: var(--blue); color: #fff; }
 
-    .right-actions { display: flex; align-items: center; gap: 4px; }
+    .right-actions { display: flex; align-items: center; gap: 6px; }
 
     .badge {
-      font-size: 11px; color: var(--text-muted);
-      padding: 3px 8px; background: rgba(255,255,255,0.02);
-      border-radius: var(--radius-sm); border: 1px solid var(--border);
-      font-weight: 400; display: flex; align-items: center; gap: 5px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--dim); padding: 4px 9px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--line);
+      display: flex; align-items: center; gap: 5px;
     }
-    .badge.live { color: var(--ok); background: rgba(62,207,142,0.07); border-color: rgba(62,207,142,0.18); }
+    .badge.live { color: var(--ok); background: rgba(62,207,142,0.06); border-color: rgba(62,207,142,0.18); }
 
     .pill-btn {
-      border: 1px solid var(--border); background: rgba(255,255,255,0.02); color: var(--text-muted);
-      padding: 4px 10px; border-radius: var(--radius-sm); font-size: 11.5px; cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+      border: 1px solid var(--line); background: rgba(255,255,255,0.02); color: var(--muted);
+      padding: 5px 10px; cursor: pointer;
       text-decoration: none; display: inline-flex; gap: 5px; align-items: center;
       transition: all 0.15s; font-weight: 400;
     }
-    .pill-btn:hover { border-color: var(--border-hover); color: var(--text); background: var(--accent-dim); }
-    .pill-btn.warn { background: rgba(239,154,70,0.08); border-color: rgba(239,154,70,0.2); color: #ef9a46; }
-    .pill-btn.warn:hover { background: rgba(239,154,70,0.15); }
-    .pill-btn.gh { background: rgba(255,255,255,0.03); color: var(--text); border-color: rgba(255,255,255,0.08); }
+    .pill-btn:hover { border-color: var(--line-2); color: var(--fg); background: rgba(255,255,255,0.04); }
+    .pill-btn.warn { color: var(--warn); }
+    .pill-btn.warn:hover { border-color: var(--warn); }
+    .pill-btn.gh { color: var(--fg); }
+    .pill-btn.blue { background: var(--blue); border-color: transparent; color: #fff; }
+    .pill-btn.blue:hover { background: var(--blue-2); }
 
-    .content { flex: 1; display: flex; min-height: 0; }
+    /* ── CONTENT AREA — this is the flex row holding files + stage ── */
+    .content { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 
-    /* ─── FILE TREE ─── */
     .files {
       width: 210px; min-width: 170px;
-      background: rgba(2,2,8,0.6);
-      border-right: 1px solid var(--border);
+      background: var(--bg-2);
+      border-right: 1px solid var(--line);
       display: flex; flex-direction: column;
+      flex-shrink: 0;
     }
     .tree-head {
-      padding: 8px 10px;
+      padding: 7px 10px;
       display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--line);
     }
-    .tree-title { font-size: 10px; font-weight: 500; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; }
+    .tree-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px; font-weight: 400; text-transform: uppercase;
+      color: var(--dim); letter-spacing: 0.18em;
+    }
+    .tree-title::before { content: "// "; color: var(--blue); }
     .upload-btn {
       width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
-      border-radius: 4px; color: var(--text-muted); cursor: pointer; font-size: 15px;
+      color: var(--dim); cursor: pointer; font-size: 14px;
       transition: all 0.15s; border: 1px solid transparent;
     }
-    .upload-btn:hover { color: var(--accent-light); border-color: rgba(0,102,255,0.2); background: var(--accent-dim); }
-
+    .upload-btn:hover { color: var(--blue); border-color: var(--line); }
     .file-list { padding: 6px 4px; overflow-y: auto; flex: 1; }
     .file-list::-webkit-scrollbar { width: 3px; }
-    .file-list::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.1); }
+    .file-list::-webkit-scrollbar-thumb { background: var(--line); }
 
     .node {
       display: flex; align-items: center; gap: 6px;
-      padding: 4px 8px; border-radius: 4px;
-      font-size: 12px; color: var(--text-mid); cursor: pointer;
+      padding: 4px 8px;
+      font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.04em;
+      color: var(--dim); cursor: pointer;
       transition: all 0.12s; margin-bottom: 1px; border: 1px solid transparent;
     }
-    .node:hover { background: rgba(0,102,255,0.05); color: var(--text); border-color: var(--border); }
-    .node.active { background: rgba(0,102,255,0.1); color: var(--text); font-weight: 400; border-color: rgba(0,102,255,0.15); }
-    .node .ico { font-size: 13px; flex-shrink: 0; display: flex; align-items: center; opacity: 0.8; }
+    .node:hover { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
+    .node.active { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
+    .node.active::before { content: "▶"; font-size: 7px; color: var(--blue); margin-right: 2px; }
+    .node .ico { font-size: 12px; flex-shrink: 0; display: flex; align-items: center; opacity: 0.8; }
 
-    /* ─── STAGE ─── */
-    .stage { flex: 1; min-width: 0; background: #01010a; display: flex; flex-direction: column; position: relative; }
-    #editor { flex: 1; height: 100%; overflow: hidden; }
-    #preview { width: 100%; height: 100%; border: 0; display: none; background: #fff; }
+    /* ── STAGE — fills remaining width, holds all right-side panels ── */
+    .stage {
+      flex: 1; min-width: 0;
+      background: #01010a;
+      display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
+    }
 
-    /* ─── GAME FRAME shown during agent run ─── */
+    /* all panels inside stage fill it completely */
+    #editor        { flex: 1; height: 100%; overflow: hidden; display: block; }
+    #imageViewer   { display: none; flex: 1; align-items: center; justify-content: center; overflow: auto; background: #01010a; padding: 20px; }
+    #preview       { width: 100%; height: 100%; border: 0; display: none; background: #fff; flex: 1; }
+    #analyticsPanel {
+      display: none;        /* shown by JS — flex when active */
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      background: var(--bg);
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+    }
+
     #gameFrame {
       position: absolute; inset: 0;
-      width: 100%; height: 100%;
-      border: 0;
-      display: none;
-      background: var(--bg);
-      z-index: 10;
-      /* subtle fade-in */
-      opacity: 0;
-      transition: opacity 0.4s var(--ease);
+      width: 100%; height: 100%; border: 0;
+      display: none; background: var(--bg); z-index: 10;
+      opacity: 0; transition: opacity 0.4s var(--ease);
     }
-    #gameFrame.visible {
-      display: block;
-    }
-    #gameFrame.faded {
-      opacity: 1;
-    }
+    #gameFrame.visible { display: block; }
+    #gameFrame.faded { opacity: 1; }
 
     .preview-empty {
       display: none; flex: 1; align-items: center; justify-content: center;
-      flex-direction: column; gap: 12px; color: var(--text-muted); text-align: center; padding: 40px;
+      flex-direction: column; gap: 14px; color: var(--dim); text-align: center; padding: 40px;
     }
-    .preview-empty i { font-size: 28px; color: var(--text-muted); }
-    .preview-empty p { font-size: 13px; color: var(--text-muted); max-width: 240px; line-height: 1.5; }
+    .preview-empty i { font-size: 28px; color: var(--dim); opacity: 0.5; }
+    .preview-empty p {
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim);
+      max-width: 240px; line-height: 1.65;
+    }
 
-    /* ─── LOADER ─── */
     #editor-loading-overlay {
       position: fixed; inset: 0; z-index: 9999;
       background: var(--bg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
       transition: opacity 0.5s ease;
     }
-    #editor-loading-overlay img { width: 256px; height: 256px; object-fit: contain; opacity: 0.9; }
-    #editor-loading-overlay p { color: var(--text-muted); font-size: 11px; letter-spacing: 2px; font-weight: 400; }
+    #editor-loading-overlay img { width: 200px; height: 200px; object-fit: contain; opacity: 0.85; }
+    #editor-loading-overlay p {
+      font-family: 'DM Mono', monospace;
+      color: var(--dim); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    }
 
-    .wave { display: flex; gap: 2px; align-items: center; opacity: 0; transition: opacity 0.3s; }
+    .wave { display: flex; gap: 3px; align-items: center; opacity: 0; transition: opacity 0.3s; }
     .wave.active { opacity: 1; }
-    .wave span { width: 2px; height: 10px; background: var(--accent); border-radius: 2px; animation: wv 1s infinite ease-in-out; }
+    .wave span { width: 2px; height: 10px; background: var(--blue); animation: wv 1s infinite ease-in-out; }
     .wave span:nth-child(2) { animation-delay: 0.12s; }
     .wave span:nth-child(3) { animation-delay: 0.24s; }
     @keyframes wv { 0%,100%{transform:scaleY(0.5);opacity:0.4;} 50%{transform:scaleY(1.8);opacity:1;} }
 
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(0,102,255,0.1); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(0,102,255,0.22); }
-
+    ::-webkit-scrollbar-thumb { background: var(--line); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
     @keyframes spin { 100%{ transform: rotate(360deg); } }
   </style>
 </head>
@@ -423,28 +424,28 @@
 
 <div id="editor-loading-overlay">
   <img src="/static/gorilla.gif" alt="" />
-  <p>WAKING UP GORILLA</p>
+  <p>Waking up gorilla</p>
 </div>
 
 <div class="shell">
 
 <aside class="left">
-
   <div class="topbar">
     <a class="logo" href="/dashboard">
-      <svg version="1.0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 550" preserveAspectRatio="xMidYMid meet">
-        <g transform="translate(0,603) scale(0.1,-0.1)" fill="currentColor" stroke="none">
-          <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
-          <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
-          <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
-          <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
-          <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
-          <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
-        </g>
-      </svg>
-      Gor://a
+      <span class="logo-icon">
+        <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
+            <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+            <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+            <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+            <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+            <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+            <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+          </g>
+        </svg>
+      </span>
+      gor://a
     </a>
-
     <div class="topbar-actions">
       <a class="icon-btn" href="/projects/{{ project_id }}/settings" title="Settings"><i class="ph ph-gear"></i></a>
       {% if user.plan == 'premium' %}
@@ -477,53 +478,48 @@
       </button>
     </div>
   </div>
-
 </aside>
 
 <section class="main">
-
   <div class="main-topbar">
     <div class="tab-group">
-      <div class="tab active" id="tabCode"><i class="ph ph-code" style="font-size:13px;"></i></div>
-      <div class="tab" id="tabPreview"><i class="ph ph-eye" style="font-size:13px;"></i></div>
+      <div class="tab active" id="tabCode"><i class="ph ph-code" style="font-size:12px;"></i> Code</div>
+      <div class="tab" id="tabPreview"><i class="ph ph-eye" style="font-size:12px;"></i> Preview</div>
+      <div class="tab" id="tabAnalytics"><i class="ph ph-chart-line" style="font-size:12px;"></i> Analytics</div>
     </div>
-
     <div class="right-actions">
       <span class="badge" id="sandboxStatus">Sandbox Offline</span>
       {% if user and user.tokens %}
       <span class="badge" title="Tokens used">
-        <i class="ph ph-lightning" style="font-size:11px;"></i>
+        <i class="ph ph-lightning" style="font-size:10px;"></i>
         <span id="tokenDisplay">{{ "{:,}".format(user.tokens.used) }}</span>
       </span>
       {% endif %}
       <span class="badge" id="saveStatus">Saved</span>
-
       <a class="pill-btn" href="/dashboard" title="Dashboard"><i class="ph ph-squares-four"></i></a>
-
       {% if user.plan != 'premium' %}
-      <a class="pill-btn" href="/pricing" style="background:var(--accent);border-color:transparent;color:#fff;">Upgrade</a>
+      <a class="pill-btn blue" href="/pricing">Upgrade →</a>
       {% endif %}
-
       {% if not has_github %}
       <a class="pill-btn gh" href="/auth/github/link" title="Connect GitHub">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
         GitHub
       </a>
       {% else %}
-      <button class="pill-btn gh" onclick="commitToGithub()" id="btn-github-action" title="{% if project.github_repo_url %}Sync{% else %}Push{% endif %} to GitHub">
-        <i class="ph ph-git-branch" style="font-size:12px;"></i>
+      <button class="pill-btn gh" onclick="commitToGithub()" id="btn-github-action">
+        <i class="ph ph-git-branch" style="font-size:11px;"></i>
         {% if project.github_repo_url %}Sync{% else %}Push{% endif %}
       </button>
       {% endif %}
-
-      <a class="pill-btn warn" href="/projects/{{ project_id }}/deploy" target="_blank" title="Deploy">
-        <i class="ph ph-rocket-launch" style="font-size:12px;"></i> Deploy
+      <a class="pill-btn warn" href="/projects/{{ project_id }}/deploy" target="_blank">
+        <i class="ph ph-rocket-launch" style="font-size:11px;"></i> Deploy
       </a>
     </div>
   </div>
 
   <div class="content">
-    <aside class="files">
+    <!-- file tree — hidden in analytics/preview modes -->
+    <aside class="files" id="fileSidebar">
       <div class="tree-head">
         <span class="tree-title">Explorer</span>
         <button class="upload-btn" id="btnUpload" title="Upload file"><i class="ph ph-upload-simple"></i></button>
@@ -532,11 +528,11 @@
       <div class="file-list" id="filetree"></div>
     </aside>
 
+    <!-- stage — all right-side panels live here as siblings -->
     <div class="stage">
       <div id="editor"></div>
-      <div id="imageViewer" style="display:none;flex:1;align-items:center;justify-content:center;overflow:auto;background:#01010a;padding:20px;"></div>
+      <div id="imageViewer"></div>
 
-      <!-- Game page shown while agent is running -->
       <iframe id="gameFrame" src="" title="Building..."></iframe>
 
       <iframe
@@ -545,13 +541,16 @@
         allow="clipboard-write; clipboard-read; microphone; camera; display-capture"
         referrerpolicy="no-referrer">
       </iframe>
+
       <div class="preview-empty" id="previewEmpty">
         <i class="ph ph-timer"></i>
         <p>Preview will appear once the sandbox is live.</p>
       </div>
+
+      <!-- analyticsPanel is a direct sibling inside stage, NOT inside previewEmpty -->
+      <div id="analyticsPanel"></div>
     </div>
   </div>
-
 </section>
 </div>
 
@@ -576,26 +575,24 @@ async function commitToGithub() {
 import { marked } from 'https://esm.sh/marked@9.1.2';
 import DOMPurify from 'https://esm.sh/dompurify@3.0.6';
 
-const PROJECT_ID = "{{ project_id }}";
-
-// Read from session-injected Jinja variable — null on refresh (session already popped)
+const PROJECT_ID    = "{{ project_id }}";
 const INITIAL_PROMPT = {{ initial_prompt | tojson }};
-
-const HAS_SUPABASE = {{ 'true' if has_supabase else 'false' }};
+const HAS_SUPABASE  = {{ 'true' if has_supabase else 'false' }};
 const PROJECT_HAS_DB = {{ 'true' if project_has_db else 'false' }};
-
-// Game page URL shown while agent is building
-const GAME_URL = `/projects/${PROJECT_ID}/game`;
+const GAME_URL      = `/projects/${PROJECT_ID}/game`;
 
 window.isAgentWorking = false;
 let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
 let es = null, saveTimer = null, sandboxUrl = null, currentAttachedImage = null;
 let currentGroup = null;
 const activityRefs = new Map();
+let analyticsChart1 = null, analyticsChart2 = null;
 
 const $ = id => document.getElementById(id);
 const chat = $("chat");
 const gameFrame = $("gameFrame");
+
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 const PREFIXES = [
   /TAKE YOUR TIME AND THINK DEEPLY\. Before writing any code, carefully plan your architecture, reason through edge cases, and think about potential failure points\. Quality and thoroughness over speed and do this:\s*/gi,
@@ -608,9 +605,9 @@ function cleanPromptText(t) {
 }
 
 const VERB_ICONS = {
-  edit: 'ph-pencil-simple', create: 'ph-plus', delete: 'ph-trash',
-  install: 'ph-package', execute: 'ph-terminal', fetch: 'ph-globe',
-  database: 'ph-database', read: 'ph-eye', scan: 'ph-magnifying-glass', git: 'ph-git-branch'
+  edit:'ph-pencil-simple', create:'ph-plus', delete:'ph-trash',
+  install:'ph-package', execute:'ph-terminal', fetch:'ph-globe',
+  database:'ph-database', read:'ph-eye', scan:'ph-magnifying-glass', git:'ph-git-branch'
 };
 function iconFor(verb) { return VERB_ICONS[verb] || 'ph-terminal'; }
 
@@ -659,8 +656,7 @@ function addActivityCard(id, verb, target, short) {
   card.innerHTML = `
     <i class="ph ${iconFor(verb)} act-icon"></i>
     <span class="act-label">${short || verb}${target ? `<span class="act-target">${target}</span>` : ''}</span>
-    <span class="act-status"></span>
-  `;
+    <span class="act-status"></span>`;
   const outputWrap = document.createElement('div'); outputWrap.className = 'act-output';
   const inner = document.createElement('div'); inner.className = 'act-output-inner';
   outputWrap.appendChild(inner);
@@ -675,8 +671,8 @@ function addActivityCard(id, verb, target, short) {
 function appendActivityChunk(id, stream, text) {
   const ref = activityRefs.get(id); if (!ref) return;
   const line = document.createElement('div');
-  line.className = stream === 'stderr' ? 'stream-err' : 'stream-out';
-  line.textContent = text; line.style.color = stream === 'stderr' ? 'var(--danger)' : '';
+  line.style.color = stream === 'stderr' ? 'var(--danger)' : '';
+  line.textContent = text;
   ref.outputEl.appendChild(line); ref.hasOutput = true;
   ref.outputEl.scrollTop = ref.outputEl.scrollHeight;
 }
@@ -704,45 +700,34 @@ function loadChatHistory() {
   } catch(e) {}
 }
 
-// ── GAME FRAME: show while agent is running, hide after ───────────────────
-function showGameFrame() {
-  // Only load the src once to avoid reloading on every agent call
-  if (!gameFrame.src || !gameFrame.src.includes('/game')) {
-    gameFrame.src = GAME_URL;
-  }
-  gameFrame.classList.add('visible');
-  // Small delay so display:block is painted before opacity transitions
-  requestAnimationFrame(() => requestAnimationFrame(() => gameFrame.classList.add('faded')));
+// ── game frame ────────────────────────────────────────────────────────────────
 
-  // Hide code editor and file tree while game is showing
+function showGameFrame() {
+  if (!gameFrame.src || !gameFrame.src.includes('/game')) gameFrame.src = GAME_URL;
+  gameFrame.classList.add('visible');
+  requestAnimationFrame(() => requestAnimationFrame(() => gameFrame.classList.add('faded')));
   $("editor").style.display = "none";
   $("imageViewer").style.display = "none";
 }
 
 function hideGameFrame() {
   gameFrame.classList.remove('faded');
-  // Wait for fade-out transition then hide
-  setTimeout(() => {
-    gameFrame.classList.remove('visible');
-  }, 400);
+  setTimeout(() => { gameFrame.classList.remove('visible'); }, 400);
 }
 
 function showPreviewAfterDone() {
   hideGameFrame();
-  // If sandbox is live, switch to preview tab automatically
   if (sandboxUrl) {
     setTimeout(() => {
       switchTab("preview");
       $("preview").src = sandboxUrl;
       $("preview").style.display = "block";
       $("previewEmpty").style.display = "none";
-    }, 450); // wait for game frame to fade out
-  } else {
-    // Just restore code view
-    switchTab("code");
-  }
+    }, 450);
+  } else { switchTab("code"); }
 }
-// ─────────────────────────────────────────────────────────────────────────
+
+// ── input state ───────────────────────────────────────────────────────────────
 
 function setInputState(locked) {
   window.isAgentWorking = locked;
@@ -752,14 +737,12 @@ function setInputState(locked) {
   const ed = $("editor");
   if (ed) { ed.style.opacity = locked ? "0.4" : "1"; ed.style.pointerEvents = locked ? "none" : "auto"; }
   if (locked) {
-    if (p) p.placeholder = "Gorilla is thinking...";
+    if (p) p.placeholder = "Gorilla is thinking…";
     if (b) b.innerHTML = '<i class="ph ph-spinner" style="animation:spin 0.9s linear infinite;"></i>';
-    // Show game page as soon as agent locks the UI
     showGameFrame();
   } else {
     if (p) p.placeholder = "What shall we build?";
     if (b) b.innerHTML = '<i class="ph-fill ph-paper-plane-tilt"></i>';
-    // Agent is done — fade out game, show preview
     showPreviewAfterDone();
   }
 }
@@ -792,6 +775,8 @@ if (imgPreview) imgPreview.onclick = () => {
   if (imgInput) imgInput.value = '';
 };
 
+// ── status helpers ────────────────────────────────────────────────────────────
+
 function setConn(state) {
   const dot = $("connDot"); if (!dot) return;
   dot.className = "dot" + (state === "ok" ? " ok" : state === "bad" ? " bad" : "");
@@ -811,10 +796,12 @@ function updateTokens(val) { const el = $("tokenDisplay"); if (el) el.textConten
 function setSaveStatus() {
   const el = $("saveStatus"); if (!el) return;
   el.textContent = dirty ? "Unsaved" : "Saved";
-  el.style.color = dirty ? "var(--warn)" : "var(--text-muted)";
+  el.style.color = dirty ? "var(--warn)" : "var(--dim)";
 }
 
-async function fetchJSON(url, opts) { try { return await (await fetch(url, opts)).json(); } catch(e) { return { ok: false }; } }
+async function fetchJSON(url, opts) { try { return await (await fetch(url, opts)).json(); } catch(e) { return {}; } }
+
+// ── file tree ─────────────────────────────────────────────────────────────────
 
 function buildTree(paths) {
   const root = {};
@@ -835,11 +822,11 @@ function fileIcon(name) {
   if (name.endsWith('.tsx') || name.endsWith('.jsx')) return '<i class="ph ph-atom ico" style="color:#53c1de;"></i>';
   if (name.endsWith('.html')) return '<i class="ph ph-file-html ico" style="color:#e65100;"></i>';
   if (name.endsWith('.css')) return '<i class="ph ph-file-css ico" style="color:#0277bd;"></i>';
-  if (name.endsWith('.env') || name.endsWith('config')) return '<i class="ph ph-gear ico" style="color:#6070a0;"></i>';
-  if (name.endsWith('.json')) return '<i class="ph ph-file-code ico" style="color:#6070a0;"></i>';
-  if (name.endsWith('.sql')) return '<i class="ph ph-database ico" style="color:#3b82f6;"></i>';
-  if (name.endsWith('.md')) return '<i class="ph ph-file-text ico" style="color:#6070a0;"></i>';
-  if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.b64')) return '<i class="ph ph-image ico" style="color:#3b82f6;"></i>';
+  if (name.endsWith('.env') || name.endsWith('config')) return '<i class="ph ph-gear ico" style="color:var(--dim);"></i>';
+  if (name.endsWith('.json')) return '<i class="ph ph-file-code ico" style="color:var(--dim);"></i>';
+  if (name.endsWith('.sql')) return '<i class="ph ph-database ico" style="color:var(--blue);"></i>';
+  if (name.endsWith('.md')) return '<i class="ph ph-file-text ico" style="color:var(--dim);"></i>';
+  if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.b64')) return '<i class="ph ph-image ico" style="color:var(--blue);"></i>';
   return '<i class="ph ph-file ico"></i>';
 }
 
@@ -855,7 +842,7 @@ function renderTree(container, nodeObj, depth) {
     const row = document.createElement("div");
     row.className = "node" + ((isFile && meta.__path === currentFile) ? " active" : "");
     row.style.paddingLeft = (8 + depth * 12) + "px";
-    const ico = isFile ? fileIcon(name) : '<i class="ph ph-folder ico" style="color:#2a3a5e;"></i>';
+    const ico = isFile ? fileIcon(name) : '<i class="ph ph-folder ico" style="color:var(--dim);"></i>';
     row.innerHTML = `${ico}<span>${name}</span>`;
     if (isFile) row.onclick = () => loadFile(meta.__path);
     else {
@@ -898,7 +885,7 @@ async function loadFile(path) {
     const iv = $("imageViewer");
     let src = content;
     if (path.endsWith('.b64') && !content.startsWith('data:image')) src = `data:image/jpeg;base64,${content}`;
-    iv.innerHTML = `<img src="${src}" style="max-width:100%;max-height:100%;border-radius:8px;">`;
+    iv.innerHTML = `<img src="${src}" style="max-width:100%;max-height:100%;">`;
     switchTab("code");
   } else { buildEditor(content, path); switchTab("code"); }
   await refreshFiles();
@@ -928,28 +915,66 @@ if (upInput) upInput.onchange = (e) => {
   reader.readAsText(file);
 };
 
+// ── TAB SWITCHING — single source of truth ────────────────────────────────────
+// Everything is hidden first, then only what's needed is shown.
+
+function hideAllPanels() {
+  $("editor").style.display        = "none";
+  $("imageViewer").style.display   = "none";
+  $("preview").style.display       = "none";
+  $("previewEmpty").style.display  = "none";
+  $("analyticsPanel").style.display = "none";
+  $("fileSidebar").style.display   = "none";
+  // don't touch gameFrame here — it has its own show/hide logic
+}
+
 function switchTab(tab) {
+  hideAllPanels();
+  ["tabCode","tabPreview","tabAnalytics"].forEach(id => $(id)?.classList.remove("active"));
+
   if (tab === "preview") {
-    $("tabPreview").classList.add("active"); $("tabCode").classList.remove("active");
-    $("editor").style.display = "none"; $("imageViewer").style.display = "none";
-    document.querySelector(".files").style.display = "none";
+    $("tabPreview").classList.add("active");
+    $("fileSidebar").style.display = "none"; // no sidebar in preview
     if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
-      $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
-    } else { $("preview").style.display = "none"; $("previewEmpty").style.display = "flex"; bootSandboxIfNeeded(); }
+      $("preview").src = sandboxUrl;
+      $("preview").style.display = "block";
+    } else {
+      $("previewEmpty").style.display = "flex";
+      bootSandboxIfNeeded();
+    }
+
+  } else if (tab === "analytics") {
+    $("tabAnalytics").classList.add("active");
+    $("fileSidebar").style.display = "none"; // no sidebar in analytics
+    const ap = $("analyticsPanel");
+    ap.style.display = "flex"; // make it visible; loadAnalytics fills it
+
   } else {
-    $("tabCode").classList.add("active"); $("tabPreview").classList.remove("active");
-    document.querySelector(".files").style.display = "flex";
-    $("preview").style.display = "none"; $("previewEmpty").style.display = "none";
+    // code (default)
+    $("tabCode").classList.add("active");
+    $("fileSidebar").style.display = "flex";
     if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png'))) {
-      $("editor").style.display = "none"; $("imageViewer").style.display = "flex";
-    } else { $("editor").style.display = "block"; $("imageViewer").style.display = "none"; }
+      $("imageViewer").style.display = "flex";
+    } else {
+      $("editor").style.display = "block";
+    }
   }
 }
-$("tabCode").onclick = () => { if (!window.isAgentWorking) switchTab("code"); };
-$("tabPreview").onclick = () => { if (!window.isAgentWorking) switchTab("preview"); };
+
+$("tabCode").onclick     = () => { if (!window.isAgentWorking) switchTab("code"); };
+$("tabPreview").onclick  = () => { if (!window.isAgentWorking) switchTab("preview"); };
+$("tabAnalytics").onclick = async () => {
+  if (window.isAgentWorking) return;
+  switchTab("analytics");
+  await loadAnalytics();
+};
+
+// ── sandbox ───────────────────────────────────────────────────────────────────
 
 async function bootSandboxIfNeeded() {
-  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { $("preview").src = sandboxUrl; return; }
+  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
+    $("preview").src = sandboxUrl; return;
+  }
   updateSandboxStatus("Booting");
   try {
     const res = await fetch(`/api/project/${PROJECT_ID}/sandbox/start`, { method: 'POST' });
@@ -963,6 +988,8 @@ async function bootSandboxIfNeeded() {
   } catch (e) { updateSandboxStatus("Error"); }
 }
 
+// ── SSE stream ────────────────────────────────────────────────────────────────
+
 function startStream() {
   if (es) es.close(); setConn("warn");
   es = new EventSource(`/api/project/${PROJECT_ID}/events`);
@@ -971,20 +998,13 @@ function startStream() {
     const m = JSON.parse(e.data);
     if (m.type === "status") {
       setProgress(m.text);
-      if (/Done|Ready|Error/i.test(m.text)) {
-        resetGroup();
-        setInputState(false); // ← this calls showPreviewAfterDone() internally
-      }
-      if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) {
-        updateSandboxStatus("Live");
-        // Don't interrupt game frame — sandbox url is stored, used after agent is done
-      }
+      if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
+      if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) updateSandboxStatus("Live");
       if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
     }
     else if (m.type === "progress") setProgress(m.text, m.pct);
     else if (m.type === "sandbox_url") {
       sandboxUrl = m.url; updateSandboxStatus("Live");
-      // Only switch to preview immediately if agent is NOT currently working
       if (!window.isAgentWorking && $("tabPreview").classList.contains("active")) {
         const iframe = $("preview");
         iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
@@ -1012,6 +1032,8 @@ function startStream() {
   es.onerror = () => setConn("bad");
 }
 
+// ── agent ─────────────────────────────────────────────────────────────────────
+
 async function triggerAgent(promptText) {
   if (!promptText && !currentAttachedImage) return;
   resetGroup();
@@ -1023,7 +1045,7 @@ async function triggerAgent(promptText) {
     await addNarration("To use a database, please link your Supabase account from Dashboard settings.", false); return;
   }
   if (isDbReq && !PROJECT_HAS_DB) formData.append("is_db_request", "true");
-  setInputState(true); // ← shows game frame
+  setInputState(true);
   addUserMessage(cleanPromptText(promptText) || "Please update to match this image.");
   formData.append("prompt", promptText || "Please update to match this image.");
   if (currentAttachedImage) formData.append("image_base64", currentAttachedImage);
@@ -1042,7 +1064,6 @@ if (runBtn) runBtn.onclick = () => {
   const val = $("prompt").value.trim();
   if (val || currentAttachedImage) { triggerAgent(val); $("prompt").value = ""; }
 };
-
 const promptEl = $("prompt");
 if (promptEl) promptEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
@@ -1052,12 +1073,190 @@ if (promptEl) promptEl.addEventListener("keydown", (e) => {
   }
 });
 
+// ── ANALYTICS ─────────────────────────────────────────────────────────────────
+
+const EVT_COLORS = { login:'var(--ok)', agent_run:'var(--blue)', error_fix:'var(--danger)', export:'var(--warn)', sandbox_boot:'var(--dim)' };
+const EVT_LABELS = { login:'login', agent_run:'agent run', error_fix:'error fix', export:'export', sandbox_boot:'sandbox boot' };
+
+function timeSince(iso) {
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+
+function metricCard(label, value, sub, subOk) {
+  return `<div style="background:var(--bg-2);border:1px solid var(--line);padding:12px 14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:4px;">${label}</div>
+    <div style="font-size:22px;font-weight:500;color:var(--fg);">${value}</div>
+    ${sub ? `<div style="font-size:11px;margin-top:3px;color:${subOk?'var(--ok)':'var(--warn)'}">${sub}</div>` : ''}
+  </div>`;
+}
+
+function provBar(label, pct, hex) {
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">
+    <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);width:50px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</span>
+    <div style="flex:1;height:4px;background:var(--faint);"><div style="height:100%;width:${Math.min(100,pct)}%;background:${hex};"></div></div>
+    <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:28px;text-align:right;">${Math.round(pct)}%</span>
+  </div>`;
+}
+
+function analyticsHtml() {
+  return `
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+  <span style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);">// analytics</span>
+  <select id="analyticsDays" style="background:var(--bg-2);border:1px solid var(--line);color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;">
+    <option value="7">7 days</option>
+    <option value="30" selected>30 days</option>
+    <option value="90">90 days</option>
+  </select>
+</div>
+<div id="analyticsMetrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:12px;">// daily logins & agent runs</div>
+    <div style="position:relative;height:140px;"><canvas id="aChart1" role="img" aria-label="Daily logins and agent runs"></canvas></div>
+  </div>
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:12px;">// tokens per day</div>
+    <div style="position:relative;height:140px;"><canvas id="aChart2" role="img" aria-label="Tokens consumed per day"></canvas></div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 200px;gap:12px;">
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:12px;">// live event feed</div>
+    <div id="analyticsEvents"></div>
+  </div>
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:10px;">// auth providers</div>
+    <div id="analyticsProviders"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:14px 0 8px;">// event mix</div>
+    <div id="analyticsEventMix"></div>
+  </div>
+</div>`;
+}
+
+async function renderAnalytics(data) {
+  const totalLogins = data.totals?.login     || 0;
+  const totalAgents = data.totals?.agent_run || 0;
+  const totalTokens = Object.values(data.daily_tokens || {}).reduce((a,b)=>a+b,0);
+  const totalErrors = data.totals?.error_fix || 0;
+  const uniqueUsers = data.unique_users || 0;
+
+  $("analyticsMetrics").innerHTML =
+    metricCard("App logins",   totalLogins,  uniqueUsers + " unique users", true) +
+    metricCard("Agent runs",   totalAgents,  null) +
+    metricCard("Tokens spent", totalTokens > 999 ? (totalTokens/1000).toFixed(1)+'k' : String(totalTokens), null) +
+    metricCard("Auto-fixes",   totalErrors,  totalErrors > 5 ? "high — check logs" : "looks healthy", totalErrors <= 5);
+
+  const allDays = new Set([
+    ...Object.keys(data.daily_logins || {}),
+    ...Object.keys(data.daily_agents || {}),
+    ...Object.keys(data.daily_tokens || {}),
+  ]);
+  const days      = Array.from(allDays).sort();
+  const loginVals = days.map(d => data.daily_logins[d] || 0);
+  const agentVals = days.map(d => data.daily_agents[d] || 0);
+  const tokenVals = days.map(d => data.daily_tokens[d] || 0);
+  const shortDays = days.map(d => d.slice(5));
+
+  if (analyticsChart1) { analyticsChart1.destroy(); analyticsChart1 = null; }
+  if (analyticsChart2) { analyticsChart2.destroy(); analyticsChart2 = null; }
+
+  const gridColor = 'rgba(255,255,255,0.05)';
+  const tickColor = '#4a4c55';
+  const baseOpts = {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 400 },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid:{color:gridColor}, ticks:{color:tickColor, font:{size:10,family:"'DM Mono'"}, maxRotation:0, autoSkip:true, maxTicksLimit:7} },
+      y: { grid:{color:gridColor}, ticks:{color:tickColor, font:{size:10,family:"'DM Mono'"}}, beginAtZero:true },
+    }
+  };
+
+  analyticsChart1 = new window.Chart($("aChart1"), {
+    type: "line",
+    data: { labels: shortDays, datasets: [
+      { label:"Logins",     data:loginVals, borderColor:"#3ECF8E", backgroundColor:"rgba(62,207,142,0.06)", fill:true,  tension:0.4, pointRadius:0, borderWidth:2 },
+      { label:"Agent runs", data:agentVals, borderColor:"#378ADD", backgroundColor:"rgba(55,138,221,0.06)", fill:false, tension:0.4, pointRadius:0, borderWidth:2, borderDash:[4,3] },
+    ]},
+    options: baseOpts
+  });
+
+  analyticsChart2 = new window.Chart($("aChart2"), {
+    type: "bar",
+    data: { labels: shortDays, datasets: [
+      { label:"Tokens", data:tokenVals, backgroundColor:"rgba(55,138,221,0.55)", borderRadius:2, borderSkipped:false }
+    ]},
+    options: baseOpts
+  });
+
+  const provTotal = Object.values(data.providers || {}).reduce((a,b)=>a+b,0) || 1;
+  $("analyticsProviders").innerHTML = Object.entries(data.providers || {}).map(([k,v]) =>
+    provBar(k, (v/provTotal)*100, k==='google'?'#378ADD':'#4a4c55')
+  ).join('') || '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);">No logins yet</span>';
+
+  const evTotal = Object.values(data.totals || {}).reduce((a,b)=>a+b,0) || 1;
+  $("analyticsEventMix").innerHTML = Object.entries(data.totals || {}).map(([k,v]) =>
+    provBar(EVT_LABELS[k]||k, (v/evTotal)*100, EVT_COLORS[k]||'var(--dim)')
+  ).join('') || '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);">No events yet</span>';
+
+  $("analyticsEvents").innerHTML = (data.recent||[]).slice(0,12).map(ev=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--faint);">
+      <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:${EVT_COLORS[ev.type]||'var(--dim)'}"></span>
+      <span style="font-size:11px;color:var(--muted);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        ${EVT_LABELS[ev.type]||ev.type}${ev.email?' · '+ev.email:''}${ev.type==='agent_run'&&ev.metadata?.tokens?' · '+ev.metadata.tokens+' tok':''}
+      </span>
+      <span style="font-size:10px;color:var(--dim);font-family:'DM Mono',monospace;flex-shrink:0;">${timeSince(ev.ts)}</span>
+    </div>`).join('') || '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);">No events yet</span>';
+}
+
+async function loadAnalytics() {
+  const panel = $("analyticsPanel");
+  if (!panel) return;
+
+  // Write skeleton HTML into the panel
+  panel.innerHTML = analyticsHtml();
+
+  // Show a loading state in metrics while we fetch
+  $("analyticsMetrics").innerHTML =
+    '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);grid-column:span 4;">Loading...</span>';
+
+  // Load Chart.js once — guaranteed before renderAnalytics runs
+  if (!window.Chart) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  // Wire up the days selector
+  const sel = $("analyticsDays");
+  if (sel) sel.onchange = async () => {
+    $("analyticsMetrics").innerHTML =
+      '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);grid-column:span 4;">Refreshing...</span>';
+    const d = await fetchJSON(`/api/project/${PROJECT_ID}/analytics?days=${sel.value}`);
+    await renderAnalytics(d);
+  };
+
+  const data = await fetchJSON(`/api/project/${PROJECT_ID}/analytics?days=30`);
+  await renderAnalytics(data);
+}
+
+// ── init ──────────────────────────────────────────────────────────────────────
+
 (async () => {
   loadChatHistory();
   await refreshFiles();
   try { await loadFile(currentFile); } catch(e) {}
-  startStream(); setProgress("Ready", 0); hideLoader();
-  // INITIAL_PROMPT is null on refresh (session popped), fires only once on first load
+  switchTab("code"); // ensure correct initial state
+  startStream();
+  setProgress("Ready", 0);
+  hideLoader();
   if (INITIAL_PROMPT) setTimeout(() => triggerAgent(INITIAL_PROMPT), 800);
 })();
 </script>

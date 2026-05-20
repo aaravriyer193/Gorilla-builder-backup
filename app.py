@@ -205,6 +205,17 @@ def db_select_one(table: str, match: dict, select="*"):
 # ==========================================================================
 # DB HELPERS (Integrity Guard)
 # ==========================================================================
+import posixpath
+ 
+def _sanitize_file_path(raw: str) -> str:
+    """Prevent path traversal. Raises 400 on suspicious input."""
+    clean = posixpath.normpath(raw.replace("\\", "/")).lstrip("/")
+    if ".." in clean.split("/"):
+        raise HTTPException(status_code=400, detail="Invalid file path.")
+    if clean.startswith("/") or "\x00" in clean:
+        raise HTTPException(status_code=400, detail="Invalid file path.")
+    return clean
+
 def db_upsert(table: str, data: Dict[str, Any], on_conflict: str = "id"):
     """
     Enhanced upsert that blocks binary/giant files from entering the DB.
@@ -701,6 +712,7 @@ def _ensure_gorilla_api_key(user_id: str):
     except Exception as e:
         print(f"⚠️ Failed to generate gorilla_api_key for {user_id}: {e}")
 
+
 # --------------------------------------------------------------------------
 # 1. SIGNUP FLOW (Secure)
 # --------------------------------------------------------------------------
@@ -761,66 +773,79 @@ async def auth_verify_otp(
     email: str = Form(...),
     code: str = Form(...)
 ):
-    email = email.strip().lower()
+    email  = email.strip().lower()
     record = PENDING_SIGNUPS.get(email)
-    
-    # 1. Validate Session
+ 
     if not record:
-        return templates.TemplateResponse("auth/signup.html", {"request": request, "step": "initial", "error": "Session expired. Please start over."})
-    
-    # 2. Validate OTP
+        return templates.TemplateResponse("auth/signup.html", {
+            "request": request, "step": "initial",
+            "error": "Session expired. Please start over."
+        })
+ 
+    # ✅ Expire after 10 minutes
+    if time.time() - record.get("ts", 0) > 600:
+        del PENDING_SIGNUPS[email]
+        return templates.TemplateResponse("auth/signup.html", {
+            "request": request, "step": "initial",
+            "error": "Code expired. Please start over."
+        })
+ 
+    # ✅ Max 5 attempts
+    record["attempts"] = record.get("attempts", 0) + 1
+    if record["attempts"] > 5:
+        del PENDING_SIGNUPS[email]
+        return templates.TemplateResponse("auth/signup.html", {
+            "request": request, "step": "initial",
+            "error": "Too many attempts. Please start over."
+        })
+ 
     if record["otp"] != code:
-        return templates.TemplateResponse("auth/signup.html", {"request": request, "step": "verify", "email": email, "error": "Invalid code."})
-    
+        remaining = max(0, 5 - record["attempts"])
+        return templates.TemplateResponse("auth/signup.html", {
+            "request": request, "step": "verify", "email": email,
+            "error": f"Invalid code. {remaining} attempt{'s' if remaining != 1 else ''} remaining."
+        })
+ 
     try:
         password = record["password"]
-        
-        # 3. Create Supabase User
+ 
         try:
             supabase.auth.admin.create_user({
                 "email": email,
                 "password": password,
                 "email_confirm": True
             })
-        except Exception as e:
-            # Should be caught by the initial check, but strictly handle race conditions
-            return templates.TemplateResponse("auth/login.html", {"request": request, "error": "Account exists. Please log in."})
-
-        # 4. Auto-Login
-        res = supabase.auth.sign_in_with_password({
-            "email": email, 
-            "password": password
-        })
-
+        except Exception:
+            return templates.TemplateResponse("auth/login.html", {
+                "request": request,
+                "error": "Account exists. Please log in."
+            })
+ 
+        res = supabase.auth.sign_in_with_password({"email": email, "password": password})
         if not res.session:
             raise Exception("Account created, but auto-login failed.")
-
-        # 5. Sync Public DB
+ 
         ensure_public_user(res.user.id, email)
-        
-        # 🚨 AI PROXY: Generate their Master Key
         _ensure_gorilla_api_key(res.user.id)
-        
-        # 6. Cleanup & Response
+ 
         if email in PENDING_SIGNUPS:
             del PENDING_SIGNUPS[email]
-        
-        # FIX: Force session set to avoid dev@local fallback
+ 
         request.session["user"] = {"id": res.user.id, "email": email}
-
         response = RedirectResponse("/dashboard", status_code=303)
         response.set_cookie(
-            key="sb_access_token", 
-            value=res.session.access_token, 
-            max_age=86400, 
-            httponly=True, 
-            samesite="lax"
+            key="sb_access_token",
+            value=res.session.access_token,
+            max_age=86400, httponly=True, samesite="lax"
         )
         return response
-        
+ 
     except Exception as e:
         print(f"Verify Error: {e}")
-        return templates.TemplateResponse("auth/signup.html", {"request": request, "step": "verify", "email": email, "error": "System error. Try again."})
+        return templates.TemplateResponse("auth/signup.html", {
+            "request": request, "step": "verify", "email": email,
+            "error": "System error. Try again."
+        })
 
 # --------------------------------------------------------------------------
 # 2. LOGIN FLOW (Smart Redirect)
@@ -1242,58 +1267,55 @@ async def dashboard(request: Request):
 async def spin_wheel(request: Request):
     user = get_current_user(request)
     payload = await request.json()
-    
+ 
     try:
         wager = int(payload.get("wager", 0))
-    except ValueError:
+    except (ValueError, TypeError):
         raise HTTPException(400, "Invalid wager amount.")
-        
-    if wager < 0 or wager > 500000:
+ 
+    if wager < 0 or wager > 500_000:
         raise HTTPException(400, "Wager must be between 0 and 500,000.")
-
-    # 1. Fetch current token data & spin status securely from DB
-    user_data = supabase.table("users").select("last_spin_date").eq("id", user["id"]).single().execute().data
-    used, limit = get_token_usage_and_limit(user["id"])
+ 
+    # Fetch state from DB first
+    user_data = supabase.table("users").select(
+        "last_spin_date, tokens_used, tokens_limit"
+    ).eq("id", user["id"]).single().execute().data or {}
+ 
+    used  = int(user_data.get("tokens_used")  or 0)
+    limit = int(user_data.get("tokens_limit") or DEFAULT_TOKEN_LIMIT)
     remaining = max(0, limit - used)
-    
+ 
     if wager > remaining:
         raise HTTPException(400, "You do not have enough credits for this wager.")
-        
-    # 2. Check if they already spun today (Server-Side Enforcement)
+ 
+    # ✅ UTC date — consistent regardless of server timezone
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    if user_data and user_data.get("last_spin_date") == today_str:
+    if user_data.get("last_spin_date") == today_str:
         raise HTTPException(400, "You have already used your daily spin.")
-
-    # 3. The Secure Math
+ 
     rand = random.random()
     if rand < 0.50:
-        multiplier = 0.0  # Lose: 50% chance
+        multiplier = 0.0
     elif rand < 0.80:
-        multiplier = 1.5  # Win 1.5x: 30% chance
+        multiplier = 1.5
     else:
-        multiplier = 2.0  # Win 2x: 20% chance
-
-    # 4. Calculate Net Change
+        multiplier = 2.0
+ 
     if multiplier == 0.0:
         net_change = -wager
     else:
-        net_change = int(wager * multiplier) - wager 
-
-    # 5. Apply the outcome to the DB 
-    new_used = used - net_change 
-    
-    # ACTUAL DB UPDATE
+        net_change = int(wager * multiplier) - wager
+ 
+    # ✅ Floor at 0 — tokens_used can NEVER go negative (infinite token exploit fixed)
+    new_used = max(0, used - net_change)
+ 
     supabase.table("users").update({
         "last_spin_date": today_str,
-        "tokens_used": new_used
+        "tokens_used":    new_used,
     }).eq("id", user["id"]).execute()
-
-    return {
-        "status": "success",
-        "multiplier": multiplier,
-        "net_change": net_change
-    }
-
+ 
+    return {"status": "success", "multiplier": multiplier, "net_change": net_change}
+ 
 # ==========================================================================
 # SETTINGS & AGENT SKILLS ROUTES
 # ==========================================================================
@@ -1928,7 +1950,7 @@ async def project_export(request: Request, project_id: str):
 
     zip_buffer.seek(0)
     filename = f"gorilla_project_{project_id[:8]}.zip"
-    
+    track_event(project_id, "export", metadata={"file_count": len(files)})
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
@@ -1937,6 +1959,24 @@ async def project_export(request: Request, project_id: str):
             "Cache-Control": "no-cache"
         }
     )
+
+# ==========================================================================
+# ANALYTICS HELPERS
+# ==========================================================================
+
+def track_event(project_id: str, event_type: str, **kwargs):
+    """Non-blocking analytics write. Never raises — analytics must never break features."""
+    try:
+        supabase.table("app_analytics").insert({
+            "project_id": project_id,
+            "event_type": event_type,
+            "user_email":    kwargs.get("user_email"),
+            "user_provider": kwargs.get("user_provider"),
+            "metadata":      kwargs.get("metadata") or {},
+        }).execute()
+    except Exception as e:
+        print(f"⚠️ analytics track_event failed ({event_type}): {e}")
+
 # ==========================================================================
 # SANDBOX ROUTES AND HELPERS
 # ==========================================================================
@@ -2020,6 +2060,7 @@ async def start_sandbox(request: Request, project_id: str):
     try:
         await _sandbox_manager.ensure_running(project_id, env_vars, user["id"])
         url = await _sandbox_manager.start_dev_server(project_id)
+        track_event(project_id, "sandbox_boot")
         return JSONResponse({"status": "ok", "url": url or ""})
     except Exception as e:
         print(f"Sandbox boot error: {e}")
@@ -2032,6 +2073,88 @@ async def stop_sandbox(request: Request, project_id: str):
     _require_project_owner(user, project_id)
     await _sandbox_manager.kill(project_id)
     return JSONResponse({"status": "stopped"})
+
+# ==========================================================================
+# ANALYTICS ROUTE
+# ==========================================================================
+
+from collections import defaultdict, Counter
+
+@app.get("/api/project/{project_id}/analytics")
+async def get_project_analytics(request: Request, project_id: str, days: int = 30):
+    user = get_current_user(request)
+    _require_project_owner(user, project_id)
+
+    from datetime import timedelta
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    try:
+        # Single efficient query — filtered by project + time window, capped at 500 rows
+        res = (
+            supabase.table("app_analytics")
+            .select("event_type, user_email, user_provider, metadata, created_at")
+            .eq("project_id", project_id)
+            .gte("created_at", since)
+            .order("created_at", desc=True)
+            .limit(500)
+            .execute()
+        )
+        events = res.data or []
+    except Exception as e:
+        return JSONResponse({"error": str(e), "events": [], "totals": {}, "unique_users": 0,
+                             "daily_logins": {}, "daily_tokens": {}, "providers": {}})
+
+    # — Aggregate in Python (avoids multiple DB round-trips) —
+    daily_logins  = defaultdict(int)
+    daily_agents  = defaultdict(int)
+    daily_tokens  = defaultdict(int)
+    daily_errors  = defaultdict(int)
+    providers     = Counter()
+    event_types   = Counter()
+    login_emails  = set()
+
+    for ev in events:
+        day  = ev["created_at"][:10]
+        etype = ev.get("event_type", "")
+        event_types[etype] += 1
+
+        if etype == "login":
+            daily_logins[day] += 1
+            if ev.get("user_provider"):
+                providers[ev["user_provider"]] += 1
+            if ev.get("user_email"):
+                login_emails.add(ev["user_email"])
+
+        elif etype == "agent_run":
+            daily_agents[day] += 1
+            toks = (ev.get("metadata") or {}).get("tokens", 0)
+            daily_tokens[day] += int(toks or 0)
+
+        elif etype == "error_fix":
+            daily_errors[day] += 1
+
+    # Recent feed — last 30 events, human-readable
+    recent = [
+        {
+            "type":     ev.get("event_type"),
+            "email":    ev.get("user_email"),
+            "provider": ev.get("user_provider"),
+            "metadata": ev.get("metadata") or {},
+            "ts":       ev.get("created_at"),
+        }
+        for ev in events[:30]
+    ]
+
+    return JSONResponse({
+        "totals":       dict(event_types),
+        "unique_users": len(login_emails),
+        "daily_logins": dict(daily_logins),
+        "daily_agents": dict(daily_agents),
+        "daily_tokens": dict(daily_tokens),
+        "daily_errors": dict(daily_errors),
+        "providers":    dict(providers),
+        "recent":       recent,
+    })
 
 # ==========================================================================
 # REUSABLE AGENT LOOP - Streamlined Version
@@ -2242,6 +2365,8 @@ async def run_agent_loop(
         total_tokens = result.get("tokens", 0)
         if total_tokens and user_id:
             add_monthly_tokens(user_id, total_tokens)
+
+        track_event(project_id, "agent_run", metadata={"tokens": total_tokens}) 
  
         if not result.get("ok"):
             emit_status(project_id, "Fatal Error")
@@ -2626,7 +2751,7 @@ async def app_auth_github_init(request: Request, auth_id: str):
     scope = "user:email"
     site_url = os.getenv('SITE_URL')
     redirect_uri = urllib.parse.quote(f"{site_url}/api/v1/app-auth/github/callback")
-    auth_url = f"https://github.com/login/oauth/authorize?client_id={GITHUB_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}&state={auth_id}"
+    auth_url = f"https://github.com/login/oauth/authorize?client_id={GITHUB_APPAUTH_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}&state={auth_id}"
     return RedirectResponse(auth_url)
 
 @app.get("/api/v1/app-auth/google/callback")
@@ -2657,6 +2782,19 @@ async def app_auth_google_callback(request: Request, code: str, state: str):
         "provider": "google"
     }
     
+# Track app login via analytics
+    try:
+        proj = db_select_one("projects", {"gorilla_auth_id": state}, "id")
+        if proj:
+            track_event(
+                proj["id"], "login",
+                user_email=user_payload.get("email"),
+                user_provider="google",
+                metadata={"name": user_payload.get("name")},
+            )
+    except Exception:
+        pass
+
     return templates.TemplateResponse("auth/appauth.html", {
         "request": request,
         "step": "success",
@@ -2670,8 +2808,8 @@ async def app_auth_github_callback(request: Request, code: str, state: str):
         res = await client.post(
             "https://github.com/login/oauth/access_token", 
             data={
-                "client_id": GITHUB_CLIENT_ID,
-                "client_secret": GITHUB_CLIENT_SECRET,
+                "client_id": GITHUB_APPAUTH_CLIENT_ID,
+                "client_secret": GITHUB_APP_AUTH_CLIENT_SECRET,
                 "code": code,
                 "redirect_uri": f"{site_url}/api/v1/app-auth/github/callback"
             },
@@ -2694,12 +2832,24 @@ async def app_auth_github_callback(request: Request, code: str, state: str):
         "provider": "github"
     }
     
+# Track app login via analytics
+    try:
+        proj = db_select_one("projects", {"gorilla_auth_id": state}, "id")
+        if proj:
+            track_event(
+                proj["id"], "login",
+                user_email=user_payload.get("email"),
+                user_provider="github",
+                metadata={"name": user_payload.get("name")},
+            )
+    except Exception:
+        pass
+
     return templates.TemplateResponse("auth/appauth.html", {
         "request": request,
         "step": "success",
         "user_data": json.dumps(user_payload)
     })
-
 
 # 4. Push to GitHub
 
@@ -3253,6 +3403,8 @@ async def delete_design(request: Request, design_id: str):
     except Exception as e:
         raise HTTPException(500, detail=str(e))
 
+
+
 # ==========================================================================
 # FILE API ROUTES
 # ==========================================================================
@@ -3408,66 +3560,54 @@ async def _write_binary_to_sandbox(
 async def save_file(request: Request, project_id: str):
     user = get_current_user(request)
     _require_project_owner(user, project_id)
-
+ 
     form_data = await request.form()
-    file_path = form_data.get("file")
+    file_path  = form_data.get("file")
     content_obj = form_data.get("content")
-
+ 
     if not file_path or content_obj is None:
         raise HTTPException(status_code=400, detail="Missing file path or content")
-
-    rel_path = str(file_path)
-
-    # ── Binary file (PNG, font, etc.) ────────────────────────────────────────
+ 
+    rel_path = _sanitize_file_path(str(file_path))  # ✅ sanitized — no path traversal
+ 
+    # ── Binary file (PNG, font, etc.) ───────────────────────────────────────
     if hasattr(content_obj, "filename") and _is_binary_path(rel_path):
         file_bytes = await content_obj.read()
-
-        # 1. Upload real bytes to Supabase Storage, get back public URL
         try:
             public_url = await _upload_asset_to_storage(project_id, rel_path, file_bytes)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Storage upload failed: {e}")
-
-        # 2. Persist the URL in the files table (not base64 — just a pointer)
         db_upsert(
             "files",
             {"project_id": project_id, "path": rel_path, "content": public_url},
             on_conflict="project_id,path",
         )
-
-        # 3. Write real binary to sandbox filesystem if a session is live
         await _write_binary_to_sandbox(project_id, rel_path, file_bytes)
-
-    # ── Text file (JS, TSX, CSS, etc.) ───────────────────────────────────────
+ 
+    # ── Text file ────────────────────────────────────────────────────────────
     else:
         if hasattr(content_obj, "filename"):
-            # UploadFile but not a known binary extension — decode as text
             file_bytes = await content_obj.read()
             try:
                 final_content = file_bytes.decode("utf-8")
             except UnicodeDecodeError:
-                # Unknown binary sneaked through — store as data URI fallback
                 mime_type, _ = mimetypes.guess_type(rel_path)
                 b64 = base64.b64encode(file_bytes).decode("utf-8")
                 final_content = f"data:{mime_type or 'application/octet-stream'};base64,{b64}"
         else:
-            # Plain string content from editor
             final_content = str(content_obj)
-
-        # 1. Persist text content in files table
+ 
         db_upsert(
             "files",
             {"project_id": project_id, "path": rel_path, "content": final_content},
             on_conflict="project_id,path",
         )
-
-        # 2. Mirror to live sandbox
         if _sandbox_manager and _sandbox_manager.is_running(project_id):
             try:
                 await _sandbox_manager.write_file(project_id, rel_path, final_content)
             except Exception as e:
                 print(f"⚠️ Sandbox text write mirror failed: {e}")
-
+ 
     supabase.table("projects").update({"updated_at": "now()"}).eq("id", project_id).execute()
     return {"success": True}
 
@@ -3906,35 +4046,27 @@ async def serve_negotiator(request: Request):
 
 @app.post("/api/pricing/save-negotiation")
 async def save_negotiation(request: Request, data: NegotiationResult):
-    """
-    Saves the final agreed price to the users table.
-    Includes anti-cheat to ensure they don't spoof below $0.67.
-    """
     session_user = get_current_user(request)
     if not session_user:
         raise HTTPException(status_code=401, detail="Not logged in")
-        
+ 
     final_price = data.agreed_price
-    
-    # 🛑 ANTI-CHEAT: The absolute floor is $0.67. 
-    if final_price < 0.67:
-        final_price = 0.67
-        
+ 
+    # ✅ Floor AND ceiling — can't be spoofed below $0.67 or above $99.99
+    final_price = max(0.67, min(99.99, float(final_price)))
+    # ✅ Round to 2dp — no floating point artifacts in DB
+    final_price = round(final_price, 2)
+ 
     try:
-        # Save as TEXT to the first_month_price column
         supabase.table("users").update({
             "first_month_price": str(final_price)
         }).eq("id", session_user["id"]).execute()
-        
-        print(f"💰 User {session_user['id']} successfully negotiated first month to ${final_price}")
-        
-        return JSONResponse({
-            "status": "success", 
-            "checkout_url": f"/checkout/premium" # Redirects to Stripe logic
-        })
+ 
+        print(f"💰 User {session_user['id']} negotiated to ${final_price}")
+        return JSONResponse({"status": "success", "checkout_url": "/checkout/premium"})
     except Exception as e:
-        print(f"Error saving negotiated price: {e}")
         raise HTTPException(status_code=500, detail="Database error while saving price.")
+
 
 # ==========================================================================
 # THE GORILLA AI PROXY GATEWAY
@@ -4242,6 +4374,20 @@ async def proxy_chat_completions_bargain(request: Request, auth=Depends(verify_g
             
             return JSONResponse(data)
 
+@app.on_event("startup")
+async def start_background_tasks():
+    asyncio.create_task(_cleanup_expired_otps())
+ 
+async def _cleanup_expired_otps():
+    """Purge abandoned OTP sessions every 5 minutes to prevent memory growth."""
+    while True:
+        await asyncio.sleep(300)
+        cutoff  = time.time() - 600
+        expired = [e for e, r in list(PENDING_SIGNUPS.items()) if r.get("ts", 0) < cutoff]
+        for email in expired:
+            PENDING_SIGNUPS.pop(email, None)
+        if expired:
+            print(f"🧹 Cleaned {len(expired)} expired OTP session(s)")
 
 
 # ==========================================================================

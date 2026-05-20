@@ -4,356 +4,299 @@
 <meta charset="UTF-8" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <title>Deploy · {{ project.name if project else project_id }} · Gor://a Builder</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
 <style>
 :root {
-  --bg: #000000;
-  --panel: rgba(4, 4, 12, 0.99);
-  --border: rgba(0, 120, 255, 0.07);
-  --border-hover: rgba(0, 120, 255, 0.3);
-  --text: #d0d8f0;
-  --text-muted: #2a3050;
-  --accent: #0066ff;
-  --accent-hover: #0055ee;
-  --accent-light: #3385ff;
-  --accent-glow: rgba(0, 102, 255, 0.4);
-  --success: #3a8a5a;
-  --success-glow: rgba(58, 138, 90, 0.3);
-  --radius: 8px;
-  --radius-sm: 5px;
-  --radius-lg: 10px;
+  --bg: #0a0b0d;
+  --bg-2: #101114;
+  --fg: #e8e8eb;
+  --muted: #8a8c95;
+  --dim: #4a4c55;
+  --faint: #25272d;
+  --line: rgba(255,255,255,0.10);
+  --line-2: rgba(255,255,255,0.18);
+  --blue: oklch(0.74 0.16 248);
+  --blue-2: oklch(0.62 0.2 252);
+  --blue-dim: oklch(0.4 0.12 252);
+  --ok: #3ECF8E;
+  --ok-dim: rgba(62,207,142,0.15);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-
-  --shadow-paper:
-    0 1px 0 rgba(0,100,255,0.04) inset,
-    0 1px 3px rgba(0,0,0,0.8),
-    0 2px 8px rgba(0,0,0,0.7);
 }
 
-body.premium {
-  --accent: #3385ff;
-  --accent-hover: #1a73f0;
-  --accent-glow: rgba(51, 133, 255, 0.4);
-}
-
-* { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; }
+* { box-sizing: border-box; outline: none; }
 
 body {
-  margin: 0; background: var(--bg); color: var(--text);
+  margin: 0; background: var(--bg); color: var(--fg);
   min-height: 100vh; display: flex; flex-direction: column;
-  font-weight: 300;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 300; -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle Background Grid */
+/* dot grid */
 body::before {
-  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(0,102,255,0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0,102,255,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
-}
-body::after {
-  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
+  content: "";
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
 }
 
-.wrap { max-width: 600px; margin: 60px auto; padding: 0 22px; width: 100%; flex: 1; }
+.wrap {
+  max-width: 580px; margin: 56px auto;
+  padding: 0 24px; width: 100%; flex: 1;
+  position: relative; z-index: 1;
+}
 
-/* --- HEADER --- */
+/* ── HEADER ── */
 .top {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 48px;
 }
+.title .eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
+  margin-bottom: 8px;
+}
+.title .eyebrow::before { content: "// "; color: var(--dim); }
 .title h1 {
-  font-size: 24px; margin: 0 0 4px; font-weight: 300;
-  letter-spacing: -0.4px; color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 22px; margin: 0; font-weight: 400;
+  letter-spacing: -0.02em; color: var(--fg); line-height: 1.0;
 }
-.title .sub {
-  font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;
-  font-weight: 300;
-}
-.title .sub i { color: var(--accent); }
+.title h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
 
 .btn-back {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 9px 14px; border-radius: var(--radius);
-  text-decoration: none; font-size: 12.5px; font-weight: 300;
-  transition: all 0.2s var(--ease-out);
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; font-weight: 400;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--line);
+  color: var(--muted); padding: 8px 14px;
+  text-decoration: none;
+  transition: all 0.15s var(--ease-out);
   display: flex; align-items: center; gap: 7px;
-  box-shadow: var(--shadow-paper);
 }
-.btn-back:hover {
-  border-color: rgba(0,102,255,0.2);
-  color: var(--text);
-  transform: translateX(-2px);
-}
+.btn-back:hover { border-color: var(--line-2); color: var(--fg); transform: translateX(-2px); }
 
-/* --- STEPPER --- */
+/* ── STEPPER — flat line segments ── */
 .stepper-container {
-  position: relative;
-  width: 100%;
-  max-width: 520px;
+  position: relative; width: 100%;
   margin: 0 auto 48px auto;
 }
 
-.stepper-track-bg {
-  position: absolute;
-  top: 20px;
-  left: 22px; right: 22px;
-  height: 2px;
-  background: rgba(0,102,255,0.08);
-  z-index: 1;
-}
-
-.stepper-track-fill {
-  position: absolute;
-  top: 20px;
-  left: 22px;
-  height: 2px;
-  background: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
-  z-index: 2;
-  transition: width 0.6s var(--ease-out);
-}
-
 .step-nodes {
-  display: flex;
-  justify-content: space-between;
-  position: relative;
-  z-index: 3;
+  display: flex; position: relative; z-index: 3;
+  gap: 0;
 }
 
+/* each step takes equal width */
 .step-node {
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
-  width: 70px;
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 10px; position: relative;
 }
+
+/* connecting line between nodes */
+.step-node:not(:last-child)::after {
+  content: '';
+  position: absolute; top: 15px; left: 50%; right: -50%;
+  height: 1px; background: var(--line); z-index: 1;
+}
+.step-node.completed:not(:last-child)::after { background: var(--ok); opacity: 0.4; }
 
 .step-circle {
-  width: 44px; height: 44px;
-  background: var(--bg);
-  border: 1.5px solid rgba(0,102,255,0.15);
-  border-radius: 50%;
+  width: 32px; height: 32px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 400; color: var(--text-muted);
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 400;
+  color: var(--dim);
   transition: all 0.4s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  position: relative; z-index: 2;
 }
 
 .step-label {
-  font-size: 9px; font-weight: 400; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 1.2px;
+  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 400;
+  color: var(--dim); text-transform: uppercase; letter-spacing: 0.14em;
   transition: all 0.4s ease; text-align: center;
 }
 
 .step-node.completed .step-circle {
-  border-color: var(--success); color: var(--success);
-  box-shadow: 0 0 20px rgba(58, 138, 90, 0.2), 0 1px 3px rgba(0,0,0,0.6);
+  border-color: var(--ok); color: var(--ok);
+  background: rgba(62,207,142,0.06);
 }
-.step-node.completed .step-label { color: var(--text); }
+.step-node.completed .step-label { color: var(--muted); }
 
 .step-node.active .step-circle {
-  border-color: var(--accent); color: var(--accent-light);
-  box-shadow: 0 0 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.6);
+  border-color: var(--blue); color: var(--blue);
+  background: rgba(255,255,255,0.03);
 }
-.step-node.active .step-label { color: var(--text); }
+.step-node.active .step-label { color: var(--fg); }
 
-/* --- WIZARD CARD --- */
+/* ── WIZARD CARD — double-border ASCII window ── */
 .wizard-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow:
-    0 1px 0 rgba(0,102,255,0.04) inset,
-    0 20px 40px rgba(0,0,0,0.7),
-    0 4px 12px rgba(0,0,0,0.5);
+  border: 3px double rgba(255,255,255,0.22);
+  background: var(--bg);
+  position: relative; overflow: hidden;
+}
+
+.w-chrome {
+  position: absolute; top: -10px; left: 14px;
+  background: var(--bg); padding: 0 8px;
+  font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted);
+  z-index: 5;
+}
+.w-title-bar {
+  position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+  background: var(--bg); padding: 0 14px;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.2em; color: var(--fg);
+  text-transform: uppercase; white-space: nowrap; z-index: 5;
 }
 
 .step-container {
   padding: 48px 40px;
-  min-height: 380px;
+  min-height: 340px;
   display: flex; flex-direction: column;
   justify-content: center; align-items: center; text-align: center;
 }
 
-.wizard-step { display: none; width: 100%; animation: fadeIn 0.4s ease-out forwards; }
+.wizard-step { display: none; width: 100%; animation: fadeIn 0.4s var(--ease-out) forwards; }
 .wizard-step.active { display: block; }
 
+/* step icon — flat square */
 .step-icon {
-  width: 60px; height: 60px; border-radius: var(--radius-lg);
-  background: rgba(0,102,255,0.05); border: 1px solid var(--border);
+  width: 52px; height: 52px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;
-  font-size: 28px; color: var(--accent); margin: 0 auto 24px auto;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 0 24px rgba(0,102,255,0.08);
+  font-size: 24px; color: var(--blue); margin: 0 auto 22px auto;
 }
 
 .wizard-step h2 {
-  margin: 0 0 12px; font-size: 22px; font-weight: 300;
-  letter-spacing: -0.3px; color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  margin: 0 0 8px; font-size: 22px; font-weight: 400;
+  letter-spacing: -0.02em; color: var(--fg);
 }
+.wizard-step h2 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+
+.wizard-step .step-eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue);
+  margin-bottom: 10px;
+}
+.wizard-step .step-eyebrow::before { content: "// "; color: var(--dim); }
+
 .wizard-step p {
-  color: var(--text-muted); font-size: 13.5px; line-height: 1.6;
-  margin: 0 auto 32px auto; max-width: 400px; font-weight: 300;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.06em; color: var(--muted);
+  line-height: 1.7; margin: 0 auto 28px auto; max-width: 380px;
 }
 .wizard-step p code {
-  background: rgba(0,102,255,0.07); color: var(--accent-light);
-  padding: 1px 6px; border-radius: 4px; font-size: 11.5px;
-  border: 1px solid rgba(0,102,255,0.12);
-  font-family: 'Courier New', monospace;
+  background: rgba(255,255,255,0.04); color: var(--blue);
+  padding: 1px 5px; font-family: 'DM Mono', monospace; font-size: 11px;
+  border: 1px solid var(--line);
 }
 
-/* --- VERCEL BUTTON --- */
+/* ── VERCEL BUTTON ── */
 .btn-vercel {
-  background: #000;
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.15);
-  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 13px 28px; border-radius: var(--radius);
-  font-size: 14px; font-weight: 400;
-  text-decoration: none; transition: all 0.2s ease;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.06) inset,
-    0 8px 16px rgba(0,0,0,0.7),
-    0 2px 6px rgba(0,0,0,0.5);
-  width: 100%; max-width: 320px; margin: 0 auto;
-  font-family: 'DM Sans', sans-serif;
+  background: #fff; color: #000;
+  border: 1px solid rgba(255,255,255,0.2);
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 12px 24px;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.14em; text-transform: uppercase; font-weight: 400;
+  text-decoration: none; transition: all 0.15s var(--ease-out);
+  width: 100%; max-width: 300px; margin: 0 auto;
 }
-.btn-vercel:hover {
-  background: #0a0a0a;
-  border-color: rgba(255,255,255,0.3);
-  transform: translateY(-2px);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 12px 24px rgba(0,0,0,0.85),
-    0 4px 8px rgba(0,0,0,0.6),
-    0 0 20px rgba(255,255,255,0.06);
-}
+.btn-vercel:hover { background: #f0f0f0; transform: translateY(-1px); }
+.btn-vercel:active { transform: translateY(1px); }
 
-/* --- MAIN ACTION BUTTON --- */
-.btn-3d {
+/* ── ACTION BUTTON ── */
+.btn-action {
   position: relative;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 13px; font-weight: 400;
-  letter-spacing: 0.4px; text-transform: uppercase;
-  padding: 14px 28px; border-radius: var(--radius);
-  border: none; cursor: pointer; text-decoration: none;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 4px 14px rgba(0,0,0,0.6),
-    0 2px 12px var(--accent-glow);
-  transition: all 0.18s var(--ease-out);
-  width: 100%; max-width: 300px; margin: 0 auto;
-  font-family: 'DM Sans', sans-serif;
+  background: var(--blue); color: #fff;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.18em; text-transform: uppercase; font-weight: 400;
+  padding: 13px 24px; border: none; cursor: pointer; text-decoration: none;
+  transition: all 0.15s var(--ease-out);
+  width: 100%; max-width: 280px; margin: 0 auto;
 }
+.btn-action:hover:not(:disabled) { background: var(--blue-2); transform: translateY(-1px); }
+.btn-action:active:not(:disabled) { transform: translateY(1px); }
+.btn-action:disabled { background: rgba(255,255,255,0.04); color: var(--dim); cursor: not-allowed; }
 
-.btn-3d:hover:not(:disabled) {
-  background: var(--accent-hover);
-  transform: translateY(-2px);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.1) inset,
-    0 8px 20px rgba(0,0,0,0.7),
-    0 4px 20px var(--accent-glow);
+.btn-action.green {
+  background: #2c7a4b;
 }
-.btn-3d:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.05) inset,
-    0 1px 4px rgba(0,0,0,0.5),
-    0 1px 6px var(--accent-glow);
-}
-.btn-3d:disabled {
-  background: rgba(0,102,255,0.1);
-  color: var(--text-muted);
-  box-shadow: none;
-  cursor: not-allowed;
-}
+.btn-action.green:hover:not(:disabled) { background: #236040; }
 
-/* GitHub button — green tint matching success */
-.btn-github {
-  background: linear-gradient(180deg, #2c8a4d 0%, #1f6e3b 100%);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 4px 14px rgba(0,0,0,0.6),
-    0 2px 12px rgba(46, 138, 77, 0.3);
-}
-.btn-github:hover:not(:disabled) {
-  background: linear-gradient(180deg, #2e9450 0%, #237a40 100%);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.1) inset,
-    0 8px 20px rgba(0,0,0,0.7),
-    0 4px 20px rgba(46, 138, 77, 0.4);
-}
-.btn-github:active:not(:disabled) {
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.05) inset,
-    0 1px 4px rgba(0,0,0,0.5),
-    0 1px 6px rgba(46, 138, 77, 0.4);
-}
-
-/* --- LOADER --- */
+/* ── LOADER ── */
 .loader {
   display: none;
-  width: 16px; height: 16px;
+  width: 14px; height: 14px;
   border: 2px solid rgba(255,255,255,0.25);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.9s linear infinite; flex-shrink: 0;
 }
 
-/* --- ERROR --- */
+/* ── ERROR ── */
 .error-text {
-  color: #b05050; font-size: 12.5px; margin-top: 20px;
-  display: none; background: rgba(100, 20, 20, 0.06);
-  padding: 12px 14px; border-radius: var(--radius);
-  border: 1px solid rgba(100, 20, 20, 0.2);
-  font-weight: 300;
+  color: #c07070; font-size: 11px; margin-top: 16px;
+  display: none;
+  background: rgba(100,20,20,0.06); padding: 10px 14px;
+  border: 1px solid rgba(100,20,20,0.2);
+  font-family: 'DM Mono', monospace; letter-spacing: 0.06em;
+  max-width: 340px; margin-left: auto; margin-right: auto;
 }
 
-/* --- LIFTOFF --- */
+/* ── LIFTOFF ── */
 .liftoff-icon {
-  width: 60px; height: 60px; border-radius: var(--radius-lg);
-  margin: 0 auto 24px auto;
-  background: rgba(58, 138, 90, 0.05);
-  border: 1px solid rgba(58, 138, 90, 0.18);
+  width: 52px; height: 52px;
+  margin: 0 auto 22px auto;
+  background: rgba(62,207,142,0.05);
+  border: 1px solid rgba(62,207,142,0.2);
   display: flex; align-items: center; justify-content: center;
-  font-size: 28px; color: var(--success);
-  box-shadow:
-    inset 0 0 20px rgba(58, 138, 90, 0.08),
-    0 1px 3px rgba(0,0,0,0.6),
-    0 0 20px rgba(58, 138, 90, 0.15);
+  font-size: 24px; color: var(--ok);
 }
 
 .env-instructions {
-  background: rgba(2, 2, 8, 0.6);
-  border: 1px dashed rgba(0,102,255,0.15);
-  border-radius: var(--radius);
-  padding: 18px 22px;
-  margin: 0 auto 32px auto;
-  display: inline-block; text-align: left;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-left: 2px solid rgba(62,207,142,0.3);
+  padding: 16px 18px;
+  margin: 0 auto 28px auto;
+  display: inline-block; text-align: left; max-width: 380px; width: 100%;
 }
 .env-instructions h4 {
-  margin: 0 0 8px; font-size: 12.5px; font-weight: 400;
-  display: flex; align-items: center; gap: 8px; color: var(--text);
+  margin: 0 0 8px;
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px; color: var(--fg); font-weight: 400;
 }
+.env-instructions h4 i { color: var(--ok); font-size: 12px; }
 .env-instructions p {
-  margin: 0; font-size: 12px; color: var(--text-muted);
-  line-height: 1.55; max-width: 400px; font-weight: 300;
+  margin: 0; font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.06em; color: var(--muted);
+  line-height: 1.6; max-width: 100%;
 }
+
+.source-link {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--dim); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  border-bottom: 1px dashed transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.source-link:hover { color: var(--fg); border-color: var(--line-2); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 </style>
 </head>
@@ -378,98 +321,108 @@ body::after {
 
   <div class="top">
     <div class="title">
-      <h1>Deployment Pipeline</h1>
-      <div class="sub"><i class="ph-fill ph-rocket-launch"></i> {{ project.name if project else project_id }}</div>
+      <div class="eyebrow">Deployment Pipeline</div>
+      <h1>{{ project.name if project else project_id }}<br/><span class="accent">deploy.</span></h1>
     </div>
     <a class="btn-back" href="/projects/{{ project_id }}/editor">
-      <i class="ph-bold ph-arrow-left"></i>
+      <i class="ph-bold ph-arrow-left" style="font-size:11px;"></i>
       Back to Editor
     </a>
   </div>
 
+  <!-- ── STEPPER ── -->
   <div class="stepper-container">
-    <div class="stepper-track-bg"></div>
-    <div class="stepper-track-fill" id="stepFill" style="width: {{ fill_width }};"></div>
-
     <div class="step-nodes">
 
       <div class="step-node {% if current_step > 1 %}completed{% elif current_step == 1 %}active{% endif %}" id="node1">
-        <div class="step-circle">{% if current_step > 1 %}<i class="ph-bold ph-check"></i>{% else %}1{% endif %}</div>
+        <div class="step-circle">{% if current_step > 1 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}01{% endif %}</div>
         <div class="step-label">Connect</div>
       </div>
 
       <div class="step-node {% if current_step > 2 %}completed{% elif current_step == 2 %}active{% endif %}" id="node2">
-        <div class="step-circle">{% if current_step > 2 %}<i class="ph-bold ph-check"></i>{% else %}2{% endif %}</div>
+        <div class="step-circle">{% if current_step > 2 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}02{% endif %}</div>
         <div class="step-label">Optimize</div>
       </div>
 
       <div class="step-node {% if current_step > 3 %}completed{% elif current_step == 3 %}active{% endif %}" id="node3">
-        <div class="step-circle">{% if current_step > 3 %}<i class="ph-bold ph-check"></i>{% else %}3{% endif %}</div>
+        <div class="step-circle">{% if current_step > 3 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}03{% endif %}</div>
         <div class="step-label">Push</div>
       </div>
 
       <div class="step-node {% if current_step == 4 %}completed active{% endif %}" id="node4">
-        <div class="step-circle">{% if current_step == 4 %}<i class="ph-bold ph-check"></i>{% else %}4{% endif %}</div>
+        <div class="step-circle">{% if current_step == 4 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}04{% endif %}</div>
         <div class="step-label">Deploy</div>
       </div>
 
     </div>
   </div>
 
+  <!-- ── WIZARD CARD ── -->
   <div class="wizard-card">
+    <span class="w-chrome">≡ ×</span>
+    <span class="w-title-bar" id="stepTitle">[ STEP / 0{{ current_step }} ]</span>
+
     <div class="step-container">
 
+      <!-- Step 1: Connect GitHub -->
       <div class="wizard-step {% if current_step == 1 %}active{% endif %}" id="step1">
         <div class="step-icon"><i class="ph-fill ph-github-logo"></i></div>
-        <h2>Link GitHub</h2>
+        <div class="step-eyebrow">01 — connect</div>
+        <h2>Link <span class="accent">GitHub.</span></h2>
         <p>Connect your GitHub account to create a secure, private repository for your source code.</p>
-        <a href="/auth/github" class="btn-3d btn-github">
+        <a href="/auth/github" class="btn-action green">
           <i class="ph-fill ph-github-logo"></i>
-          Connect Account
+          Connect Account →
         </a>
       </div>
 
+      <!-- Step 2: Optimize -->
       <div class="wizard-step {% if current_step == 2 %}active{% endif %}" id="step2">
         <div class="step-icon"><i class="ph-bold ph-magic-wand"></i></div>
-        <h2>Optimize Codebase</h2>
+        <div class="step-eyebrow">02 — optimize</div>
+        <h2>Optimize <span class="accent">codebase.</span></h2>
         <p>Gor://a will restructure your Express server into serverless functions and generate the required <code>vercel.json</code> routing map.</p>
-        <button class="btn-3d" id="btn-optimize" onclick="runOptimization()">
+        <button class="btn-action" id="btn-optimize" onclick="runOptimization()">
           <div class="loader" id="loader-optimize"></div>
-          <span>Start Optimization</span>
+          <span>Start Optimization →</span>
         </button>
         <div class="error-text" id="err-optimize"></div>
       </div>
 
+      <!-- Step 3: Push -->
       <div class="wizard-step {% if current_step == 3 %}active{% endif %}" id="step3">
         <div class="step-icon"><i class="ph-bold ph-git-commit"></i></div>
-        <h2>Push to Repository</h2>
+        <div class="step-eyebrow">03 — push</div>
+        <h2>Push to <span class="accent">repository.</span></h2>
         <p>Commit your fully optimized, production-ready codebase to a brand new private repository on your GitHub account.</p>
-        <button class="btn-3d" id="btn-push" onclick="pushToGithub()">
+        <button class="btn-action" id="btn-push" onclick="pushToGithub()">
           <div class="loader" id="loader-push"></div>
-          <span>Create &amp; Push</span>
+          <span>Create &amp; Push →</span>
         </button>
         <div class="error-text" id="err-push"></div>
       </div>
 
+      <!-- Step 4: Deploy -->
       <div class="wizard-step {% if current_step == 4 %}active{% endif %}" id="step4">
         <div class="liftoff-icon"><i class="ph-fill ph-rocket-launch"></i></div>
-        <h2>Ready for Liftoff</h2>
-        <p style="margin-bottom: 24px;">Your codebase is safely stored in a private repository and ready to deploy to the edge.</p>
+        <div class="step-eyebrow">04 — deploy</div>
+        <h2>Ready for <span class="accent">liftoff.</span></h2>
+        <p style="margin-bottom: 20px;">Your codebase is safely stored in a private repository and ready to deploy to the edge.</p>
 
         <div class="env-instructions">
-          <h4><i class="ph-fill ph-lock-key" style="color: var(--success); font-size:13px;"></i> Zero-Config Security</h4>
-          <p>We securely injected your API keys directly into the build environment. Vercel will ask for permission to read your private repo. Just click deploy.</p>
+          <h4><i class="ph-fill ph-lock-key"></i> Zero-Config Security</h4>
+          <p>We securely injected your API keys directly into the build environment. Vercel will ask for permission to read your private repo — just click deploy.</p>
         </div>
 
         <div>
           <a href="{% if project.github_repo_url %}https://vercel.com/new/import?s={{ project.github_repo_url | urlencode }}{% else %}javascript:void(0);{% endif %}" target="_blank" id="vercel-link" class="btn-vercel">
-            <svg viewBox="0 0 76 65" height="13" style="margin-right: 4px;"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="#ffffff"/></svg>
-            Deploy to Vercel
+            <svg viewBox="0 0 76 65" height="11"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="#000000"/></svg>
+            Deploy to Vercel →
           </a>
         </div>
 
-        <div style="margin-top: 32px;">
-          <a href="{{ project.github_repo_url }}" target="_blank" id="repo-link" style="color: var(--text-muted); font-size: 13px; text-decoration: none; font-weight: 300; display: inline-flex; align-items: center; gap: 7px; transition: color 0.2s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text-muted)'">
+        <div style="margin-top: 24px;">
+          <a href="{{ project.github_repo_url }}" target="_blank" id="repo-link" class="source-link">
             <i class="ph-fill ph-github-logo"></i> View Source Code
           </a>
         </div>
@@ -483,18 +436,25 @@ body::after {
 <script>
   const projectId = "{{ project_id }}";
 
-  function advanceProgress(stepNum, percent) {
-    document.getElementById("stepFill").style.width = percent;
+  const STEP_LABELS = {
+    1: "[ STEP / 01 ]",
+    2: "[ STEP / 02 ]",
+    3: "[ STEP / 03 ]",
+    4: "[ STEP / 04 ]"
+  };
 
-    for(let i=1; i<=4; i++) {
+  function advanceProgress(stepNum) {
+    const titleEl = document.getElementById("stepTitle");
+    if (titleEl) titleEl.textContent = STEP_LABELS[stepNum] || STEP_LABELS[4];
+
+    for (let i = 1; i <= 4; i++) {
       const node = document.getElementById("node" + i);
-
       if (i < stepNum) {
         node.className = "step-node completed";
-        node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check"></i>';
+        node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check" style="font-size:12px;"></i>';
       } else if (i === stepNum) {
         node.className = "step-node active" + (i === 4 ? " completed" : "");
-        if (i === 4) node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check"></i>';
+        if (i === 4) node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check" style="font-size:12px;"></i>';
       } else {
         node.className = "step-node";
       }
@@ -514,24 +474,19 @@ body::after {
 
     btn.disabled = true;
     loader.style.display = "block";
-    span.innerHTML = "Optimizing (~30s)...";
+    span.innerHTML = "Optimizing (~30s)…";
     errBox.style.display = "none";
 
     try {
       const res = await fetch(`/api/project/${projectId}/deploy-optimize`, { method: 'POST' });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.detail || "Optimization failed");
-
-      advanceProgress(3, "66%");
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
-
+      advanceProgress(3);
+      setTimeout(() => { window.location.reload(); }, 500);
     } catch (err) {
       btn.disabled = false;
       loader.style.display = "none";
-      span.innerHTML = 'Retry Optimization';
+      span.innerHTML = 'Retry Optimization →';
       errBox.innerText = err.message;
       errBox.style.display = "block";
     }
@@ -545,16 +500,14 @@ body::after {
 
     btn.disabled = true;
     loader.style.display = "block";
-    span.innerText = "Encrypting & Pushing...";
+    span.innerText = "Encrypting & Pushing…";
     errBox.style.display = "none";
 
     try {
       const res = await fetch(`/api/project/${projectId}/deploy-push`, { method: 'POST' });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.detail || "Push failed");
 
-      // 🛑 THE BULLETPROOF URL FIX
       const repoUrl = data.repo_url || data.url;
       const encodedRepoUrl = encodeURIComponent(repoUrl);
       const vercelUrl = data.vercel_url ? data.vercel_url : `https://vercel.com/new/import?s=${encodedRepoUrl}`;
@@ -562,15 +515,12 @@ body::after {
       document.getElementById("vercel-link").href = vercelUrl;
       document.getElementById("repo-link").href = repoUrl;
 
-      advanceProgress(4, "100%");
-      setTimeout(() => {
-        showStep("step4");
-      }, 500);
-
+      advanceProgress(4);
+      setTimeout(() => { showStep("step4"); }, 500);
     } catch (err) {
       btn.disabled = false;
       loader.style.display = "none";
-      span.innerHTML = 'Retry Push';
+      span.innerHTML = 'Retry Push →';
       errBox.innerText = err.message;
       errBox.style.display = "block";
     }

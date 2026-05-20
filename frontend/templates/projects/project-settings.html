@@ -5,225 +5,212 @@
 <title>Project Settings · {{ project.name if project else project_id }} · Gor://a Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
 <style>
   :root {
-    --bg: #000000;
-    --panel: rgba(4, 4, 12, 0.99);
-    --border: rgba(0, 120, 255, 0.07);
-    --border-hover: rgba(0, 120, 255, 0.3);
-    --accent: #0066ff;
-    --accent-light: #3385ff;
-    --accent-glow: rgba(0, 102, 255, 0.2);
-    --text: #d0d8f0;
-    --text-muted: #2a3050;
-    --radius: 8px;
-    --radius-sm: 5px;
-    --radius-lg: 10px;
+    --bg: #0a0b0d;
+    --bg-2: #101114;
+    --fg: #e8e8eb;
+    --muted: #8a8c95;
+    --dim: #4a4c55;
+    --faint: #25272d;
+    --line: rgba(255,255,255,0.10);
+    --line-2: rgba(255,255,255,0.18);
+    --blue: oklch(0.74 0.16 248);
+    --blue-2: oklch(0.62 0.2 252);
+    --blue-dim: oklch(0.4 0.12 252);
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-
-    --shadow-paper:
-      0 1px 0 rgba(0,100,255,0.04) inset,
-      0 1px 3px rgba(0,0,0,0.8),
-      0 2px 8px rgba(0,0,0,0.7);
-    --shadow-paper-hover:
-      0 1px 0 rgba(0,100,255,0.07) inset,
-      0 4px 16px rgba(0,0,0,0.85),
-      0 2px 6px rgba(0,102,255,0.12);
   }
 
-  /* Premium override keeps the same dark look but adds a subtle glow tint */
-  body.premium {
-    background-image:
-      radial-gradient(circle at 15% 10%, rgba(0, 102, 255, 0.05) 0%, transparent 40%),
-      radial-gradient(circle at 85% 90%, rgba(0, 102, 255, 0.04) 0%, transparent 40%) !important;
-  }
-
-  * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; outline: none; }
+  * { box-sizing: border-box; outline: none; }
 
   body {
-    margin: 0; background: var(--bg); color: var(--text);
+    margin: 0; background: var(--bg); color: var(--fg);
     min-height: 100vh; font-weight: 300; position: relative;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 
+  /* dot grid */
   body::before {
-    content: '';
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.012'/%3E%3C/svg%3E");
-    pointer-events: none; z-index: 0;
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
   }
 
-  .wrap { max-width: 700px; margin: 0 auto; padding: 40px 22px; position: relative; z-index: 1; }
+  .wrap {
+    max-width: 680px; margin: 0 auto;
+    padding: 48px 24px 80px;
+    position: relative; z-index: 1;
+  }
 
-  /* --- HEADER STRIP --- */
+  /* ── TOP HEADER STRIP ── */
   .top {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius-lg);
-    background: var(--panel); box-shadow: var(--shadow-paper);
-    transition: all 0.18s var(--ease-out);
+    padding: 14px 20px;
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+    margin-bottom: 0;
+    position: relative;
   }
-  .top:hover { box-shadow: var(--shadow-paper-hover); }
+
+  /* corner marks */
+  .top::before {
+    content: ''; position: absolute; top: 8px; left: 8px;
+    width: 8px; height: 8px;
+    border-top: 1px solid var(--muted); border-left: 1px solid var(--muted);
+    opacity: 0.4; pointer-events: none;
+  }
 
   .title { display: flex; flex-direction: column; gap: 4px; }
   .title h1 {
-    font-size: 16px; margin: 0; font-weight: 400; color: var(--text);
-    letter-spacing: -0.2px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; margin: 0; font-weight: 500; color: var(--fg);
+    letter-spacing: -0.01em;
   }
   .title .sub {
-    font-size: 11px; color: var(--text-muted); font-weight: 300;
-    font-family: 'Courier New', monospace; letter-spacing: 0.3px;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--dim); font-weight: 400; letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
+  .title .sub::before { content: "// "; color: var(--blue); }
 
-  /* --- BUTTONS --- */
+  /* ── BUTTONS ── */
   .btn {
-    border: 1px solid var(--border);
-    background: rgba(4,4,12,0.99);
-    color: var(--text-muted);
-    border-radius: var(--radius);
-    padding: 9px 14px;
-    cursor: pointer; text-decoration: none;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase; font-weight: 400;
+    border: 1px solid var(--line); background: rgba(255,255,255,0.03);
+    color: var(--muted);
+    padding: 8px 14px; cursor: pointer; text-decoration: none;
     display: inline-flex; align-items: center; gap: 7px;
-    font-size: 12.5px; font-weight: 300;
     transition: all 0.15s var(--ease-out);
-    box-shadow: var(--shadow-paper);
-    font-family: 'DM Sans', sans-serif;
   }
-  .btn:hover {
-    border-color: rgba(0,102,255,0.2);
-    color: var(--text);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-paper-hover);
-  }
-  .btn:active { transform: translateY(0); }
+  .btn:hover { border-color: var(--line-2); color: var(--fg); background: rgba(255,255,255,0.05); transform: translateY(-1px); }
+  .btn:active { transform: translateY(1px); }
 
   .btn.primary {
-    border-color: var(--accent);
-    background: var(--accent);
-    color: #fff; font-weight: 400;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 12px rgba(0,102,255,0.4);
+    background: var(--blue); color: #fff; border-color: transparent;
   }
-  .btn.primary:hover {
-    background: #0055ee; border-color: #0055ee; color: #fff;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 20px rgba(0,102,255,0.55);
+  .btn.primary:hover { background: var(--blue-2); border-color: transparent; transform: translateY(-1px); }
+
+  /* ── ERROR CARD ── */
+  .error-bar {
+    background: rgba(100,20,20,0.06); border: 1px solid rgba(100,20,20,0.2);
+    border-left: 2px solid #b05050;
+    padding: 12px 16px; margin-top: 0;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .error-bar i { color: #b05050; font-size: 14px; flex-shrink: 0; }
+  .error-bar span {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 0.06em; color: #c07070; line-height: 1.55;
   }
 
-  /* --- CARD --- */
+  /* ── CARD — bento cell ── */
   .card {
-    border: 1px solid var(--border);
-    background: var(--panel);
-    border-radius: var(--radius-lg);
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-top: none; /* joins flush to the top strip */
     padding: 28px;
-    margin-top: 16px;
-    box-shadow: var(--shadow-paper);
-    transition: border-color 0.2s;
+    position: relative;
+    transition: background 0.2s var(--ease-out);
   }
-  .card:hover { border-color: rgba(0,102,255,0.14); }
+  .card:hover { background: rgba(255,255,255,0.015); }
+
+  /* bottom-right corner mark */
+  .card::after {
+    content: ''; position: absolute; bottom: 10px; right: 10px;
+    width: 8px; height: 8px;
+    border-bottom: 1px solid var(--muted); border-right: 1px solid var(--muted);
+    opacity: 0.4; pointer-events: none;
+  }
+
   .card h2 {
-    font-size: 10px; margin: 0 0 22px; color: var(--text-muted);
-    font-weight: 400; text-transform: uppercase; letter-spacing: 2px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid;
-    border-image: linear-gradient(90deg, var(--border), transparent 70%) 1;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; margin: 0 0 22px; color: var(--blue);
+    font-weight: 400; text-transform: uppercase; letter-spacing: 0.2em;
+    padding-bottom: 12px; border-bottom: 1px solid var(--line);
   }
+  .card h2::before { content: "// "; color: var(--dim); }
 
+  /* ── LABELS ── */
   label {
-    font-size: 10px; color: var(--text-muted); display: block;
-    margin: 18px 0 7px; font-weight: 400;
-    text-transform: uppercase; letter-spacing: 1.2px;
+    font-family: 'DM Mono', monospace; font-size: 10px; color: var(--dim);
+    display: block; margin: 20px 0 8px; font-weight: 400;
+    text-transform: uppercase; letter-spacing: 0.18em;
   }
+  label:first-of-type { margin-top: 0; }
 
-  /* --- INPUTS --- */
+  /* ── INPUTS ── */
   input[type="text"], textarea, select {
-    width: 100%;
-    border: 1px solid var(--border);
-    background: rgba(2,2,8,1);
-    color: var(--text);
-    border-radius: var(--radius);
-    padding: 12px 14px;
-    outline: none;
-    font-size: 13.5px; font-weight: 300;
+    width: 100%; border: 1px solid var(--line);
+    background: var(--bg); color: var(--fg);
+    padding: 11px 14px; outline: none;
+    font-size: 14px; font-weight: 300;
     font-family: 'DM Sans', sans-serif;
     transition: all 0.2s var(--ease-out);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.6) inset;
   }
   input[type="text"]:focus, textarea:focus, select:focus {
-    border-color: rgba(0,102,255,0.35);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.7) inset, 0 0 0 3px rgba(0,102,255,0.07);
+    border-color: var(--line-2); box-shadow: 0 0 0 3px rgba(255,255,255,0.03);
   }
-  input::placeholder, textarea::placeholder { color: rgba(208,216,240,0.18); }
+  input::placeholder, textarea::placeholder { color: var(--dim); }
 
-  /* --- FILE INPUT --- */
+  /* ── FILE INPUT ── */
   input[type="file"] {
-    width: 100%;
-    color: var(--text-muted);
-    font-size: 12.5px; font-weight: 300;
-    padding: 8px 0;
-    font-family: 'DM Sans', sans-serif;
+    width: 100%; color: var(--muted);
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 0.06em; padding: 8px 0;
   }
   input[type="file"]::file-selector-button {
-    background: rgba(4,4,12,0.99);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 14px;
-    border-radius: var(--radius);
-    cursor: pointer;
-    margin-right: 12px;
-    font-size: 12px; font-weight: 300;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase; font-weight: 400;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--line);
+    color: var(--muted); padding: 7px 12px;
+    cursor: pointer; margin-right: 12px;
     transition: all 0.15s var(--ease-out);
-    box-shadow: var(--shadow-paper);
   }
   input[type="file"]::file-selector-button:hover {
-    border-color: rgba(0,102,255,0.2);
-    background: rgba(0,102,255,0.05);
+    border-color: var(--line-2); background: rgba(255,255,255,0.05); color: var(--fg);
   }
 
-  textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+  textarea { min-height: 110px; resize: vertical; line-height: 1.55; }
 
-  /* --- IMAGE PREVIEW --- */
+  /* ── IMAGE PREVIEW ── */
   .image-preview {
-    width: 100%;
-    max-width: 320px;
-    height: auto;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    margin-bottom: 12px;
-    display: block;
-    background: rgba(2,2,8,1);
-    aspect-ratio: 16/9;
-    object-fit: cover;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.7);
+    width: 100%; max-width: 300px; height: auto;
+    border: 1px solid var(--line);
+    margin-bottom: 12px; display: block;
+    background: var(--bg);
+    aspect-ratio: 16/9; object-fit: cover;
   }
   .image-preview-empty {
     display: flex; align-items: center; justify-content: center;
-    color: var(--text-muted); font-size: 11.5px; font-weight: 300;
-    text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--dim);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.16em; text-transform: uppercase;
     flex-direction: column; gap: 8px;
+    border: 1px solid var(--line); background: var(--bg);
+    width: 100%; max-width: 300px; aspect-ratio: 16/9;
+    margin-bottom: 12px;
   }
-  .image-preview-empty i { font-size: 28px; opacity: 0.25; }
+  .image-preview-empty i { font-size: 24px; opacity: 0.2; }
 
-  /* --- ERROR CARD --- */
-  .card.error {
-    border-color: rgba(100, 20, 20, 0.25);
-    background: linear-gradient(180deg, rgba(100,20,20,0.04), var(--panel));
-  }
-  .card.error h2 {
-    color: #b05050;
-    border-image: linear-gradient(90deg, rgba(100,20,20,0.2), transparent 70%) 1;
-  }
-
-  /* --- FOOTER --- */
+  /* ── FOOTER ── */
   .footer {
     display: flex; justify-content: flex-end; gap: 10px;
-    margin-top: 28px; padding-top: 18px;
-    border-top: 1px solid var(--border);
+    margin-top: 24px; padding-top: 16px;
+    border-top: 1px solid var(--line);
   }
 
   .small {
-    font-size: 12.5px; color: var(--text-muted); font-weight: 300; line-height: 1.55;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 0.06em; color: var(--muted); line-height: 1.6;
   }
 </style>
 </head>
@@ -231,30 +218,31 @@
 <body class="{% if user.plan == 'premium' %}premium{% endif %}">
 
 <div class="wrap">
+
   <div class="top">
     <div class="title">
       <h1>Project Settings</h1>
       <div class="sub">{{ project_id }}</div>
     </div>
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:8px;">
       <a class="btn" href="/projects/{{ project_id }}/editor">
-        <i class="ph-bold ph-arrow-left" style="font-size:13px;"></i>
-        Back to editor
+        <i class="ph-bold ph-arrow-left" style="font-size:12px;"></i>
+        Back to Editor
       </a>
     </div>
   </div>
 
   {% if error %}
-  <div class="card error">
-    <h2><i class="ph-fill ph-warning-circle" style="font-size:14px; vertical-align:middle; margin-right:6px;"></i> Error</h2>
-    <div class="small">{{ error }}</div>
+  <div class="error-bar">
+    <i class="ph-fill ph-warning-circle"></i>
+    <span>{{ error }}</span>
   </div>
   {% endif %}
 
   <form class="card" method="post" action="/projects/{{ project_id }}/settings" enctype="multipart/form-data">
     <h2>General Info</h2>
 
-    <label>Project Snapshot Image</label>
+    <label>Project Snapshot</label>
     {% if project and project.snapshot_b64 %}
       <img src="{{ project.snapshot_b64 }}" class="image-preview" alt="Project Snapshot" />
     {% else %}
@@ -272,9 +260,10 @@
     <textarea name="description" placeholder="What does this project do?">{{ project.description if project else '' }}</textarea>
 
     <div class="footer">
+      <a class="btn" href="/projects/{{ project_id }}/editor">Cancel</a>
       <button class="btn primary" type="submit">
-        <i class="ph-bold ph-check" style="font-size:13px;"></i>
-        Save Changes
+        <i class="ph-bold ph-check" style="font-size:12px;"></i>
+        Save Changes →
       </button>
     </div>
   </form>
