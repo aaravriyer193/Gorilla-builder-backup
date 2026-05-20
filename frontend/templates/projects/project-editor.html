@@ -75,7 +75,6 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* dot grid */
     body::before {
       content: "";
       position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -87,7 +86,6 @@
 
     .shell { display: flex; width: 100%; height: 100vh; position: relative; z-index: 1; }
 
-    /* ── LEFT PANEL ── */
     .left {
       width: 420px; min-width: 380px;
       background: var(--bg);
@@ -96,7 +94,6 @@
       position: relative;
     }
 
-    /* ── TOPBAR ── */
     .topbar {
       height: 48px; padding: 0 14px;
       display: flex; align-items: center; justify-content: space-between;
@@ -104,14 +101,12 @@
       flex-shrink: 0;
     }
 
-    /* ── LOGO ── */
     .logo {
       display: flex; align-items: center; gap: 8px;
       font-family: 'DM Sans', sans-serif;
       font-size: 16px; font-weight: 500; letter-spacing: -0.02em;
       color: var(--fg); text-decoration: none;
     }
-    .logo .proto { color: var(--blue); font-weight: 400; }
     .logo-icon { width: 18px; height: 18px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .logo-icon svg { width: 18px; height: 18px; fill: var(--fg); }
 
@@ -129,7 +124,6 @@
     .icon-btn.accent { color: var(--blue); background: rgba(255,255,255,0.03); border-color: var(--line); }
     .icon-btn.accent:hover { background: rgba(255,255,255,0.06); border-color: var(--line-2); }
 
-    /* ── STATUS STRIP ── */
     .status-strip {
       padding: 7px 14px;
       border-bottom: 1px solid var(--line);
@@ -147,7 +141,6 @@
     .prog-wrap { width: 80px; height: 1px; background: var(--line); }
     .prog-bar { height: 100%; width: 0%; background: var(--blue); transition: width 0.4s var(--ease); }
 
-    /* ── CHAT ── */
     .chat {
       flex: 1; overflow-y: auto;
       padding: 20px 16px;
@@ -183,7 +176,6 @@
     }
     @keyframes fadeUp { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
-    /* ── ACTIVITY GROUP ── */
     .activity-group {
       display: flex; flex-direction: column; gap: 2px;
       padding-left: 8px;
@@ -206,20 +198,16 @@
     .act.done { opacity: 0.5; }
     .act.done:hover { opacity: 0.85; }
     .act.failed { border-color: rgba(224,85,85,0.25); color: var(--danger); }
-
     .act-icon { font-size: 13px; flex-shrink: 0; color: var(--dim); }
     .act.running .act-icon { color: var(--blue); }
     .act.failed .act-icon { color: var(--danger); }
-
     .act-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .act-target { color: var(--dim); margin-left: 4px; }
-
     .act-status { flex-shrink: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--dim); }
     .act.running .act-status { background: var(--blue); animation: pulse 1.5s ease-in-out infinite; }
     .act.done .act-status { background: var(--ok); }
     .act.failed .act-status { background: var(--danger); }
     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
-
     .act-output { display: none; padding: 0 0 4px 22px; }
     .act.expanded .act-output { display: block; }
     .act-output-inner {
@@ -229,7 +217,6 @@
       color: var(--dim); max-height: 140px; overflow-y: auto;
     }
 
-    /* ── INPUT AREA ── */
     .input-area {
       padding: 12px 14px;
       border-top: 1px solid var(--line);
@@ -244,7 +231,6 @@
       transition: border-color 0.2s;
     }
     .input-row:focus-within { border-color: var(--line-2); }
-
     .input-row textarea {
       flex: 1; min-height: 22px; max-height: 120px; resize: none;
       background: transparent; border: none; color: var(--fg);
@@ -252,14 +238,12 @@
       line-height: 1.5;
     }
     .input-row textarea::placeholder { color: var(--dim); }
-
     .attach-btn {
       width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
       color: var(--dim); cursor: pointer; flex-shrink: 0;
       transition: all 0.15s; font-size: 15px;
     }
     .attach-btn:hover { color: var(--blue); }
-
     .send-btn {
       width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
       background: var(--blue); color: #fff; border: none;
@@ -268,16 +252,13 @@
     }
     .send-btn:hover:not(:disabled) { background: var(--blue-2); transform: translateY(-1px); }
     .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
     #editorImagePreview {
       display: none; height: 34px; width: 34px;
       object-fit: cover;
       border: 1px solid var(--line); flex-shrink: 0; cursor: pointer;
     }
 
-    /* ── RIGHT SIDE ── */
     .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
-
     .main-topbar {
       height: 48px; padding: 0 14px;
       display: flex; align-items: center; justify-content: space-between;
@@ -286,18 +267,12 @@
       flex-shrink: 0;
     }
 
-    /* tab group — gor://a segmented style */
-    .tab-group {
-      display: inline-flex;
-      border: 1px solid var(--line);
-    }
+    .tab-group { display: inline-flex; border: 1px solid var(--line); }
     .tab {
-      padding: 5px 14px;
-      cursor: pointer;
+      padding: 5px 14px; cursor: pointer;
       font-family: 'DM Mono', monospace;
       font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--dim); font-weight: 400;
-      transition: all 0.15s;
+      color: var(--dim); font-weight: 400; transition: all 0.15s;
       display: flex; align-items: center; gap: 5px;
       border-right: 1px solid var(--line);
     }
@@ -326,20 +301,21 @@
       transition: all 0.15s; font-weight: 400;
     }
     .pill-btn:hover { border-color: var(--line-2); color: var(--fg); background: rgba(255,255,255,0.04); }
-    .pill-btn.warn { background: rgba(255,255,255,0.02); border-color: var(--line); color: var(--warn); }
+    .pill-btn.warn { color: var(--warn); }
     .pill-btn.warn:hover { border-color: var(--warn); }
-    .pill-btn.gh { color: var(--fg); border-color: var(--line); }
+    .pill-btn.gh { color: var(--fg); }
     .pill-btn.blue { background: var(--blue); border-color: transparent; color: #fff; }
     .pill-btn.blue:hover { background: var(--blue-2); }
 
-    .content { flex: 1; display: flex; min-height: 0; }
+    /* ── CONTENT AREA — this is the flex row holding files + stage ── */
+    .content { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 
-    /* ── FILE TREE ── */
     .files {
       width: 210px; min-width: 170px;
       background: var(--bg-2);
       border-right: 1px solid var(--line);
       display: flex; flex-direction: column;
+      flex-shrink: 0;
     }
     .tree-head {
       padding: 7px 10px;
@@ -358,7 +334,6 @@
       transition: all 0.15s; border: 1px solid transparent;
     }
     .upload-btn:hover { color: var(--blue); border-color: var(--line); }
-
     .file-list { padding: 6px 4px; overflow-y: auto; flex: 1; }
     .file-list::-webkit-scrollbar { width: 3px; }
     .file-list::-webkit-scrollbar-thumb { background: var(--line); }
@@ -375,10 +350,28 @@
     .node.active::before { content: "▶"; font-size: 7px; color: var(--blue); margin-right: 2px; }
     .node .ico { font-size: 12px; flex-shrink: 0; display: flex; align-items: center; opacity: 0.8; }
 
-    /* ── STAGE ── */
-    .stage { flex: 1; min-width: 0; background: #01010a; display: flex; flex-direction: column; position: relative; }
-    #editor { flex: 1; height: 100%; overflow: hidden; }
-    #preview { width: 100%; height: 100%; border: 0; display: none; background: #fff; }
+    /* ── STAGE — fills remaining width, holds all right-side panels ── */
+    .stage {
+      flex: 1; min-width: 0;
+      background: #01010a;
+      display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
+    }
+
+    /* all panels inside stage fill it completely */
+    #editor        { flex: 1; height: 100%; overflow: hidden; display: block; }
+    #imageViewer   { display: none; flex: 1; align-items: center; justify-content: center; overflow: auto; background: #01010a; padding: 20px; }
+    #preview       { width: 100%; height: 100%; border: 0; display: none; background: #fff; flex: 1; }
+    #analyticsPanel {
+      display: none;        /* shown by JS — flex when active */
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      background: var(--bg);
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+    }
 
     #gameFrame {
       position: absolute; inset: 0;
@@ -400,7 +393,6 @@
       max-width: 240px; line-height: 1.65;
     }
 
-    /* ── LOADER ── */
     #editor-loading-overlay {
       position: fixed; inset: 0; z-index: 9999;
       background: var(--bg);
@@ -413,7 +405,6 @@
       color: var(--dim); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
     }
 
-    /* wave loader */
     .wave { display: flex; gap: 3px; align-items: center; opacity: 0; transition: opacity 0.3s; }
     .wave.active { opacity: 1; }
     .wave span { width: 2px; height: 10px; background: var(--blue); animation: wv 1s infinite ease-in-out; }
@@ -425,7 +416,6 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--line); }
     ::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
-
     @keyframes spin { 100%{ transform: rotate(360deg); } }
   </style>
 </head>
@@ -440,7 +430,6 @@
 <div class="shell">
 
 <aside class="left">
-
   <div class="topbar">
     <a class="logo" href="/dashboard">
       <span class="logo-icon">
@@ -457,7 +446,6 @@
       </span>
       gor://a
     </a>
-
     <div class="topbar-actions">
       <a class="icon-btn" href="/projects/{{ project_id }}/settings" title="Settings"><i class="ph ph-gear"></i></a>
       {% if user.plan == 'premium' %}
@@ -490,17 +478,15 @@
       </button>
     </div>
   </div>
-
 </aside>
 
 <section class="main">
-
   <div class="main-topbar">
     <div class="tab-group">
       <div class="tab active" id="tabCode"><i class="ph ph-code" style="font-size:12px;"></i> Code</div>
       <div class="tab" id="tabPreview"><i class="ph ph-eye" style="font-size:12px;"></i> Preview</div>
+      <div class="tab" id="tabAnalytics"><i class="ph ph-chart-line" style="font-size:12px;"></i> Analytics</div>
     </div>
-
     <div class="right-actions">
       <span class="badge" id="sandboxStatus">Sandbox Offline</span>
       {% if user and user.tokens %}
@@ -510,13 +496,10 @@
       </span>
       {% endif %}
       <span class="badge" id="saveStatus">Saved</span>
-
       <a class="pill-btn" href="/dashboard" title="Dashboard"><i class="ph ph-squares-four"></i></a>
-
       {% if user.plan != 'premium' %}
       <a class="pill-btn blue" href="/pricing">Upgrade →</a>
       {% endif %}
-
       {% if not has_github %}
       <a class="pill-btn gh" href="/auth/github/link" title="Connect GitHub">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
@@ -528,7 +511,6 @@
         {% if project.github_repo_url %}Sync{% else %}Push{% endif %}
       </button>
       {% endif %}
-
       <a class="pill-btn warn" href="/projects/{{ project_id }}/deploy" target="_blank">
         <i class="ph ph-rocket-launch" style="font-size:11px;"></i> Deploy
       </a>
@@ -536,7 +518,8 @@
   </div>
 
   <div class="content">
-    <aside class="files">
+    <!-- file tree — hidden in analytics/preview modes -->
+    <aside class="files" id="fileSidebar">
       <div class="tree-head">
         <span class="tree-title">Explorer</span>
         <button class="upload-btn" id="btnUpload" title="Upload file"><i class="ph ph-upload-simple"></i></button>
@@ -545,9 +528,10 @@
       <div class="file-list" id="filetree"></div>
     </aside>
 
+    <!-- stage — all right-side panels live here as siblings -->
     <div class="stage">
       <div id="editor"></div>
-      <div id="imageViewer" style="display:none;flex:1;align-items:center;justify-content:center;overflow:auto;background:#01010a;padding:20px;"></div>
+      <div id="imageViewer"></div>
 
       <iframe id="gameFrame" src="" title="Building..."></iframe>
 
@@ -557,13 +541,16 @@
         allow="clipboard-write; clipboard-read; microphone; camera; display-capture"
         referrerpolicy="no-referrer">
       </iframe>
+
       <div class="preview-empty" id="previewEmpty">
         <i class="ph ph-timer"></i>
         <p>Preview will appear once the sandbox is live.</p>
       </div>
+
+      <!-- analyticsPanel is a direct sibling inside stage, NOT inside previewEmpty -->
+      <div id="analyticsPanel"></div>
     </div>
   </div>
-
 </section>
 </div>
 
@@ -588,21 +575,24 @@ async function commitToGithub() {
 import { marked } from 'https://esm.sh/marked@9.1.2';
 import DOMPurify from 'https://esm.sh/dompurify@3.0.6';
 
-const PROJECT_ID = "{{ project_id }}";
+const PROJECT_ID    = "{{ project_id }}";
 const INITIAL_PROMPT = {{ initial_prompt | tojson }};
-const HAS_SUPABASE = {{ 'true' if has_supabase else 'false' }};
+const HAS_SUPABASE  = {{ 'true' if has_supabase else 'false' }};
 const PROJECT_HAS_DB = {{ 'true' if project_has_db else 'false' }};
-const GAME_URL = `/projects/${PROJECT_ID}/game`;
+const GAME_URL      = `/projects/${PROJECT_ID}/game`;
 
 window.isAgentWorking = false;
 let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
 let es = null, saveTimer = null, sandboxUrl = null, currentAttachedImage = null;
 let currentGroup = null;
 const activityRefs = new Map();
+let analyticsChart1 = null, analyticsChart2 = null;
 
 const $ = id => document.getElementById(id);
 const chat = $("chat");
 const gameFrame = $("gameFrame");
+
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 const PREFIXES = [
   /TAKE YOUR TIME AND THINK DEEPLY\. Before writing any code, carefully plan your architecture, reason through edge cases, and think about potential failure points\. Quality and thoroughness over speed and do this:\s*/gi,
@@ -615,9 +605,9 @@ function cleanPromptText(t) {
 }
 
 const VERB_ICONS = {
-  edit: 'ph-pencil-simple', create: 'ph-plus', delete: 'ph-trash',
-  install: 'ph-package', execute: 'ph-terminal', fetch: 'ph-globe',
-  database: 'ph-database', read: 'ph-eye', scan: 'ph-magnifying-glass', git: 'ph-git-branch'
+  edit:'ph-pencil-simple', create:'ph-plus', delete:'ph-trash',
+  install:'ph-package', execute:'ph-terminal', fetch:'ph-globe',
+  database:'ph-database', read:'ph-eye', scan:'ph-magnifying-glass', git:'ph-git-branch'
 };
 function iconFor(verb) { return VERB_ICONS[verb] || 'ph-terminal'; }
 
@@ -666,8 +656,7 @@ function addActivityCard(id, verb, target, short) {
   card.innerHTML = `
     <i class="ph ${iconFor(verb)} act-icon"></i>
     <span class="act-label">${short || verb}${target ? `<span class="act-target">${target}</span>` : ''}</span>
-    <span class="act-status"></span>
-  `;
+    <span class="act-status"></span>`;
   const outputWrap = document.createElement('div'); outputWrap.className = 'act-output';
   const inner = document.createElement('div'); inner.className = 'act-output-inner';
   outputWrap.appendChild(inner);
@@ -711,6 +700,8 @@ function loadChatHistory() {
   } catch(e) {}
 }
 
+// ── game frame ────────────────────────────────────────────────────────────────
+
 function showGameFrame() {
   if (!gameFrame.src || !gameFrame.src.includes('/game')) gameFrame.src = GAME_URL;
   gameFrame.classList.add('visible');
@@ -735,6 +726,8 @@ function showPreviewAfterDone() {
     }, 450);
   } else { switchTab("code"); }
 }
+
+// ── input state ───────────────────────────────────────────────────────────────
 
 function setInputState(locked) {
   window.isAgentWorking = locked;
@@ -782,6 +775,8 @@ if (imgPreview) imgPreview.onclick = () => {
   if (imgInput) imgInput.value = '';
 };
 
+// ── status helpers ────────────────────────────────────────────────────────────
+
 function setConn(state) {
   const dot = $("connDot"); if (!dot) return;
   dot.className = "dot" + (state === "ok" ? " ok" : state === "bad" ? " bad" : "");
@@ -804,7 +799,9 @@ function setSaveStatus() {
   el.style.color = dirty ? "var(--warn)" : "var(--dim)";
 }
 
-async function fetchJSON(url, opts) { try { return await (await fetch(url, opts)).json(); } catch(e) { return { ok: false }; } }
+async function fetchJSON(url, opts) { try { return await (await fetch(url, opts)).json(); } catch(e) { return {}; } }
+
+// ── file tree ─────────────────────────────────────────────────────────────────
 
 function buildTree(paths) {
   const root = {};
@@ -918,28 +915,66 @@ if (upInput) upInput.onchange = (e) => {
   reader.readAsText(file);
 };
 
+// ── TAB SWITCHING — single source of truth ────────────────────────────────────
+// Everything is hidden first, then only what's needed is shown.
+
+function hideAllPanels() {
+  $("editor").style.display        = "none";
+  $("imageViewer").style.display   = "none";
+  $("preview").style.display       = "none";
+  $("previewEmpty").style.display  = "none";
+  $("analyticsPanel").style.display = "none";
+  $("fileSidebar").style.display   = "none";
+  // don't touch gameFrame here — it has its own show/hide logic
+}
+
 function switchTab(tab) {
+  hideAllPanels();
+  ["tabCode","tabPreview","tabAnalytics"].forEach(id => $(id)?.classList.remove("active"));
+
   if (tab === "preview") {
-    $("tabPreview").classList.add("active"); $("tabCode").classList.remove("active");
-    $("editor").style.display = "none"; $("imageViewer").style.display = "none";
-    document.querySelector(".files").style.display = "none";
+    $("tabPreview").classList.add("active");
+    $("fileSidebar").style.display = "none"; // no sidebar in preview
     if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
-      $("preview").src = sandboxUrl; $("preview").style.display = "block"; $("previewEmpty").style.display = "none";
-    } else { $("preview").style.display = "none"; $("previewEmpty").style.display = "flex"; bootSandboxIfNeeded(); }
+      $("preview").src = sandboxUrl;
+      $("preview").style.display = "block";
+    } else {
+      $("previewEmpty").style.display = "flex";
+      bootSandboxIfNeeded();
+    }
+
+  } else if (tab === "analytics") {
+    $("tabAnalytics").classList.add("active");
+    $("fileSidebar").style.display = "none"; // no sidebar in analytics
+    const ap = $("analyticsPanel");
+    ap.style.display = "flex"; // make it visible; loadAnalytics fills it
+
   } else {
-    $("tabCode").classList.add("active"); $("tabPreview").classList.remove("active");
-    document.querySelector(".files").style.display = "flex";
-    $("preview").style.display = "none"; $("previewEmpty").style.display = "none";
+    // code (default)
+    $("tabCode").classList.add("active");
+    $("fileSidebar").style.display = "flex";
     if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png'))) {
-      $("editor").style.display = "none"; $("imageViewer").style.display = "flex";
-    } else { $("editor").style.display = "block"; $("imageViewer").style.display = "none"; }
+      $("imageViewer").style.display = "flex";
+    } else {
+      $("editor").style.display = "block";
+    }
   }
 }
-$("tabCode").onclick = () => { if (!window.isAgentWorking) switchTab("code"); };
-$("tabPreview").onclick = () => { if (!window.isAgentWorking) switchTab("preview"); };
+
+$("tabCode").onclick     = () => { if (!window.isAgentWorking) switchTab("code"); };
+$("tabPreview").onclick  = () => { if (!window.isAgentWorking) switchTab("preview"); };
+$("tabAnalytics").onclick = async () => {
+  if (window.isAgentWorking) return;
+  switchTab("analytics");
+  await loadAnalytics();
+};
+
+// ── sandbox ───────────────────────────────────────────────────────────────────
 
 async function bootSandboxIfNeeded() {
-  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) { $("preview").src = sandboxUrl; return; }
+  if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
+    $("preview").src = sandboxUrl; return;
+  }
   updateSandboxStatus("Booting");
   try {
     const res = await fetch(`/api/project/${PROJECT_ID}/sandbox/start`, { method: 'POST' });
@@ -952,6 +987,8 @@ async function bootSandboxIfNeeded() {
     } else updateSandboxStatus("Error");
   } catch (e) { updateSandboxStatus("Error"); }
 }
+
+// ── SSE stream ────────────────────────────────────────────────────────────────
 
 function startStream() {
   if (es) es.close(); setConn("warn");
@@ -995,6 +1032,8 @@ function startStream() {
   es.onerror = () => setConn("bad");
 }
 
+// ── agent ─────────────────────────────────────────────────────────────────────
+
 async function triggerAgent(promptText) {
   if (!promptText && !currentAttachedImage) return;
   resetGroup();
@@ -1025,7 +1064,6 @@ if (runBtn) runBtn.onclick = () => {
   const val = $("prompt").value.trim();
   if (val || currentAttachedImage) { triggerAgent(val); $("prompt").value = ""; }
 };
-
 const promptEl = $("prompt");
 if (promptEl) promptEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
@@ -1035,11 +1073,190 @@ if (promptEl) promptEl.addEventListener("keydown", (e) => {
   }
 });
 
+// ── ANALYTICS ─────────────────────────────────────────────────────────────────
+
+const EVT_COLORS = { login:'var(--ok)', agent_run:'var(--blue)', error_fix:'var(--danger)', export:'var(--warn)', sandbox_boot:'var(--dim)' };
+const EVT_LABELS = { login:'login', agent_run:'agent run', error_fix:'error fix', export:'export', sandbox_boot:'sandbox boot' };
+
+function timeSince(iso) {
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+
+function metricCard(label, value, sub, subOk) {
+  return `<div style="background:var(--bg-2);border:1px solid var(--line);padding:12px 14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:4px;">${label}</div>
+    <div style="font-size:22px;font-weight:500;color:var(--fg);">${value}</div>
+    ${sub ? `<div style="font-size:11px;margin-top:3px;color:${subOk?'var(--ok)':'var(--warn)'}">${sub}</div>` : ''}
+  </div>`;
+}
+
+function provBar(label, pct, hex) {
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">
+    <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);width:50px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</span>
+    <div style="flex:1;height:4px;background:var(--faint);"><div style="height:100%;width:${Math.min(100,pct)}%;background:${hex};"></div></div>
+    <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dim);width:28px;text-align:right;">${Math.round(pct)}%</span>
+  </div>`;
+}
+
+function analyticsHtml() {
+  return `
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+  <span style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);">// analytics</span>
+  <select id="analyticsDays" style="background:var(--bg-2);border:1px solid var(--line);color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;">
+    <option value="7">7 days</option>
+    <option value="30" selected>30 days</option>
+    <option value="90">90 days</option>
+  </select>
+</div>
+<div id="analyticsMetrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:12px;">// daily logins & agent runs</div>
+    <div style="position:relative;height:140px;"><canvas id="aChart1" role="img" aria-label="Daily logins and agent runs"></canvas></div>
+  </div>
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:12px;">// tokens per day</div>
+    <div style="position:relative;height:140px;"><canvas id="aChart2" role="img" aria-label="Tokens consumed per day"></canvas></div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 200px;gap:12px;">
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:12px;">// live event feed</div>
+    <div id="analyticsEvents"></div>
+  </div>
+  <div style="background:var(--bg-2);border:1px solid var(--line);padding:14px;">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:10px;">// auth providers</div>
+    <div id="analyticsProviders"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:14px 0 8px;">// event mix</div>
+    <div id="analyticsEventMix"></div>
+  </div>
+</div>`;
+}
+
+async function renderAnalytics(data) {
+  const totalLogins = data.totals?.login     || 0;
+  const totalAgents = data.totals?.agent_run || 0;
+  const totalTokens = Object.values(data.daily_tokens || {}).reduce((a,b)=>a+b,0);
+  const totalErrors = data.totals?.error_fix || 0;
+  const uniqueUsers = data.unique_users || 0;
+
+  $("analyticsMetrics").innerHTML =
+    metricCard("App logins",   totalLogins,  uniqueUsers + " unique users", true) +
+    metricCard("Agent runs",   totalAgents,  null) +
+    metricCard("Tokens spent", totalTokens > 999 ? (totalTokens/1000).toFixed(1)+'k' : String(totalTokens), null) +
+    metricCard("Auto-fixes",   totalErrors,  totalErrors > 5 ? "high — check logs" : "looks healthy", totalErrors <= 5);
+
+  const allDays = new Set([
+    ...Object.keys(data.daily_logins || {}),
+    ...Object.keys(data.daily_agents || {}),
+    ...Object.keys(data.daily_tokens || {}),
+  ]);
+  const days      = Array.from(allDays).sort();
+  const loginVals = days.map(d => data.daily_logins[d] || 0);
+  const agentVals = days.map(d => data.daily_agents[d] || 0);
+  const tokenVals = days.map(d => data.daily_tokens[d] || 0);
+  const shortDays = days.map(d => d.slice(5));
+
+  if (analyticsChart1) { analyticsChart1.destroy(); analyticsChart1 = null; }
+  if (analyticsChart2) { analyticsChart2.destroy(); analyticsChart2 = null; }
+
+  const gridColor = 'rgba(255,255,255,0.05)';
+  const tickColor = '#4a4c55';
+  const baseOpts = {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 400 },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid:{color:gridColor}, ticks:{color:tickColor, font:{size:10,family:"'DM Mono'"}, maxRotation:0, autoSkip:true, maxTicksLimit:7} },
+      y: { grid:{color:gridColor}, ticks:{color:tickColor, font:{size:10,family:"'DM Mono'"}}, beginAtZero:true },
+    }
+  };
+
+  analyticsChart1 = new window.Chart($("aChart1"), {
+    type: "line",
+    data: { labels: shortDays, datasets: [
+      { label:"Logins",     data:loginVals, borderColor:"#3ECF8E", backgroundColor:"rgba(62,207,142,0.06)", fill:true,  tension:0.4, pointRadius:0, borderWidth:2 },
+      { label:"Agent runs", data:agentVals, borderColor:"#378ADD", backgroundColor:"rgba(55,138,221,0.06)", fill:false, tension:0.4, pointRadius:0, borderWidth:2, borderDash:[4,3] },
+    ]},
+    options: baseOpts
+  });
+
+  analyticsChart2 = new window.Chart($("aChart2"), {
+    type: "bar",
+    data: { labels: shortDays, datasets: [
+      { label:"Tokens", data:tokenVals, backgroundColor:"rgba(55,138,221,0.55)", borderRadius:2, borderSkipped:false }
+    ]},
+    options: baseOpts
+  });
+
+  const provTotal = Object.values(data.providers || {}).reduce((a,b)=>a+b,0) || 1;
+  $("analyticsProviders").innerHTML = Object.entries(data.providers || {}).map(([k,v]) =>
+    provBar(k, (v/provTotal)*100, k==='google'?'#378ADD':'#4a4c55')
+  ).join('') || '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);">No logins yet</span>';
+
+  const evTotal = Object.values(data.totals || {}).reduce((a,b)=>a+b,0) || 1;
+  $("analyticsEventMix").innerHTML = Object.entries(data.totals || {}).map(([k,v]) =>
+    provBar(EVT_LABELS[k]||k, (v/evTotal)*100, EVT_COLORS[k]||'var(--dim)')
+  ).join('') || '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);">No events yet</span>';
+
+  $("analyticsEvents").innerHTML = (data.recent||[]).slice(0,12).map(ev=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--faint);">
+      <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:${EVT_COLORS[ev.type]||'var(--dim)'}"></span>
+      <span style="font-size:11px;color:var(--muted);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        ${EVT_LABELS[ev.type]||ev.type}${ev.email?' · '+ev.email:''}${ev.type==='agent_run'&&ev.metadata?.tokens?' · '+ev.metadata.tokens+' tok':''}
+      </span>
+      <span style="font-size:10px;color:var(--dim);font-family:'DM Mono',monospace;flex-shrink:0;">${timeSince(ev.ts)}</span>
+    </div>`).join('') || '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);">No events yet</span>';
+}
+
+async function loadAnalytics() {
+  const panel = $("analyticsPanel");
+  if (!panel) return;
+
+  // Write skeleton HTML into the panel
+  panel.innerHTML = analyticsHtml();
+
+  // Show a loading state in metrics while we fetch
+  $("analyticsMetrics").innerHTML =
+    '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);grid-column:span 4;">Loading...</span>';
+
+  // Load Chart.js once — guaranteed before renderAnalytics runs
+  if (!window.Chart) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  // Wire up the days selector
+  const sel = $("analyticsDays");
+  if (sel) sel.onchange = async () => {
+    $("analyticsMetrics").innerHTML =
+      '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--dim);grid-column:span 4;">Refreshing...</span>';
+    const d = await fetchJSON(`/api/project/${PROJECT_ID}/analytics?days=${sel.value}`);
+    await renderAnalytics(d);
+  };
+
+  const data = await fetchJSON(`/api/project/${PROJECT_ID}/analytics?days=30`);
+  await renderAnalytics(data);
+}
+
+// ── init ──────────────────────────────────────────────────────────────────────
+
 (async () => {
   loadChatHistory();
   await refreshFiles();
   try { await loadFile(currentFile); } catch(e) {}
-  startStream(); setProgress("Ready", 0); hideLoader();
+  switchTab("code"); // ensure correct initial state
+  startStream();
+  setProgress("Ready", 0);
+  hideLoader();
   if (INITIAL_PROMPT) setTimeout(() => triggerAgent(INITIAL_PROMPT), 800);
 })();
 </script>
