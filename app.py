@@ -672,6 +672,8 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
+GITHUB_APPAUTH_CLIENT_ID = os.getenv("GITHUB_APPAUTH_CLIENT_ID")
+GITHUB_APPAUTH_CLIENT_SECRET = os.getenv("GITHUB_APPAUTH_CLIENT_SECRET")
 GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI")
 
 # Global memory for storing OTPs during signup flow
@@ -4406,8 +4408,5 @@ _init_sandbox_manager()
  
 if __name__ == "__main__":
     import uvicorn
-    from pyngrok import ngrok
- 
-    public_url = ngrok.connect(8000).public_url
-    print(f"{public_url}")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
