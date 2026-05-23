@@ -13,239 +13,373 @@
     :root {
       --bg: #0a0b0d;
       --bg-2: #101114;
-      --sidebar-bg: #0a0b0d;
+      --bg-3: #16181d;
       --fg: #e8e8eb;
       --muted: #8a8c95;
-      --dim: #4a4c55;
-      --faint: #25272d;
-      --line: rgba(255,255,255,0.10);
-      --line-2: rgba(255,255,255,0.18);
-      --blue: oklch(0.74 0.16 248);
-      --blue-2: oklch(0.62 0.2 252);
-      --blue-dim: oklch(0.4 0.12 252);
-      --amber: oklch(0.78 0.13 80);
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
+      --accent-glow: oklch(0.62 0.2 252);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 8px;
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
     body {
-      margin: 0; background: var(--bg); color: var(--fg);
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
       font-family: 'DM Sans', system-ui, sans-serif;
-      height: 100vh; display: flex; overflow: hidden;
-      font-weight: 300; -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em;
+      position: relative;
     }
 
-    /* dot grid */
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    /* atmospheric horizon glow */
+    .horizon {
+      position: fixed;
+      left: 232px;
+      right: 0;
+      bottom: -50%;
+      height: 110%;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 65% 75% at 50% 0%,
+          oklch(0.55 0.22 248 / 0.4) 0%,
+          oklch(0.45 0.2 250 / 0.2) 28%,
+          oklch(0.3 0.16 252 / 0.08) 52%,
+          transparent 75%);
+      filter: blur(24px);
+    }
+    .horizon::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0; top: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 15%, oklch(0.78 0.16 248 / 0.45) 50%, transparent 85%);
+      filter: blur(1.5px);
     }
 
     /* ── SIDEBAR ── */
     aside {
-      width: 260px; background: var(--sidebar-bg);
-      border-right: 3px double rgba(255,255,255,0.15);
-      display: flex; flex-direction: column;
-      padding: 28px 14px; z-index: 10; position: relative;
+      width: 232px;
+      background: var(--bg);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      padding: 18px 12px 14px;
+      z-index: 10;
+      position: relative;
       flex-shrink: 0;
     }
 
-    /* ── LOGO ── */
-    .logo {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 20px; font-weight: 500; letter-spacing: -0.02em;
-      color: var(--fg);
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 40px; padding-left: 10px;
-      text-decoration: none;
-    }
-    .logo .proto { color: var(--blue); font-weight: 400; }
-
-    /* The SVG icon — sized and clipped so only the gorilla glyph shows */
-    .logo-icon {
-      width: 22px;
-      height: 22px;
-      flex-shrink: 0;
-      overflow: hidden;
+    .workspace-switcher {
       display: flex;
       align-items: center;
-      justify-content: center;
+      gap: 9px;
+      padding: 7px 8px;
+      margin-bottom: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.12s;
+      text-decoration: none;
     }
-    .logo-icon svg {
-      /* The viewBox is "0 0 600 550" — scale it down to fit 22×22 */
-      width: 22px;
-      height: 22px;
-      fill: var(--fg);
+    .workspace-switcher:hover { background: rgba(255,255,255,0.035); }
+
+    .ws-logo {
+      width: 26px; height: 26px;
+      background: var(--bg-3);
+      border: 1px solid var(--line-2);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
     }
+    .ws-logo svg { width: 15px; height: 15px; fill: var(--fg); }
+
+    .ws-info { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+    .ws-name {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.005em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ws-plan {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 10.5px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+    .ws-caret { opacity: 0.5; font-size: 12px; color: var(--muted); }
 
     .premium-badge {
       font-family: 'DM Mono', monospace;
-      font-size: 9px; background: var(--blue); color: #fff;
-      padding: 2px 7px; font-weight: 500;
-      letter-spacing: 0.14em; text-transform: uppercase;
-      display: none; transform: translateY(-1px);
+      font-size: 9px;
+      background: oklch(0.6 0.2 248 / 0.15);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      display: none;
+      border: 1px solid oklch(0.6 0.2 248 / 0.25);
     }
     body.premium .premium-badge { display: inline-block; }
 
-    /* ── NAV ── */
     nav { display: flex; flex-direction: column; gap: 1px; flex: 1; }
 
     nav a {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--dim); text-decoration: none;
-      padding: 9px 10px;
-      transition: all 0.15s var(--ease-out);
-      display: flex; align-items: center; gap: 10px;
-      position: relative; border: 1px solid transparent; font-weight: 400;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      letter-spacing: -0.005em;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 9px;
+      border-radius: 4px;
+      transition: all 0.12s ease;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 400;
     }
-    nav a:hover { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
-    nav a.active { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
-    nav a.active::before {
-      content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 2px;
-      background: var(--blue);
+    nav a:hover { background: rgba(255,255,255,0.035); color: var(--fg); }
+    nav a.active { background: rgba(255,255,255,0.05); color: var(--fg); }
+    nav a i { font-size: 15px; opacity: 0.75; }
+
+    .nav-section-label {
+      display: block;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px;
+      color: var(--dim);
+      padding: 16px 10px 4px;
+      font-weight: 500;
     }
-    nav a i { font-size: 14px; opacity: 0.4; }
-    nav a:hover i, nav a.active i { opacity: 1; color: var(--blue); }
-    nav::after { content: ''; display: block; height: 1px; margin-top: 6px; background: linear-gradient(90deg, var(--line), transparent); }
+
+    .nav-tag-new {
+      margin-left: auto;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 10px;
+      background: oklch(0.6 0.2 248 / 0.15);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 500;
+      border: 1px solid oklch(0.6 0.2 248 / 0.25);
+    }
 
     .nav-promo {
-      margin-top: 12px; background: rgba(255,255,255,0.02);
-      border: 1px solid var(--line); padding: 10px;
-      display: flex; align-items: center; gap: 10px; text-decoration: none;
-      position: relative; transition: all 0.2s var(--ease-out);
+      margin-top: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 9px 10px;
+      display: flex; align-items: center; gap: 9px;
+      text-decoration: none;
+      transition: all 0.15s ease;
     }
-    .nav-promo:hover { border-color: var(--line-2); background: rgba(255,255,255,0.03); transform: translateY(-1px); }
-    .promo-icon { font-size: 18px; min-width: 34px; height: 34px; display: flex; justify-content: center; align-items: center; }
-    .promo-text { display: flex; flex-direction: column; gap: 2px; }
-    .promo-text strong { color: var(--fg); font-size: 12px; font-weight: 400; font-family: 'DM Sans', sans-serif; }
-    .promo-text span { color: var(--dim); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.08em; line-height: 1.3; }
-    .promo-badge {
-      position: absolute; top: 7px; right: 7px;
-      background: var(--blue); color: #fff;
-      font-family: 'DM Mono', monospace; font-size: 8px; font-weight: 500;
-      padding: 2px 5px; letter-spacing: 0.1em; text-transform: uppercase;
-    }
+    .nav-promo:hover { background: rgba(255,255,255,0.05); border-color: var(--line-2); }
+    .promo-icon { font-size: 17px; min-width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; }
+    .promo-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .promo-text strong { color: var(--fg); font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; letter-spacing: -0.005em; }
+    .promo-text span { color: var(--muted); font-size: 10.5px; line-height: 1.3; }
 
     /* ── PROFILE ── */
-    .profile-container { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); position: relative; }
-
-    .user-profile { display: flex; align-items: center; gap: 10px; padding: 9px; cursor: pointer; transition: background 0.15s; }
-    .user-profile:hover { background: rgba(255,255,255,0.03); }
-
+    .profile-container {
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      position: relative;
+    }
+    .user-profile {
+      display: flex; align-items: center; gap: 9px;
+      padding: 6px 7px;
+      border-radius: 4px;
+      cursor: pointer; transition: background 0.12s;
+    }
+    .user-profile:hover { background: rgba(255,255,255,0.035); }
     .avatar {
-      width: 34px; height: 34px;
-      background: var(--blue-dim); border: 1px solid var(--line-2);
+      width: 24px; height: 24px;
+      background: var(--bg-3);
+      border: 1px solid var(--line-2);
+      border-radius: 4px;
       display: flex; align-items: center; justify-content: center;
-      font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--fg);
-      position: relative; flex-shrink: 0;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px; font-weight: 500; color: var(--fg);
+      flex-shrink: 0;
     }
-    .avatar::after {
-      content: ''; position: absolute; bottom: -2px; right: -2px;
-      width: 8px; height: 8px; background: var(--blue);
-      border: 2px solid var(--sidebar-bg); border-radius: 50%;
-    }
-
-    .user-info { display: flex; flex-direction: column; font-size: 12px; line-height: 1.3; }
-    .user-name { color: var(--fg); font-weight: 400; }
-    .user-plan { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+    .user-info { display: flex; flex-direction: column; font-size: 12.5px; line-height: 1.3; min-width: 0; flex: 1; }
+    .user-name { color: var(--fg); font-weight: 500; letter-spacing: -0.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-plan { font-size: 11px; color: var(--muted); margin-top: 1px; }
 
     /* ── MAIN ── */
-    main { flex: 1; overflow-y: auto; padding: 48px 64px; position: relative; z-index: 1; }
-    main::-webkit-scrollbar { width: 4px; }
+    main {
+      flex: 1; overflow-y: auto;
+      padding: 0;
+      position: relative;
+      z-index: 2;
+    }
+    main::-webkit-scrollbar { width: 6px; }
     main::-webkit-scrollbar-track { background: transparent; }
-    main::-webkit-scrollbar-thumb { background: var(--line); }
-    main::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
+    main::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+    main::-webkit-scrollbar-thumb:hover { background: var(--line-3); }
 
-    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-entry { animation: slideUp 0.6s var(--ease-out) forwards; opacity: 0; }
+    /* ── TOP BAR ── */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(10, 11, 13, 0.7);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .topbar-title {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.005em;
+    }
+    .topbar-crumbs {
+      display: flex; align-items: center; gap: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+    }
+    .topbar-crumbs a { color: var(--muted); text-decoration: none; transition: color 0.12s; }
+    .topbar-crumbs a:hover { color: var(--fg); }
+    .topbar-crumbs i { font-size: 10px; opacity: 0.4; color: var(--muted); }
+    .topbar-crumbs .current { color: var(--fg); font-weight: 500; }
+
+    /* ── CONTENT WRAPPER ── */
+    .content {
+      padding: 56px 48px 80px;
+      max-width: 760px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-entry { animation: slideUp 0.4s var(--ease-out) forwards; opacity: 0; }
 
     /* ── PAGE HEADER ── */
-    .page-header { margin-bottom: 48px; }
+    .page-header { margin-bottom: 40px; }
     .page-header h1 {
       font-family: 'DM Sans', sans-serif;
-      font-size: clamp(28px, 3vw, 40px); font-weight: 400;
-      letter-spacing: -0.035em; margin: 0 0 6px; color: var(--fg); line-height: 1.0;
+      font-size: 34px;
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      margin: 0 0 6px;
+      color: var(--fg);
+      line-height: 1.05;
     }
-    .page-header h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+    .page-header h1 .accent {
+      font-style: italic;
+      color: var(--accent);
+      font-weight: 500;
+    }
     .page-header p {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0;
+      font-weight: 400;
+      letter-spacing: -0.005em;
     }
-    .page-header p::before { content: "// "; color: var(--blue); }
 
-    /* ── SETTINGS GRID ── */
-    .settings-grid { display: flex; flex-direction: column; gap: 0; max-width: 680px; padding-bottom: 80px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    /* ── SETTINGS SECTIONS ── */
+    .settings-stack { display: flex; flex-direction: column; gap: 14px; }
 
-    /* each card is a bento cell */
     .settings-card {
-      background: var(--bg-2);
-      border-right: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
-      padding: 32px 28px;
+      background: rgba(16, 17, 20, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 22px 22px 20px;
       position: relative;
-      transition: background 0.2s var(--ease-out);
+      transition: border-color 0.2s ease;
     }
-    .settings-card:hover { background: rgba(255,255,255,0.015); }
-
-    /* corner decorators */
-    .settings-card::before {
-      content: ""; position: absolute; top: 10px; left: 10px;
-      width: 10px; height: 10px;
-      border-top: 1px solid var(--muted); border-left: 1px solid var(--muted);
-      opacity: 0.4; pointer-events: none;
-    }
-    .settings-card::after {
-      content: ""; position: absolute; bottom: 10px; right: 10px;
-      width: 10px; height: 10px;
-      border-bottom: 1px solid var(--muted); border-right: 1px solid var(--muted);
-      opacity: 0.4; pointer-events: none;
-    }
+    .settings-card:hover { border-color: var(--line-2); }
 
     .card-tag {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.18em; color: var(--blue); text-transform: uppercase;
-      margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: none;
+      margin-bottom: 4px;
+      display: flex; align-items: center; gap: 6px;
+      letter-spacing: -0.005em;
+      font-weight: 500;
     }
-    .card-tag i { font-size: 13px; }
+    .card-tag i { font-size: 13px; color: var(--accent); opacity: 0.9; }
 
     .card-title {
       font-family: 'DM Sans', sans-serif;
-      font-size: 18px; font-weight: 500; letter-spacing: -0.02em;
-      color: var(--fg); margin: 0 0 20px;
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--fg);
+      margin: 0 0 16px;
     }
 
     /* ── FORM ── */
-    .form-group { margin-bottom: 16px; }
+    .form-group { margin-bottom: 12px; }
+    .form-group:last-of-type { margin-bottom: 16px; }
     .form-group label {
       display: block;
-      font-family: 'DM Mono', monospace;
-      font-size: 10px; color: var(--dim); margin-bottom: 8px;
-      font-weight: 400; text-transform: uppercase; letter-spacing: 0.16em;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
     }
 
     .input-box {
       background: var(--bg);
-      border: 1px solid var(--line);
-      display: flex; align-items: center; padding: 0 14px;
-      transition: all 0.25s var(--ease-out);
+      border: 1px solid var(--line-2);
+      border-radius: 5px;
+      display: flex; align-items: center;
+      padding: 0 12px;
+      transition: all 0.15s var(--ease-out);
     }
-    .input-box:focus-within { border-color: var(--line-2); box-shadow: 0 0 0 3px rgba(255,255,255,0.03); }
+    .input-box:focus-within { border-color: var(--line-3); }
     .input-box input {
       flex: 1; background: transparent; border: none; color: var(--fg);
-      height: 46px; font-size: 14px; width: 100%; font-weight: 300;
+      height: 38px; font-size: 13.5px; width: 100%; font-weight: 400;
       font-family: 'DM Sans', system-ui, sans-serif;
+      letter-spacing: -0.005em;
     }
     .input-box input::placeholder { color: var(--dim); }
-    .input-box input:disabled { opacity: 0.5; cursor: not-allowed; color: var(--muted); }
+    .input-box input:disabled { opacity: 0.6; cursor: not-allowed; color: var(--muted); }
 
     .api-key-display {
-      font-family: 'DM Mono', monospace; color: var(--blue); font-size: 13px;
+      font-family: 'DM Mono', monospace; color: var(--accent); font-size: 13px;
       width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       filter: blur(4px); transition: filter 0.25s ease; user-select: none; font-weight: 400;
     }
@@ -253,120 +387,173 @@
 
     /* ── BUTTONS ── */
     .btn-save {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-      background: var(--blue); color: #fff;
-      padding: 10px 18px; border: none; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      background: var(--accent);
+      color: #fff;
+      padding: 7px 14px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
       transition: all 0.15s var(--ease-out);
-      display: inline-flex; align-items: center; gap: 6px;
+      display: inline-flex; align-items: center; gap: 5px;
       text-decoration: none;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
     }
-    .btn-save:hover { background: var(--blue-2); transform: translateY(-1px); }
-    .btn-save:active { transform: translateY(1px); }
+    .btn-save:hover { background: var(--accent-2); box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45); }
 
-    .btn-upgrade-accent {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-      background: var(--blue); color: #fff;
-      padding: 10px 18px; border: none; cursor: pointer;
-      transition: all 0.15s var(--ease-out);
-      display: inline-flex; align-items: center; gap: 6px;
+    .btn-secondary {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      background: var(--bg-2);
+      color: var(--fg);
+      padding: 7px 14px;
+      border-radius: 4px;
+      border: 1px solid var(--line-2);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex; align-items: center; gap: 5px;
       text-decoration: none;
+      font-weight: 500;
+      letter-spacing: -0.005em;
     }
-    .btn-upgrade-accent:hover { background: var(--blue-2); transform: translateY(-1px); }
+    .btn-secondary:hover { background: var(--bg-3); border-color: var(--line-3); }
 
-    /* ── ACTION ROWS ── */
+    /* ── ACTION ROWS (integrations) ── */
     .action-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px;
+      padding: 12px;
       background: var(--bg);
       border: 1px solid var(--line);
-      margin-bottom: 8px;
-      transition: all 0.15s var(--ease-out);
+      border-radius: 5px;
+      margin-bottom: 6px;
+      transition: all 0.15s ease;
     }
     .action-row:last-child { margin-bottom: 0; }
     .action-row:hover { border-color: var(--line-2); background: rgba(255,255,255,0.02); }
 
     .action-row-info { display: flex; align-items: center; gap: 12px; }
-    .action-row-info svg { opacity: 0.6; flex-shrink: 0; }
+    .action-row-info svg { opacity: 0.85; flex-shrink: 0; }
     .action-row-text h4 {
-      margin: 0 0 3px 0; font-size: 14px; font-weight: 400; color: var(--fg);
+      margin: 0 0 2px 0;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--fg);
       font-family: 'DM Sans', sans-serif;
+      letter-spacing: -0.01em;
     }
     .action-row-text p {
-      margin: 0; font-size: 12px; color: var(--muted); font-weight: 300;
-      font-family: 'DM Mono', monospace; letter-spacing: 0.06em;
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 400;
+      font-family: 'DM Sans', sans-serif;
+      letter-spacing: -0.005em;
     }
 
     .connected-badge {
-      font-family: 'DM Mono', monospace;
-      color: #3ECF8E; font-size: 10px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase;
-      display: flex; gap: 5px; align-items: center;
-      background: rgba(62,207,142,0.07); padding: 5px 10px;
-      border: 1px solid rgba(62,207,142,0.2);
+      font-family: 'DM Sans', sans-serif;
+      color: #4ade80;
+      font-size: 11.5px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      display: flex; gap: 4px; align-items: center;
+      background: rgba(74, 222, 128, 0.08);
+      padding: 4px 9px;
+      border: 1px solid rgba(74, 222, 128, 0.2);
+      border-radius: 4px;
       white-space: nowrap;
     }
 
     /* ── DANGER ZONE ── */
     .danger-zone {
-      border-right-color: rgba(100,20,20,0.18) !important;
-      background: rgba(100,20,20,0.03);
+      border-color: rgba(168, 96, 96, 0.2) !important;
+      background: rgba(168, 96, 96, 0.04);
     }
-    .danger-zone:hover { background: rgba(100,20,20,0.04); }
-    .danger-zone .card-tag { color: #8a4040; }
-    .danger-zone .card-tag::before { color: var(--dim); }
+    .danger-zone:hover { background: rgba(168, 96, 96, 0.06); border-color: rgba(168, 96, 96, 0.3) !important; }
+    .danger-zone .card-tag i { color: #c08585; }
 
     .btn-danger {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-      background: transparent; color: #8a3535;
-      border: 1px solid rgba(100,20,20,0.25);
-      padding: 10px 18px; cursor: pointer; transition: all 0.15s;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      background: transparent;
+      color: #c08585;
+      border: 1px solid rgba(168, 96, 96, 0.25);
+      border-radius: 4px;
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-weight: 500;
+      letter-spacing: -0.005em;
     }
-    .btn-danger:hover { background: rgba(100,20,20,0.08); color: #b05050; border-color: rgba(100,20,20,0.4); transform: translateY(-1px); }
-    .btn-danger:active { transform: translateY(1px); }
+    .btn-danger:hover { background: rgba(168, 96, 96, 0.1); color: #d09595; border-color: rgba(168, 96, 96, 0.4); }
 
     /* helper text */
     .helper-text {
-      font-family: 'DM Mono', monospace;
-      color: var(--muted); font-size: 11px; letter-spacing: 0.06em;
-      margin: 0 0 18px; line-height: 1.65;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--muted); font-size: 12.5px;
+      margin: 0 0 14px; line-height: 1.55;
+      font-weight: 400;
+      letter-spacing: -0.005em;
     }
     .helper-text code {
-      background: rgba(255,255,255,0.04); color: var(--blue);
-      padding: 1px 5px; font-size: 11px;
-      border: 1px solid var(--line-2);
+      background: rgba(255,255,255,0.05);
+      color: var(--accent);
+      padding: 1px 5px;
+      font-size: 11.5px;
+      border-radius: 3px;
+      font-family: 'DM Mono', monospace;
+      border: 1px solid var(--line);
     }
 
     .btn-copy {
-      border: none; background: transparent; padding: 5px; margin-left: 8px;
-      cursor: pointer; color: var(--dim); transition: all 0.15s;
+      border: none; background: transparent;
+      padding: 4px;
+      margin-left: 6px;
+      cursor: pointer;
+      color: var(--muted);
+      transition: color 0.15s;
       display: flex; align-items: center; justify-content: center;
+      border-radius: 3px;
     }
-    .btn-copy:hover { color: var(--blue); }
+    .btn-copy:hover { color: var(--accent); }
 
     /* ── TOAST ── */
     .toast {
-      position: fixed; bottom: 28px; right: 28px;
-      background: var(--bg-2); color: var(--fg);
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--bg-2);
+      color: var(--fg);
       border: 1px solid var(--line-2);
-      padding: 12px 20px;
-      font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.08em;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.95);
+      border-radius: 6px;
+      padding: 11px 16px;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       transform: translateY(80px); opacity: 0;
-      transition: all 0.35s var(--ease-out); z-index: 100;
+      transition: all 0.35s var(--ease-out);
+      z-index: 100;
       display: flex; align-items: center; gap: 8px;
+      letter-spacing: -0.005em;
+      font-weight: 500;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
-    .toast.error { background: rgba(100,20,20,0.1); color: #d0d8f0; border-color: rgba(100,20,20,0.3); }
+    .toast.error { background: rgba(168, 96, 96, 0.12); color: #e0a5a5; border-color: rgba(168, 96, 96, 0.3); }
+
+    @media (max-width: 768px) {
+      aside { display: none; }
+      .content { padding: 32px 20px 60px; }
+    }
   </style>
 </head>
 
 <body class="{% if user.get('plan') in ['premium', 'pro'] %}premium{% endif %}">
 
+  <div class="horizon"></div>
+
   <aside>
-    <a href="/dashboard" class="logo">
-      <span class="logo-icon">
+    <a href="/dashboard" class="workspace-switcher">
+      <div class="ws-logo">
         <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
           <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
             <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
@@ -377,9 +564,12 @@
             <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
           </g>
         </svg>
-      </span>
-      gor://a
-      <span class="premium-badge">PRO</span>
+      </div>
+      <div class="ws-info">
+        <span class="ws-name">{% if user.get('email') %}{{ user.get('email').split('@')[0] }}{% else %}gor://a{% endif %}</span>
+        <span class="ws-plan">{{ user.get('plan', 'free')|capitalize }}</span>
+      </div>
+      <i class="ph ph-caret-up-down ws-caret"></i>
     </a>
 
     <nav>
@@ -389,26 +579,32 @@
       <a href="/settings/skills">
         <i class="ph ph-brain"></i> Agent Skills
       </a>
+      <a href="/docs/intro">
+        <i class="ph ph-book"></i> Docs
+      </a>
+
+      <span class="nav-section-label">Workspace</span>
+
       <a href="/settings" class="active">
         <i class="ph ph-gear"></i> Settings
       </a>
       <a href="/pricing">
         <i class="ph ph-lightning"></i> Upgrade
       </a>
-      <a href="/docs/intro">
-        <i class="ph ph-book"></i> Docs
-      </a>
+
+      <span class="nav-section-label">Tools</span>
+
       <a href="/design">
         <i class="ph ph-pen-nib"></i> Gorilla Design
-        <span style="margin-left:auto;font-family:'DM Mono',monospace;font-size:9px;background:rgba(255,255,255,0.05);color:var(--blue);padding:2px 6px;border:1px solid var(--blue-dim);letter-spacing:0.1em;text-transform:uppercase;">New</span>
+        <span class="nav-tag-new">New</span>
       </a>
+
       <a href="/pricing/negotiate" class="nav-promo">
         <div class="promo-icon">😎</div>
         <div class="promo-text">
           <strong>Haggle with Monke</strong>
-          <span>Negotiate your plan to $0.67/mo</span>
+          <span>Plans from $0.67/mo</span>
         </div>
-        <div class="promo-badge">HOT</div>
       </a>
     </nav>
 
@@ -419,136 +615,148 @@
         </div>
         <div class="user-info">
           <span class="user-name">{% if user.get('email') %}{{ user.get('email').split('@')[0] }}{% else %}User{% endif %}</span>
-          <span class="user-plan">{{ user.get('plan', 'free')|capitalize }} Plan</span>
         </div>
-        <i class="ph ph-caret-up" style="margin-left:auto; opacity:0.3; font-size:11px;"></i>
+        <i class="ph ph-dots-three" style="opacity:0.5; font-size:14px; color: var(--muted);"></i>
       </div>
     </div>
   </aside>
 
   <main>
-    <div class="page-header animate-entry" style="animation-delay: 0ms;">
-      <h1>Account <span class="accent">Settings</span></h1>
-      <p>Manage your profile, integrations, and security preferences.</p>
+
+    <div class="topbar">
+      <div class="topbar-crumbs">
+        <a href="/dashboard">Dashboard</a>
+        <i class="ph ph-caret-right"></i>
+        <span class="current">Settings</span>
+      </div>
     </div>
 
-    <div class="settings-grid">
+    <div class="content">
 
-      <!-- Profile -->
-      <section class="settings-card animate-entry" style="animation-delay: 80ms;">
-        <div class="card-tag"><i class="ph ph-user-circle"></i> // 01 — profile</div>
-        <h2 class="card-title">Profile</h2>
-        <div class="form-group">
-          <label>Email Address</label>
-          <div class="input-box">
-            <input type="text" value="{{ user.get('email', '') }}" disabled>
-          </div>
-        </div>
-      </section>
+      <div class="page-header animate-entry" style="animation-delay: 0ms;">
+        <h1>Account <span class="accent">Settings.</span></h1>
+        <p>Manage your profile, integrations, and security preferences.</p>
+      </div>
 
-      <!-- API Key -->
-      <section class="settings-card animate-entry" style="animation-delay: 160ms;">
-        <div class="card-tag"><i class="ph ph-key"></i> // 02 — developer</div>
-        <h2 class="card-title">Developer API Key</h2>
-        <p class="helper-text">
-          Your master <code>gb_live_</code> key for programmatic access to the Gor://a proxy gateway. Hover to reveal.
-        </p>
-        <div class="form-group">
-          <div class="input-box" style="justify-content: space-between;">
-            <span class="api-key-display" id="api-key-text">{% if user.get('gorilla_api_key') %}{{ user.get('gorilla_api_key') }}{% else %}No Key Generated{% endif %}</span>
-            <button type="button" class="btn-copy" onclick="copyApiKey('{{ user.get('gorilla_api_key', '') }}')">
-              <i class="ph-bold ph-copy" style="font-size:16px;"></i>
-            </button>
-          </div>
-        </div>
-        <form method="POST" action="/api/user/regenerate-key" onsubmit="return confirm('Are you sure? Any existing apps using the old key will break.');">
-          <button type="submit" class="btn-save">Regenerate Key →</button>
-        </form>
-      </section>
+      <div class="settings-stack">
 
-      <!-- Connected Accounts -->
-      <section class="settings-card animate-entry" style="animation-delay: 240ms;">
-        <div class="card-tag"><i class="ph ph-plugs-connected"></i> // 03 — integrations</div>
-        <h2 class="card-title">Connected Accounts</h2>
-
-        <div class="action-row">
-          <div class="action-row-info">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="color:var(--muted);"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
-            <div class="action-row-text">
-              <h4>GitHub Integration</h4>
-              <p>{% if user.get('has_github') %}connected · active{% else %}required for vercel deploys{% endif %}</p>
+        <!-- Profile -->
+        <section class="settings-card animate-entry" style="animation-delay: 60ms;">
+          <div class="card-tag"><i class="ph ph-user-circle"></i> Profile</div>
+          <h2 class="card-title">Your account</h2>
+          <div class="form-group">
+            <label>Email Address</label>
+            <div class="input-box">
+              <input type="text" value="{{ user.get('email', '') }}" disabled>
             </div>
           </div>
-          {% if user.get('has_github') %}
-            <span class="connected-badge"><i class="ph-bold ph-check" style="font-size:12px;"></i> Connected</span>
-          {% else %}
-            <a href="/auth/github/link" class="btn-save">Connect →</a>
-          {% endif %}
-        </div>
+        </section>
 
-        <div class="action-row">
-          <div class="action-row-info">
-            <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.8;">
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M16 16C16 13.7909 17.7909 12 20 12C22.2091 12 24 13.7909 24 16C24 18.2091 22.2091 20 20 20C17.7909 20 16 18.2091 16 16Z" fill="#1ABCFE"/>
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M8 24C8 21.7909 9.79086 20 12 20H16V24C16 26.2091 14.2091 28 12 28C9.79086 28 8 26.2091 8 24Z" fill="#0ACF83"/>
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M16 4V12H20C22.2091 12 24 10.2091 24 8C24 5.79086 22.2091 4 20 4H16Z" fill="#FF7262"/>
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M8 8C8 10.2091 9.79086 12 12 12H16V4H12C9.79086 4 8 5.79086 8 8Z" fill="#F24E1E"/>
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M8 16C8 18.2091 9.79086 20 12 20H16V12H12C9.79086 12 8 13.7909 8 16Z" fill="#A259FF"/>
-            </svg>
-            <div class="action-row-text">
-              <h4>Figma Account</h4>
-              <p>{% if user.get('has_figma') %}connected · active{% else %}required for zero-shot compiler{% endif %}</p>
+        <!-- API Key -->
+        <section class="settings-card animate-entry" style="animation-delay: 120ms;">
+          <div class="card-tag"><i class="ph ph-key"></i> Developer</div>
+          <h2 class="card-title">Developer API key</h2>
+          <p class="helper-text">
+            Your master <code>gb_live_</code> key for programmatic access to the Gor://a proxy gateway. Hover to reveal.
+          </p>
+          <div class="form-group">
+            <div class="input-box" style="justify-content: space-between;">
+              <span class="api-key-display" id="api-key-text">{% if user.get('gorilla_api_key') %}{{ user.get('gorilla_api_key') }}{% else %}No Key Generated{% endif %}</span>
+              <button type="button" class="btn-copy" onclick="copyApiKey('{{ user.get('gorilla_api_key', '') }}')">
+                <i class="ph-bold ph-copy" style="font-size:15px;"></i>
+              </button>
             </div>
           </div>
-          {% if user.get('has_figma') %}
-            <span class="connected-badge"><i class="ph-bold ph-check" style="font-size:12px;"></i> Connected</span>
-          {% else %}
-            <a href="/auth/figma" class="btn-save">Connect →</a>
-          {% endif %}
-        </div>
+          <form method="POST" action="/api/user/regenerate-key" onsubmit="return confirm('Are you sure? Any existing apps using the old key will break.');">
+            <button type="submit" class="btn-save">Regenerate key →</button>
+          </form>
+        </section>
 
-        <div class="action-row">
-          <div class="action-row-info">
-            <svg width="22" height="22" viewBox="0 0 109 113" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.85;"><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sb0)"/><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sb1)" fill-opacity="0.2"/><path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/><defs><linearGradient id="sb0" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stop-color="#249361"/><stop offset="1" stop-color="#3ECF8E"/></linearGradient><linearGradient id="sb1" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse"><stop/><stop offset="1" stop-opacity="0"/></linearGradient></defs></svg>
-            <div class="action-row-text">
-              <h4>Supabase Database</h4>
-              <p>{% if user.get('has_supabase') %}connected · active{% else %}required for postgres provisioning{% endif %}</p>
+        <!-- Connected Accounts -->
+        <section class="settings-card animate-entry" style="animation-delay: 180ms;">
+          <div class="card-tag"><i class="ph ph-plugs-connected"></i> Integrations</div>
+          <h2 class="card-title">Connected accounts</h2>
+
+          <div class="action-row">
+            <div class="action-row-info">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:var(--fg);"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
+              <div class="action-row-text">
+                <h4>GitHub</h4>
+                <p>{% if user.get('has_github') %}Connected and active{% else %}Required for Vercel deploys{% endif %}</p>
+              </div>
+            </div>
+            {% if user.get('has_github') %}
+              <span class="connected-badge"><i class="ph-bold ph-check" style="font-size:11px;"></i> Connected</span>
+            {% else %}
+              <a href="/auth/github/link" class="btn-save">Connect →</a>
+            {% endif %}
+          </div>
+
+          <div class="action-row">
+            <div class="action-row-info">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M16 16C16 13.7909 17.7909 12 20 12C22.2091 12 24 13.7909 24 16C24 18.2091 22.2091 20 20 20C17.7909 20 16 18.2091 16 16Z" fill="#1ABCFE"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M8 24C8 21.7909 9.79086 20 12 20H16V24C16 26.2091 14.2091 28 12 28C9.79086 28 8 26.2091 8 24Z" fill="#0ACF83"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M16 4V12H20C22.2091 12 24 10.2091 24 8C24 5.79086 22.2091 4 20 4H16Z" fill="#FF7262"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M8 8C8 10.2091 9.79086 12 12 12H16V4H12C9.79086 4 8 5.79086 8 8Z" fill="#F24E1E"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M8 16C8 18.2091 9.79086 20 12 20H16V12H12C9.79086 12 8 13.7909 8 16Z" fill="#A259FF"/>
+              </svg>
+              <div class="action-row-text">
+                <h4>Figma</h4>
+                <p>{% if user.get('has_figma') %}Connected and active{% else %}Required for zero-shot compiler{% endif %}</p>
+              </div>
+            </div>
+            {% if user.get('has_figma') %}
+              <span class="connected-badge"><i class="ph-bold ph-check" style="font-size:11px;"></i> Connected</span>
+            {% else %}
+              <a href="/auth/figma" class="btn-save">Connect →</a>
+            {% endif %}
+          </div>
+
+          <div class="action-row">
+            <div class="action-row-info">
+              <svg width="20" height="20" viewBox="0 0 109 113" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sb0)"/><path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sb1)" fill-opacity="0.2"/><path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/><defs><linearGradient id="sb0" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stop-color="#249361"/><stop offset="1" stop-color="#3ECF8E"/></linearGradient><linearGradient id="sb1" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse"><stop/><stop offset="1" stop-opacity="0"/></linearGradient></defs></svg>
+              <div class="action-row-text">
+                <h4>Supabase</h4>
+                <p>{% if user.get('has_supabase') %}Connected and active{% else %}Required for Postgres provisioning{% endif %}</p>
+              </div>
+            </div>
+            {% if user.get('has_supabase') %}
+              <span class="connected-badge"><i class="ph-bold ph-check" style="font-size:11px;"></i> Connected</span>
+            {% else %}
+              <a href="/auth/supabase/link" class="btn-save">Connect →</a>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- Subscription -->
+        <section class="settings-card animate-entry" style="animation-delay: 240ms;">
+          <div class="card-tag"><i class="ph ph-credit-card"></i> Billing</div>
+          <h2 class="card-title">Subscription</h2>
+          <div class="form-group">
+            <label>Current plan</label>
+            <div class="input-box">
+              <input type="text" value="{{ user.get('plan', 'free')|capitalize }} Plan" disabled>
             </div>
           </div>
-          {% if user.get('has_supabase') %}
-            <span class="connected-badge"><i class="ph-bold ph-check" style="font-size:12px;"></i> Connected</span>
+          {% if user.get('plan') not in ['premium', 'pro'] %}
+            <a href="/pricing" class="btn-save">Upgrade to Pro →</a>
           {% else %}
-            <a href="/auth/supabase/link" class="btn-save">Connect →</a>
+            <a href="/pricing" class="btn-secondary">Manage billing →</a>
           {% endif %}
-        </div>
-      </section>
+        </section>
 
-      <!-- Subscription -->
-      <section class="settings-card animate-entry" style="animation-delay: 320ms;">
-        <div class="card-tag"><i class="ph ph-credit-card"></i> // 04 — billing</div>
-        <h2 class="card-title">Subscription</h2>
-        <div class="form-group">
-          <label>Current Plan</label>
-          <div class="input-box">
-            <input type="text" value="{{ user.get('plan', 'free')|capitalize }} Plan" disabled>
-          </div>
-        </div>
-        {% if user.get('plan') not in ['premium', 'pro'] %}
-          <a href="/pricing" class="btn-upgrade-accent">Upgrade to Pro →</a>
-        {% else %}
-          <a href="/pricing" class="btn-save">Manage Billing →</a>
-        {% endif %}
-      </section>
+        <!-- Danger Zone -->
+        <section class="settings-card danger-zone animate-entry" style="animation-delay: 300ms;">
+          <div class="card-tag"><i class="ph ph-warning-octagon"></i> Danger</div>
+          <h2 class="card-title" style="color:#c08585;">Delete account</h2>
+          <p class="helper-text">
+            Once you delete your account, there's no going back. All projects and files will be permanently wiped.
+          </p>
+          <button class="btn-danger" onclick="alert('Please contact support to delete your account.');">Delete account</button>
+        </section>
 
-      <!-- Danger Zone -->
-      <section class="settings-card danger-zone animate-entry" style="animation-delay: 400ms;">
-        <div class="card-tag"><i class="ph ph-warning-octagon"></i> // 05 — danger</div>
-        <h2 class="card-title" style="color:#b05050;">Danger Zone</h2>
-        <p class="helper-text">
-          Once you delete your account, there is no going back. All projects and files will be permanently wiped.
-        </p>
-        <button class="btn-danger" onclick="alert('Please contact support to delete your account.');">Delete Account</button>
-      </section>
+      </div>
 
     </div>
   </main>
@@ -560,7 +768,7 @@
 
   <script>
     function copyApiKey(key) {
-      if (!key || key === 'None') return showToast("No key to copy!", true);
+      if (!key || key === 'None') return showToast("No key to copy.", true);
       navigator.clipboard.writeText(key).then(() => showToast("API key copied to clipboard."));
     }
 

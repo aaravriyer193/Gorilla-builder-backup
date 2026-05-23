@@ -12,36 +12,53 @@
     :root {
       --bg: #0a0b0d;
       --bg-2: #101114;
+      --bg-3: #16181d;
       --fg: #e8e8eb;
       --muted: #8a8c95;
-      --dim: #4a4c55;
-      --faint: #25272d;
-      --line: rgba(255,255,255,0.10);
-      --line-2: rgba(255,255,255,0.18);
-      --blue: oklch(0.74 0.16 248);
-      --blue-2: oklch(0.62 0.2 252);
-      --blue-dim: oklch(0.4 0.12 252);
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
+      --accent-glow: oklch(0.62 0.2 252);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
     body {
       margin: 0; padding: 0;
-      background: var(--bg); color: var(--fg);
-      height: 100vh; overflow: hidden; display: flex;
+      background: var(--bg);
+      color: var(--fg);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
       font-family: 'DM Sans', system-ui, sans-serif;
-      font-weight: 300; -webkit-font-smoothing: antialiased;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em;
+      position: relative;
     }
 
-    /* dot grid */
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    /* atmospheric horizon glow (left panel) */
+    .horizon {
+      position: fixed;
+      left: 0;
+      width: 580px;
+      bottom: -50%;
+      height: 110%;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 65% 75% at 50% 0%,
+          oklch(0.55 0.22 248 / 0.35) 0%,
+          oklch(0.45 0.2 250 / 0.18) 28%,
+          oklch(0.3 0.16 252 / 0.06) 52%,
+          transparent 75%);
+      filter: blur(24px);
     }
 
     /* ── LAYOUT ── */
@@ -51,159 +68,250 @@
     .auth-section {
       flex: 1;
       display: flex; flex-direction: column; justify-content: center;
-      padding: 48px 72px;
+      padding: 48px 64px;
       max-width: 580px;
-      background: var(--bg);
-      border-right: 3px double rgba(255,255,255,0.15);
+      background: transparent;
+      border-right: 1px solid var(--line);
       position: relative; z-index: 10;
       overflow-y: auto;
     }
     .auth-section::-webkit-scrollbar { width: 4px; }
-    .auth-section::-webkit-scrollbar-thumb { background: var(--line); }
+    .auth-section::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 2px; }
 
     /* ── LOGO ── */
     .logo {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 20px; font-weight: 500; letter-spacing: -0.02em;
-      color: var(--fg); display: flex; align-items: center; gap: 10px;
-      margin-bottom: 52px; text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 6px 9px 6px 6px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      margin-bottom: 40px;
+      text-decoration: none;
+      width: fit-content;
+      transition: all 0.15s ease;
     }
-    .logo .proto { color: var(--blue); font-weight: 400; }
-    .logo-icon { width: 22px; height: 22px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .logo-icon svg { width: 22px; height: 22px; fill: var(--fg); }
+    .logo:hover { background: rgba(255,255,255,0.05); border-color: var(--line-2); }
+    .logo-icon {
+      width: 22px; height: 22px;
+      background: var(--bg-3);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-icon svg { width: 13px; height: 13px; fill: var(--fg); }
+    .logo-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
 
     /* ── HEADINGS ── */
     .eyebrow {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
-      margin-bottom: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      color: var(--accent);
+      margin-bottom: 10px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
     }
-    .eyebrow::before { content: "// "; color: var(--dim); }
 
     h1 {
       font-family: 'DM Sans', sans-serif;
-      font-size: clamp(28px, 3.5vw, 44px);
-      line-height: 0.95; letter-spacing: -0.04em; font-weight: 500;
-      margin: 0 0 16px; color: var(--fg);
+      font-size: clamp(30px, 3.5vw, 42px);
+      line-height: 1.05;
+      letter-spacing: -0.035em;
+      font-weight: 500;
+      margin: 0 0 12px;
+      color: var(--fg);
     }
-    h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+    h1 .accent {
+      color: var(--accent);
+      font-style: italic;
+      font-weight: 500;
+    }
 
     p.sub {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.08em; color: var(--muted);
-      margin: 0 0 36px; line-height: 1.65; max-width: 380px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0 0 28px;
+      line-height: 1.55;
+      max-width: 400px;
+      font-weight: 400;
+      letter-spacing: -0.005em;
     }
 
     /* ── ERROR BOX ── */
     .error-box {
-      background: rgba(100,20,20,0.07); border: 1px solid rgba(100,20,20,0.25);
-      color: #c07070; padding: 12px 16px; margin-bottom: 24px;
-      font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.08em;
+      background: rgba(168, 96, 96, 0.08);
+      border: 1px solid rgba(168, 96, 96, 0.22);
+      color: #c08585;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      display: flex; align-items: center; gap: 8px;
+      letter-spacing: -0.005em;
     }
 
     /* ── CHECKBOX ── */
     .checkbox-group {
       display: flex; align-items: flex-start; gap: 10px;
-      margin-bottom: 24px; padding: 12px 14px;
-      background: var(--bg-2); border: 1px solid var(--line);
+      margin-bottom: 20px;
+      padding: 11px 13px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--line);
+      border-radius: 5px;
       transition: all 0.3s ease;
     }
     .checkbox-group.shake-error {
-      border-color: rgba(100,20,20,0.5);
-      background: rgba(100,20,20,0.05);
+      border-color: rgba(168, 96, 96, 0.45);
+      background: rgba(168, 96, 96, 0.06);
       animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
     }
     @keyframes shake {
       10%, 90% { transform: translate3d(-1px, 0, 0); }
       20%, 80% { transform: translate3d(2px, 0, 0); }
-      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-      40%, 60% { transform: translate3d(4px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+      40%, 60% { transform: translate3d(3px, 0, 0); }
     }
     .checkbox-group input[type="checkbox"] {
-      width: 15px; height: 15px; margin: 2px 0 0 0;
-      cursor: pointer; accent-color: var(--blue); flex-shrink: 0;
+      width: 14px; height: 14px;
+      margin: 2px 0 0 0;
+      cursor: pointer;
+      accent-color: var(--accent);
+      flex-shrink: 0;
     }
     .checkbox-group label {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.08em; color: var(--muted);
-      margin: 0; line-height: 1.6; cursor: pointer;
-      text-transform: none; font-weight: 400;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.45;
+      cursor: pointer;
+      font-weight: 400;
+      letter-spacing: -0.005em;
     }
-    .checkbox-group label a { color: var(--blue); text-decoration: none; border-bottom: 1px dashed var(--blue-dim); }
-    .checkbox-group label a:hover { border-color: var(--blue); }
+    .checkbox-group label a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .checkbox-group label a:hover { opacity: 0.8; }
 
     /* ── OAUTH BUTTONS ── */
-    .oauth-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+    .oauth-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
 
     .btn-oauth {
-      width: 100%; padding: 12px 16px;
-      border: 1px solid var(--line-2); background: rgba(255,255,255,0.04);
-      color: var(--fg); font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-      cursor: pointer; transition: all 0.15s var(--ease-out);
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      font-weight: 400;
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid var(--line-2);
+      background: rgba(255,255,255,0.03);
+      color: var(--fg);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s var(--ease-out);
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      border-radius: 5px;
     }
-    .btn-oauth:hover { background: rgba(255,255,255,0.07); border-color: var(--line-2); transform: translateY(-1px); }
-    .btn-oauth:active { transform: translateY(1px); }
+    .btn-oauth:hover { background: rgba(255,255,255,0.06); border-color: var(--line-3); }
 
     /* ── DIVIDER ── */
     .divider {
       display: flex; align-items: center;
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      text-transform: uppercase; letter-spacing: 0.2em; color: var(--dim);
-      margin: 4px 0 24px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px;
+      color: var(--muted);
+      margin: 4px 0 20px;
+      font-weight: 400;
+      letter-spacing: -0.005em;
     }
-    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-    .divider::before { margin-right: 14px; }
-    .divider::after  { margin-left:  14px; }
+    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+    .divider::before { margin-right: 12px; }
+    .divider::after  { margin-left:  12px; }
 
     /* ── FORM ── */
-    .form-group { margin-bottom: 18px; }
+    .form-group { margin-bottom: 14px; }
     .form-group label {
-      display: block; font-family: 'DM Mono', monospace;
-      font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em;
-      color: var(--dim); margin-bottom: 8px; font-weight: 400;
+      display: block;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
     }
 
     .form-input {
-      width: 100%; padding: 13px 14px;
-      background: var(--bg-2); border: 1px solid var(--line);
-      color: var(--fg); font-size: 14px; font-weight: 300;
+      width: 100%;
+      padding: 11px 13px;
+      background: var(--bg-2);
+      border: 1px solid var(--line-2);
+      color: var(--fg);
+      font-size: 13.5px;
+      font-weight: 400;
       font-family: 'DM Sans', system-ui, sans-serif;
-      transition: all 0.2s var(--ease-out);
+      transition: all 0.15s var(--ease-out);
+      border-radius: 5px;
+      letter-spacing: -0.005em;
     }
-    .form-input:focus { border-color: var(--line-2); box-shadow: 0 0 0 3px rgba(255,255,255,0.03); }
+    .form-input:focus { border-color: var(--line-3); }
     .form-input::placeholder { color: var(--dim); }
 
     /* code input */
     .code-input {
       font-family: 'DM Mono', monospace !important;
-      letter-spacing: 0.3em; font-size: 28px; font-weight: 500;
-      text-align: center; padding: 16px;
+      letter-spacing: 0.3em;
+      font-size: 26px;
+      font-weight: 500;
+      text-align: center;
+      padding: 14px;
     }
 
     /* ── PRIMARY BUTTON ── */
     .btn-primary {
-      width: 100%; padding: 13px;
-      background: var(--blue); color: #fff; border: none;
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.18em; text-transform: uppercase; font-weight: 400;
-      cursor: pointer; transition: all 0.15s var(--ease-out);
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      margin-top: 6px;
+      width: 100%;
+      padding: 11px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s var(--ease-out);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 4px;
+      letter-spacing: -0.005em;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
     }
-    .btn-primary:hover { background: var(--blue-2); transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(1px); }
+    .btn-primary:hover { background: var(--accent-2); box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45); }
 
     /* ── FOOTER ── */
     .footer {
-      margin-top: 32px; font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--dim); text-align: center;
+      margin-top: 28px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: -0.005em;
     }
-    .footer a { color: var(--blue); text-decoration: none; border-bottom: 1px dashed var(--blue-dim); }
-    .footer a:hover { border-color: var(--blue); }
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      transition: opacity 0.15s;
+    }
+    .footer a:hover { opacity: 0.8; }
 
     /* ── VISUAL PANEL ── */
     .visual-section {
@@ -215,12 +323,12 @@
     .visual-bg {
       position: absolute; inset: 0;
       background: url('/static/editor.jpg') no-repeat center center;
-      background-size: cover; opacity: 0.55;
+      background-size: cover;
+      opacity: 0.55;
       transition: transform 15s ease;
     }
     .visual-section:hover .visual-bg { transform: scale(1.05); }
 
-    /* fade edge into left panel */
     .visual-overlay {
       position: absolute; inset: 0;
       background:
@@ -228,38 +336,76 @@
         linear-gradient(to top, var(--bg) 0%, transparent 35%);
     }
 
-    /* bottom copy block */
+    .visual-glow {
+      position: absolute;
+      bottom: -30%;
+      right: -10%;
+      width: 800px;
+      height: 800px;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at center,
+          oklch(0.55 0.22 248 / 0.35) 0%,
+          oklch(0.45 0.2 250 / 0.15) 30%,
+          transparent 65%);
+      filter: blur(30px);
+    }
+
     .visual-copy {
-      position: absolute; bottom: 72px; left: 64px; z-index: 20;
+      position: absolute;
+      bottom: 64px;
+      left: 56px;
+      z-index: 20;
+      max-width: 460px;
     }
     .visual-copy h2 {
       font-family: 'DM Sans', sans-serif;
-      font-size: clamp(28px, 3vw, 42px); font-weight: 400;
-      letter-spacing: -0.04em; margin: 0 0 20px; color: var(--fg); line-height: 1.0;
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      margin: 0 0 20px;
+      color: var(--fg);
+      line-height: 1.05;
     }
-    .visual-copy h2 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
-
-    .visual-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .visual-copy h2 .accent {
+      color: var(--accent);
+      font-style: italic;
+      font-weight: 500;
+    }
+    .visual-chips { display: flex; gap: 6px; flex-wrap: wrap; }
     .chip {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.12em; text-transform: uppercase;
-      background: rgba(255,255,255,0.04); padding: 6px 12px;
-      border: 1px solid var(--line-2); color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px;
+      background: rgba(255,255,255,0.04);
+      padding: 4px 10px;
+      border: 1px solid var(--line-2);
+      color: var(--muted);
+      border-radius: 4px;
+      font-weight: 400;
+      letter-spacing: -0.005em;
     }
 
     /* verify center layout */
     .verify-center { text-align: center; }
-    .verify-center h1 { font-size: clamp(22px, 2.5vw, 32px); }
-    .verify-center p.sub { margin: 0 auto 36px; }
+    .verify-center h1 { font-size: clamp(24px, 2.5vw, 32px); }
+    .verify-center p.sub { margin: 0 auto 28px; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-entry { animation: slideUp 0.5s var(--ease-out) forwards; opacity: 0; }
   </style>
 </head>
 <body>
+
+  <div class="horizon"></div>
 
   <div class="split-wrapper">
 
     <div class="auth-section">
 
-      <a href="/" class="logo">
+      <a href="/" class="logo animate-entry" style="animation-delay: 0ms;">
         <span class="logo-icon">
           <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
             <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
@@ -272,27 +418,33 @@
             </g>
           </svg>
         </span>
-        gor://a
+        <span class="logo-text">gor://a</span>
       </a>
 
       {% if step != 'verify' %}
 
-        <h1>Build your dreams<br/><span class="accent">this weekend.</span></h1>
+        <div class="animate-entry" style="animation-delay: 60ms;">
+          <div class="eyebrow">Get started</div>
+          <h1>Build your dreams, <span class="accent">this weekend.</span></h1>
+          <p class="sub">Spin up full-stack AI apps in minutes. No API keys, no boilerplate, no ceremony.</p>
+        </div>
 
         {% if error %}
-          <div class="error-box">⚠ {{ error }}</div>
+          <div class="error-box animate-entry" style="animation-delay: 100ms;">
+            <span style="color:#c08585;">⚠</span> {{ error }}
+          </div>
         {% endif %}
 
-        <div class="checkbox-group" id="consent-container">
+        <div class="checkbox-group animate-entry" style="animation-delay: 120ms;" id="consent-container">
           <input type="checkbox" id="privacy-consent" name="privacy-consent" required form="signup-form">
           <label for="privacy-consent">
             I agree to the <a href="https://gorillabuilder.dev/terms" target="_blank">Terms of Service</a> and <a href="https://gorillabuilder.dev/privacy" target="_blank">Privacy Policy</a>.
           </label>
         </div>
 
-        <div class="oauth-group">
+        <div class="oauth-group animate-entry" style="animation-delay: 160ms;">
           <button class="btn-oauth" onclick="handleOAuth(event, '/auth/google')">
-            <svg width="16" height="16" viewBox="0 0 24 24">
+            <svg width="15" height="15" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05"/>
@@ -302,54 +454,58 @@
           </button>
 
           <button class="btn-oauth" onclick="handleOAuth(event, '/auth/github')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
             </svg>
             Continue with GitHub
           </button>
         </div>
 
-        <div class="divider">Or with Email</div>
+        <div class="divider animate-entry" style="animation-delay: 200ms;">or with email</div>
 
-        <form id="signup-form" method="POST" action="/auth/signup">
+        <form id="signup-form" method="POST" action="/auth/signup" class="animate-entry" style="animation-delay: 240ms;">
           <div class="form-group">
             <label>Email</label>
-            <input class="form-input" type="email" name="email" placeholder="hi@gorillabuilder.dev" required>
+            <input class="form-input" type="email" name="email" placeholder="you@example.com" required>
           </div>
           <div class="form-group">
             <label>Password</label>
             <input class="form-input" type="password" name="password" placeholder="••••••••" required>
           </div>
-          <button class="btn-primary" type="submit">Create Account →</button>
+          <button class="btn-primary" type="submit">Create account →</button>
         </form>
 
-        <div class="footer">
+        <div class="footer animate-entry" style="animation-delay: 280ms;">
           Have an account? <a href="/login">Log in →</a>
         </div>
 
       {% else %}
 
         <div class="verify-center">
-          <div class="eyebrow">Identity Verification</div>
-          <h1>Check your<br/><span class="accent">inbox.</span></h1>
-          <p class="sub">We sent a secure code to <strong style="color: var(--fg);">{{ email }}</strong></p>
+          <div class="eyebrow animate-entry" style="animation-delay: 60ms;">Identity verification</div>
+          <div class="animate-entry" style="animation-delay: 100ms;">
+            <h1>Check your <span class="accent">inbox.</span></h1>
+            <p class="sub">We sent a secure code to <strong style="color: var(--fg); font-weight:500;">{{ email }}</strong></p>
+          </div>
 
           {% if error %}
-            <div class="error-box">⚠ {{ error }}</div>
+            <div class="error-box animate-entry" style="animation-delay: 140ms;">
+              <span style="color:#c08585;">⚠</span> {{ error }}
+            </div>
           {% endif %}
 
-          <form method="POST" action="/auth/verify">
+          <form method="POST" action="/auth/verify" class="animate-entry" style="animation-delay: 180ms;">
             <input type="hidden" name="email" value="{{ email }}" />
             <div class="form-group">
-              <label>Verification Code</label>
+              <label style="text-align:left;">Verification code</label>
               <input class="form-input code-input" type="text" name="code"
                      placeholder="123456" required autofocus autocomplete="off" maxlength="6">
             </div>
-            <button class="btn-primary" type="submit">Confirm &amp; Build →</button>
+            <button class="btn-primary" type="submit">Confirm &amp; build →</button>
           </form>
 
-          <div class="footer" style="margin-top: 24px;">
-            <a href="/signup">Resend Code</a>
+          <div class="footer animate-entry" style="margin-top: 20px; animation-delay: 220ms;">
+            <a href="/signup">Resend code</a>
           </div>
         </div>
 
@@ -361,9 +517,10 @@
     <div class="visual-section">
       <div class="visual-bg"></div>
       <div class="visual-overlay"></div>
+      <div class="visual-glow"></div>
 
       <div class="visual-copy">
-        <h2>Built for Indies.<br/><span class="accent">By Indies.</span></h2>
+        <h2>Built for indies, <span class="accent">by indies.</span></h2>
         <div class="visual-chips">
           <span class="chip">React + Vite</span>
           <span class="chip">Node.js</span>
