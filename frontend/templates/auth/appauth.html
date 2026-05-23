@@ -12,166 +12,232 @@
     :root {
       --bg: #0a0b0d;
       --bg-2: #101114;
+      --bg-3: #16181d;
       --fg: #e8e8eb;
       --muted: #8a8c95;
-      --dim: #4a4c55;
-      --line: rgba(255,255,255,0.10);
-      --line-2: rgba(255,255,255,0.18);
-      --blue: oklch(0.74 0.16 248);
-      --blue-2: oklch(0.62 0.2 252);
-      --blue-dim: oklch(0.4 0.12 252);
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
+      --accent-glow: oklch(0.62 0.2 252);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
     body {
       margin: 0; padding: 0;
-      background: var(--bg); color: var(--fg);
+      background: var(--bg);
+      color: var(--fg);
       height: 100vh;
       display: flex; align-items: center; justify-content: center;
       font-family: 'DM Sans', system-ui, sans-serif;
-      font-weight: 300; -webkit-font-smoothing: antialiased;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em;
+      position: relative;
+      overflow: hidden;
     }
 
-    /* dot grid */
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    /* atmospheric horizon glow centered behind card */
+    .horizon {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 50% 60% at 50% 60%,
+          oklch(0.55 0.22 248 / 0.32) 0%,
+          oklch(0.45 0.2 250 / 0.16) 28%,
+          oklch(0.3 0.16 252 / 0.06) 52%,
+          transparent 75%);
+      filter: blur(40px);
     }
 
-    /* ── CARD — double-border ASCII window ── */
+    /* ── CARD ── */
     .auth-card {
-      position: relative; z-index: 1;
-      border: 3px double rgba(255,255,255,0.22);
-      background: var(--bg);
-      width: 100%; max-width: 400px;
-      padding: 48px 36px 40px;
+      position: relative;
+      z-index: 1;
+      background: rgba(16, 17, 20, 0.7);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      border: 1px solid var(--line-2);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 380px;
+      padding: 36px 32px 28px;
       text-align: center;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.04) inset,
+        0 20px 60px rgba(0,0,0,0.45),
+        0 0 80px oklch(0.6 0.2 248 / 0.08);
+      animation: cardIn 0.5s var(--ease-out) forwards;
+      opacity: 0;
+      transform: translateY(8px);
     }
-
-    /* floating window chrome */
-    .w-chrome {
-      position: absolute; top: -10px; left: 14px;
-      background: var(--bg); padding: 0 8px;
-      font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted);
-    }
-    .w-title {
-      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-      background: var(--bg); padding: 0 14px;
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.2em; color: var(--fg);
-      text-transform: uppercase; white-space: nowrap;
+    @keyframes cardIn {
+      to { opacity: 1; transform: translateY(0); }
     }
 
     /* ── LOGO ── */
     .logo {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 18px; font-weight: 500; letter-spacing: -0.02em;
-      color: var(--fg); display: inline-flex; align-items: center; gap: 8px;
-      margin-bottom: 32px; text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 9px 5px 5px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      margin-bottom: 24px;
+      text-decoration: none;
+      transition: all 0.15s ease;
     }
-    .logo .proto { color: var(--blue); font-weight: 400; }
-    .logo-icon { width: 18px; height: 18px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .logo-icon svg { width: 18px; height: 18px; fill: var(--fg); }
+    .logo:hover { background: rgba(255,255,255,0.06); border-color: var(--line-2); }
+    .logo-icon {
+      width: 20px; height: 20px;
+      background: var(--bg-3);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-icon svg { width: 12px; height: 12px; fill: var(--fg); }
+    .logo-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
 
     /* ── EYEBROW ── */
     .eyebrow {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
-      margin-bottom: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
     }
-    .eyebrow::before { content: "// "; color: var(--dim); }
 
     h1 {
       font-family: 'DM Sans', sans-serif;
-      font-size: 26px; font-weight: 400; letter-spacing: -0.03em;
-      margin: 0 0 10px; color: var(--fg); line-height: 1.05;
+      font-size: 26px;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+      color: var(--fg);
+      line-height: 1.05;
     }
-    h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+    h1 .accent {
+      color: var(--accent);
+      font-style: italic;
+      font-weight: 500;
+    }
 
     p.sub {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.08em; color: var(--muted);
-      margin: 0 0 32px; line-height: 1.65;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0 0 24px;
+      line-height: 1.55;
+      font-weight: 400;
+      letter-spacing: -0.005em;
     }
-    p.sub strong { color: var(--fg); font-weight: 500; font-family: 'DM Sans', sans-serif; }
+    p.sub strong {
+      color: var(--fg);
+      font-weight: 500;
+    }
 
     /* ── OAUTH BUTTONS ── */
-    .oauth-group { display: flex; flex-direction: column; gap: 8px; }
+    .oauth-group { display: flex; flex-direction: column; gap: 7px; }
 
     .btn-oauth {
-      width: 100%; padding: 12px 16px;
-      border: 1px solid var(--line-2); background: rgba(255,255,255,0.04);
-      color: var(--fg); font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-      cursor: pointer; transition: all 0.15s var(--ease-out);
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      font-weight: 400;
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--line-2);
+      background: rgba(255,255,255,0.03);
+      color: var(--fg);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
+      cursor: pointer;
+      transition: all 0.15s var(--ease-out);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      border-radius: 5px;
     }
-    .btn-oauth:hover { background: rgba(255,255,255,0.07); border-color: var(--line-2); transform: translateY(-1px); }
-    .btn-oauth:active { transform: translateY(1px); }
+    .btn-oauth:hover { background: rgba(255,255,255,0.06); border-color: var(--line-3); }
 
     /* ── SUCCESS STATE ── */
     .success-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; }
 
-    /* spinner using CSS border trick — gor://a style: square not circle */
+    /* loader */
     .loader {
-      width: 32px; height: 32px;
+      width: 28px; height: 28px;
       border: 2px solid var(--line-2);
-      border-top-color: var(--blue);
+      border-top-color: var(--accent);
+      border-radius: 50%;
       animation: spin 0.9s linear infinite;
-      margin-bottom: 24px;
+      margin-bottom: 18px;
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
 
-    /* pulse dot for "connected" state */
+    /* pulse dot for connected state */
     .pulse-row {
-      display: flex; align-items: center; gap: 8px; justify-content: center;
-      margin-bottom: 10px;
+      display: flex; align-items: center; gap: 7px; justify-content: center;
+      margin-bottom: 14px;
     }
     .pulse-dot {
       width: 7px; height: 7px;
-      background: var(--blue);
+      background: var(--accent);
       border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
       animation: pulse 1.8s ease-in-out infinite;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.4; transform: scale(0.7); }
+      50%      { opacity: 0.5; transform: scale(0.75); }
     }
     .pulse-label {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px;
+      color: var(--accent);
+      font-weight: 500;
+      letter-spacing: -0.005em;
     }
 
     /* divider */
     .divider {
-      height: 1px; background: var(--line);
-      margin: 28px 0; width: 100%;
+      height: 1px;
+      background: var(--line);
+      margin: 24px 0;
+      width: 100%;
     }
 
     /* bottom powered-by */
     .powered {
-      font-family: 'DM Mono', monospace; font-size: 9px;
-      letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim);
-      margin-top: 28px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: 22px;
+      letter-spacing: -0.005em;
+      font-weight: 400;
     }
-    .powered span { color: var(--muted); }
+    .powered strong { color: var(--muted); font-weight: 500; }
+    .powered .dot { color: var(--dim); margin: 0 6px; }
   </style>
 </head>
 <body>
 
+  <div class="horizon"></div>
+
   <div class="auth-card">
-    <span class="w-chrome">≡ ×</span>
 
     {% if step == 'success' %}
-
-      <span class="w-title">[ AUTH / SUCCESS ]</span>
 
       <div class="success-wrap">
         <a href="/" class="logo">
@@ -187,7 +253,7 @@
               </g>
             </svg>
           </span>
-          gor<span class="proto">://</span>a
+          <span class="logo-text">gor://a</span>
         </a>
 
         <div class="divider"></div>
@@ -196,7 +262,7 @@
 
         <div class="pulse-row">
           <span class="pulse-dot"></span>
-          <span class="pulse-label">Securely Connected</span>
+          <span class="pulse-label">Securely connected</span>
         </div>
 
         <h1>Auth <span class="accent">complete.</span></h1>
@@ -215,8 +281,6 @@
 
     {% elif step == 'login' %}
 
-      <span class="w-title">[ APP / AUTH ]</span>
-
       <a href="/" class="logo">
         <span class="logo-icon">
           <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
@@ -230,16 +294,16 @@
             </g>
           </svg>
         </span>
-        gor<span class="proto">://</span>a
+        <span class="logo-text">gor://a</span>
       </a>
 
-      <div class="eyebrow">App Authentication</div>
+      <div class="eyebrow">App authentication</div>
       <h1>Sign <span class="accent">in.</span></h1>
       <p class="sub">Log in to continue using <strong>{{ project_name }}</strong></p>
 
       <div class="oauth-group">
         <button class="btn-oauth" onclick="window.location.href='/api/v1/app-auth/{{ auth_id }}/google'">
-          <svg width="15" height="15" viewBox="0 0 24 24">
+          <svg width="14" height="14" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05"/>
@@ -249,14 +313,14 @@
         </button>
 
         <button class="btn-oauth" onclick="window.location.href='/api/v1/app-auth/{{ auth_id }}/github'">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
           </svg>
           Continue with GitHub
         </button>
       </div>
 
-      <div class="powered">Powered by <span>gor://a</span> · Zero API Keys</div>
+      <div class="powered">Powered by <strong>gor://a</strong> <span class="dot">·</span> Zero API keys</div>
 
     {% endif %}
   </div>
