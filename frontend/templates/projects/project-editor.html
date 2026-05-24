@@ -579,12 +579,14 @@
     }
     .tree-title {
       font-family: 'DM Sans', sans-serif;
-      font-size: 12px; font-weight: 500;
-      color: var(--fg);
-      letter-spacing: -0.005em;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
       display: flex; align-items: center; gap: 6px;
     }
-    .tree-title i { font-size: 13px; color: var(--muted); opacity: 0.85; }
+    .tree-title i { font-size: 12px; color: var(--muted); opacity: 0.85; }
     .upload-btn {
       width: 22px; height: 22px;
       display: flex; align-items: center; justify-content: center;
@@ -614,31 +616,93 @@
     .tree-search input:focus { border-color: var(--line-3); }
     .tree-search input::placeholder { color: var(--dim); }
 
-    .file-list { padding: 6px 6px; overflow-y: auto; flex: 1; }
+    .file-list { padding: 4px 0; overflow-y: auto; flex: 1; }
     .file-list::-webkit-scrollbar { width: 4px; }
     .file-list::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 2px; }
 
     .node {
-      display: flex; align-items: center; gap: 7px;
-      padding: 4px 8px;
-      font-family: 'DM Mono', monospace;
-      font-size: 11.5px;
+      display: flex; align-items: center; gap: 4px;
+      padding: 2px 8px 2px 4px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px;
       letter-spacing: -0.005em;
       color: var(--muted); cursor: pointer;
-      transition: all 0.1s; margin-bottom: 1px;
-      border-radius: 3px;
+      transition: background 0.08s;
       position: relative;
+      min-height: 22px;
+      font-weight: 400;
     }
-    .node:hover { background: rgba(255,255,255,0.035); color: var(--fg); }
+    .node:hover { background: rgba(255,255,255,0.04); color: var(--fg); }
     .node.active {
-      background: oklch(0.6 0.2 248 / 0.1);
+      background: oklch(0.6 0.2 248 / 0.16);
       color: var(--fg);
     }
     .node.active::before {
-      content: none;
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: var(--accent);
     }
-    .node .ico { font-size: 12px; flex-shrink: 0; display: flex; align-items: center; opacity: 0.85; }
+    .node .chevron {
+      width: 14px; height: 14px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      opacity: 0.7;
+      flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+    .node .chevron.open { transform: rotate(90deg); }
+    .node .chevron.empty { visibility: hidden; }
+    .node .ico { font-size: 14px; flex-shrink: 0; display: flex; align-items: center; opacity: 0.95; }
+    .node .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .node.hidden { display: none; }
+
+    /* indent guide line */
+    .node-children {
+      position: relative;
+    }
+    .node-children::before {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 1px;
+      background: var(--line-2);
+      left: var(--guide-left, 16px);
+      opacity: 0.5;
+    }
+
+    /* ── STATUS BAR (VS Code style, fixed bottom of main panel) ──────────── */
+
+    .status-bar {
+      height: 22px;
+      background: var(--accent-dim);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 0;
+      flex-shrink: 0;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px;
+      color: #fff;
+      letter-spacing: -0.005em;
+      font-weight: 500;
+    }
+    .status-bar-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 8px;
+      height: 100%;
+      cursor: default;
+      transition: background 0.1s;
+    }
+    .status-bar-item.clickable { cursor: pointer; }
+    .status-bar-item.clickable:hover { background: rgba(255,255,255,0.12); }
+    .status-bar-item i { font-size: 11px; }
+    .status-bar-spacer { flex: 1; }
+    .status-bar.disconnected { background: #b05050; }
+    .status-bar.working { background: oklch(0.55 0.16 248); }
 
     /* ── STAGE (where editor, preview, analytics, game show) ─────────────── */
 
@@ -649,39 +713,97 @@
       position: relative; overflow: hidden;
     }
 
-    /* filename tab strip — shown above editor in code mode */
+    /* file tabs strip — VS Code style, multiple open files */
     .filename-bar {
-      height: 32px;
+      height: 34px;
       border-bottom: 1px solid var(--line);
       background: var(--bg);
       display: flex; align-items: stretch;
       flex-shrink: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
     }
+    .filename-bar::-webkit-scrollbar { display: none; }
     .filename-bar.hidden { display: none; }
-    .filename-tab {
+
+    .file-tab {
       display: inline-flex; align-items: center; gap: 7px;
-      padding: 0 12px;
-      font-family: 'DM Mono', monospace;
-      font-size: 11.5px;
-      color: var(--fg);
-      background: var(--bg-2);
+      padding: 0 10px 0 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--bg);
       border-right: 1px solid var(--line);
       letter-spacing: -0.005em;
       height: 100%;
+      cursor: pointer;
+      transition: background 0.1s;
+      position: relative;
+      white-space: nowrap;
+      flex-shrink: 0;
+      max-width: 200px;
     }
-    .filename-tab i { font-size: 12px; opacity: 0.85; }
-    .filename-spacer { flex: 1; }
-    .filename-tools {
-      display: flex; align-items: center; padding-right: 8px; gap: 2px;
+    .file-tab:hover { background: var(--bg-2); color: var(--fg); }
+    .file-tab.active {
+      background: var(--bg-2);
+      color: var(--fg);
     }
-    .filename-tool-btn {
-      width: 24px; height: 24px;
+    .file-tab.active::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: var(--accent);
+    }
+    .file-tab .tab-name {
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .file-tab .tab-name.dirty::after {
+      content: ' •';
+      color: var(--accent);
+    }
+    .file-tab i.tab-icon { font-size: 13px; opacity: 0.85; flex-shrink: 0; }
+    .file-tab .tab-close {
+      width: 16px; height: 16px;
       display: flex; align-items: center; justify-content: center;
-      color: var(--muted); cursor: pointer; font-size: 12px;
+      font-size: 11px;
       border-radius: 3px;
-      transition: all 0.12s; border: none; background: transparent;
+      color: var(--muted);
+      opacity: 0;
+      transition: opacity 0.1s, background 0.1s;
+      flex-shrink: 0;
     }
-    .filename-tool-btn:hover { color: var(--fg); background: rgba(255,255,255,0.04); }
+    .file-tab:hover .tab-close,
+    .file-tab.active .tab-close { opacity: 0.7; }
+    .file-tab .tab-close:hover { background: rgba(255,255,255,0.08); opacity: 1; color: var(--fg); }
+
+    /* breadcrumb path under tabs */
+    .file-breadcrumb {
+      height: 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg);
+      display: flex; align-items: center;
+      padding: 0 12px;
+      gap: 5px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .file-breadcrumb.hidden { display: none; }
+    .file-breadcrumb .crumb-piece {
+      display: inline-flex; align-items: center; gap: 5px;
+      white-space: nowrap;
+    }
+    .file-breadcrumb .crumb-piece i { font-size: 11px; opacity: 0.7; }
+    .file-breadcrumb .crumb-arrow {
+      font-size: 9px;
+      opacity: 0.5;
+      color: var(--dim);
+    }
 
     #editor        { flex: 1; height: 100%; overflow: hidden; display: block; }
     #imageViewer   { display: none; flex: 1; align-items: center; justify-content: center; overflow: auto; background: var(--bg); padding: 20px; }
@@ -888,7 +1010,7 @@
   <div class="content">
     <aside class="files" id="fileSidebar">
       <div class="tree-head">
-        <span class="tree-title"><i class="ph ph-tree-structure"></i> Files</span>
+        <span class="tree-title"><i class="ph ph-terminal"></i> Files</span>
         <button class="upload-btn" id="btnUpload" title="Upload file"><i class="ph ph-plus"></i></button>
         <input type="file" id="uploadInput" hidden />
       </div>
@@ -899,16 +1021,8 @@
     </aside>
 
     <div class="stage">
-      <div class="filename-bar" id="filenameBar">
-        <div class="filename-tab">
-          <i class="ph ph-file-code" id="filenameIcon"></i>
-          <span id="filenameLabel">index.html</span>
-        </div>
-        <div class="filename-spacer"></div>
-        <div class="filename-tools">
-          <button class="filename-tool-btn" onclick="copyFilePath()" title="Copy path"><i class="ph ph-copy"></i></button>
-        </div>
-      </div>
+      <div class="filename-bar" id="filenameBar"></div>
+      <div class="file-breadcrumb hidden" id="fileBreadcrumb"></div>
       <div id="editor"></div>
       <div id="imageViewer"></div>
 
@@ -928,6 +1042,35 @@
 
       <div id="analyticsPanel"></div>
     </div>
+  </div>
+
+  <!-- VS Code style status bar -->
+  <div class="status-bar" id="statusBar">
+    <span class="status-bar-item clickable" title="Branch">
+      <i class="ph ph-git-branch"></i>
+      <span id="sb-branch">main</span>
+    </span>
+    <span class="status-bar-item clickable" title="Problems">
+      <i class="ph ph-warning-circle"></i>
+      <span id="sb-errors">0</span>
+      <i class="ph ph-info" style="margin-left:4px;"></i>
+      <span id="sb-warnings">0</span>
+    </span>
+    <span class="status-bar-spacer"></span>
+    <span class="status-bar-item" title="Cursor position">
+    </span>
+    <span class="status-bar-item" title="Indentation">
+      <span>Spaces: 2</span>
+    </span>
+    <span class="status-bar-item" title="Encoding">
+      <span>UTF-8</span>
+    </span>
+    <span class="status-bar-item clickable" title="Language">
+      <span id="sb-lang">Plain Text</span>
+    </span>
+    <span class="status-bar-item clickable" title="Notifications">
+      <i class="ph ph-bell"></i>
+    </span>
   </div>
 </section>
 </div>
@@ -1115,6 +1258,7 @@ function setInputState(locked) {
   if (b) b.disabled = locked;
   const ed = $("editor");
   if (ed) { ed.style.opacity = locked ? "0.4" : "1"; ed.style.pointerEvents = locked ? "none" : "auto"; }
+  setStatusBarConnection(locked ? 'working' : 'ok');
   if (locked) {
     if (p) p.placeholder = "Gorilla is thinking…";
     if (b) b.innerHTML = '<i class="ph ph-spinner" style="animation:spin 0.9s linear infinite;"></i>';
@@ -1159,6 +1303,7 @@ if (imgPreview) imgPreview.onclick = () => {
 function setConn(state) {
   const dot = $("connDot"); if (!dot) return;
   dot.className = "dot" + (state === "ok" ? " ok" : state === "bad" ? " bad" : "");
+  setStatusBarConnection(state);
 }
 function setProgress(text, pct) {
   if (text) $("progressText").textContent = text;
@@ -1220,19 +1365,35 @@ function renderTree(container, nodeObj, depth) {
     const isFile = !!meta.__file;
     const row = document.createElement("div");
     row.className = "node" + ((isFile && meta.__path === currentFile) ? " active" : "");
-    row.style.paddingLeft = (8 + depth * 12) + "px";
-    const ico = isFile ? fileIcon(name) : '<i class="ph ph-folder ico" style="color:var(--dim);"></i>';
-    row.innerHTML = `${ico}<span>${name}</span>`;
-    if (isFile) row.onclick = () => loadFile(meta.__path);
-    else {
+    row.style.paddingLeft = (4 + depth * 10) + "px";
+
+    const chevron = isFile
+      ? '<span class="chevron empty"></span>'
+      : '<span class="chevron open"><i class="ph ph-caret-right"></i></span>';
+    const ico = isFile
+      ? fileIcon(name)
+      : '<i class="ph-fill ph-folder ico" style="color:#dcb67a;"></i>';
+    row.innerHTML = `${chevron}${ico}<span class="label">${name}</span>`;
+
+    if (isFile) {
+      row.onclick = () => loadFile(meta.__path);
+      container.appendChild(row);
+    } else {
       let open = true;
-      const kids = document.createElement("div"); kids.style.display = "block";
-      row.onclick = () => { open = !open; kids.style.display = open ? "block" : "none"; };
-      container.appendChild(row); container.appendChild(kids);
+      const kids = document.createElement("div");
+      kids.className = "node-children";
+      kids.style.setProperty('--guide-left', (4 + depth * 10 + 7) + 'px');
+      kids.style.display = "block";
+      const chevEl = row.querySelector('.chevron');
+      row.onclick = () => {
+        open = !open;
+        kids.style.display = open ? "block" : "none";
+        if (chevEl) chevEl.classList.toggle('open', open);
+      };
+      container.appendChild(row);
+      container.appendChild(kids);
       if (hasKids) renderTree(kids, meta.__children, depth + 1);
-      continue;
     }
-    container.appendChild(row);
   }
 }
 
@@ -1258,7 +1419,8 @@ function buildEditor(content, fileName) {
 
 async function loadFile(path) {
   currentFile = path;
-  updateFilenameBar();
+  openTab(path);
+  updateStatusBarFile();
   const data = await fetchJSON(`/api/project/${PROJECT_ID}/file?path=${encodeURIComponent(path)}`);
   const content = data.content !== undefined ? data.content : (data.raw || "");
   if (path.endsWith('.b64') || path.endsWith('.png') || path.endsWith('.jpg')) {
@@ -1305,6 +1467,7 @@ function hideAllPanels() {
   $("analyticsPanel").style.display = "none";
   $("fileSidebar").style.display   = "none";
   $("filenameBar").classList.add("hidden");
+  $("fileBreadcrumb").classList.add("hidden");
 }
 
 function switchTab(tab) {
@@ -1332,7 +1495,8 @@ function switchTab(tab) {
     $("tabCode").classList.add("active");
     $("fileSidebar").style.display = "flex";
     $("filenameBar").classList.remove("hidden");
-    updateFilenameBar();
+    renderTabs();
+    renderBreadcrumb();
     if (currentFile && (currentFile.endsWith('.b64') || currentFile.endsWith('.png'))) {
       $("imageViewer").style.display = "flex";
     } else {
@@ -1341,23 +1505,142 @@ function switchTab(tab) {
   }
 }
 
-function updateFilenameBar() {
-  const label = $("filenameLabel");
-  const icon = $("filenameIcon");
-  if (label) label.textContent = currentFile || 'untitled';
-  if (icon) {
-    let cls = 'ph ph-file-code';
+// ── status bar updates ────────────────────────────────────────────────────────
+
+const LANG_MAP = {
+  '.html': 'HTML', '.css': 'CSS',
+  '.js': 'JavaScript', '.ts': 'TypeScript',
+  '.jsx': 'JavaScript React', '.tsx': 'TypeScript React',
+  '.json': 'JSON', '.md': 'Markdown',
+  '.sql': 'SQL', '.py': 'Python',
+  '.env': 'Properties', '.yml': 'YAML', '.yaml': 'YAML',
+};
+function updateStatusBarFile() {
+  const langEl = $("sb-lang");
+  if (langEl) {
+    let lang = 'Plain Text';
     if (currentFile) {
-      if (currentFile.endsWith('.html')) cls = 'ph ph-file-html';
-      else if (currentFile.endsWith('.css')) cls = 'ph ph-file-css';
-      else if (currentFile.endsWith('.jsx') || currentFile.endsWith('.tsx')) cls = 'ph ph-atom';
-      else if (currentFile.endsWith('.json')) cls = 'ph ph-brackets-curly';
-      else if (currentFile.endsWith('.md')) cls = 'ph ph-file-text';
-      else if (currentFile.endsWith('.sql')) cls = 'ph ph-database';
-      else if (currentFile.endsWith('.png') || currentFile.endsWith('.jpg') || currentFile.endsWith('.b64')) cls = 'ph ph-image';
+      for (const ext in LANG_MAP) {
+        if (currentFile.endsWith(ext)) { lang = LANG_MAP[ext]; break; }
+      }
     }
-    icon.className = cls;
+    langEl.textContent = lang;
   }
+}
+function setStatusBarCursor(line, col) {
+  const el = $("sb-cursor");
+  if (el) el.textContent = `Ln ${line}, Col ${col}`;
+}
+function setStatusBarConnection(state) {
+  const sb = $("statusBar");
+  if (!sb) return;
+  sb.classList.remove('disconnected', 'working');
+  if (state === 'bad') sb.classList.add('disconnected');
+  else if (state === 'working') sb.classList.add('working');
+}
+
+// ── open files / tab strip ────────────────────────────────────────────────────
+
+const openTabs = new Set();
+const TAB_ICONS = {
+  '.html': 'ph-file-html',
+  '.css': 'ph-file-css',
+  '.jsx': 'ph-atom', '.tsx': 'ph-atom',
+  '.js': 'ph-file-code', '.ts': 'ph-file-code',
+  '.json': 'ph-brackets-curly',
+  '.md': 'ph-file-text',
+  '.sql': 'ph-database',
+  '.png': 'ph-image', '.jpg': 'ph-image', '.b64': 'ph-image',
+  '.env': 'ph-gear', '.gitignore': 'ph-git-branch'
+};
+const TAB_ICON_COLORS = {
+  'ph-file-html': '#e6814a',
+  'ph-file-css': '#5fa8d8',
+  'ph-atom': '#69c8e0',
+  'ph-file-code': '#e6c060',
+  'ph-brackets-curly': 'var(--muted)',
+  'ph-database': 'var(--accent)',
+  'ph-image': 'var(--accent)',
+  'ph-file-text': 'var(--muted)',
+  'ph-gear': 'var(--muted)',
+  'ph-git-branch': 'var(--muted)',
+};
+function iconForFile(name) {
+  if (!name) return 'ph-file';
+  const lower = name.toLowerCase();
+  for (const ext in TAB_ICONS) {
+    if (lower.endsWith(ext)) return TAB_ICONS[ext];
+  }
+  return 'ph-file';
+}
+
+function renderTabs() {
+  const bar = $("filenameBar");
+  if (!bar) return;
+  bar.innerHTML = '';
+  for (const path of openTabs) {
+    const tab = document.createElement('div');
+    tab.className = 'file-tab' + (path === currentFile ? ' active' : '');
+    tab.dataset.path = path;
+    const fileName = path.split('/').pop();
+    const icon = iconForFile(fileName);
+    const color = TAB_ICON_COLORS[icon] || 'var(--muted)';
+    tab.innerHTML = `
+      <i class="ph ${icon} tab-icon" style="color:${color};"></i>
+      <span class="tab-name">${fileName}</span>
+      <span class="tab-close" data-close="${path}"><i class="ph ph-x"></i></span>
+    `;
+    tab.onclick = (e) => {
+      if (e.target.closest('.tab-close')) {
+        e.stopPropagation();
+        closeTab(path);
+      } else {
+        loadFile(path);
+      }
+    };
+    bar.appendChild(tab);
+  }
+}
+
+function openTab(path) {
+  if (!path) return;
+  openTabs.add(path);
+  renderTabs();
+  renderBreadcrumb();
+}
+
+function closeTab(path) {
+  openTabs.delete(path);
+  if (path === currentFile) {
+    const remaining = Array.from(openTabs);
+    if (remaining.length > 0) {
+      loadFile(remaining[remaining.length - 1]);
+    } else {
+      currentFile = null;
+      renderTabs();
+      renderBreadcrumb();
+    }
+  } else {
+    renderTabs();
+  }
+}
+
+function renderBreadcrumb() {
+  const bc = $("fileBreadcrumb");
+  if (!bc) return;
+  if (!currentFile) { bc.classList.add('hidden'); return; }
+  bc.classList.remove('hidden');
+  const parts = currentFile.split('/').filter(Boolean);
+  bc.innerHTML = parts.map((part, i) => {
+    const isLast = i === parts.length - 1;
+    const icon = isLast
+      ? `<i class="ph ${iconForFile(part)}"></i>`
+      : `<i class="ph ph-folder"></i>`;
+    const sep = i < parts.length - 1
+      ? `<i class="ph ph-caret-right crumb-arrow"></i>`
+      : '';
+    return `<span class="crumb-piece">${icon}<span>${part}</span></span>${sep}`;
+  }).join('');
 }
 
 window.copyFilePath = function() {

@@ -1,26 +1,20 @@
 """
-Lineage Agent v18 — Claude Code-style power, MiMo-native (Qwen3 XML)
-====================================================================
+Lineage Agent v18.1 — Claude Code-style power, MiMo-native (Qwen3 XML)
+======================================================================
 
-Major upgrades from v17:
+v18.1 patch notes (from v18):
+  - run() now returns "turn_tokens" (per-call delta) in addition to "tokens"
+    (cumulative). Callers should bill on turn_tokens to avoid double-charging
+    when the same agent instance is reused across reviewer/fix passes.
+
+Major upgrades from v17 (unchanged):
   - 8 tools (was 3): write_file, edit_file, run_bash, read_files, list_dir,
     grep_search, glob_files, web_search, web_fetch, mark_done
   - Differentiated batch limits: writes capped at 3 per turn (was 2), but
-    read/search/exploration tools are UNLIMITED per turn — like Claude Code,
-    the agent can read 10 files + grep + list_dir in a single turn.
+    read/search/exploration tools are UNLIMITED per turn.
   - edit_file does surgical str_replace edits (cheap, fast, focused)
   - grep_search uses ripgrep (rg) for blazing-fast code search
   - web_search / web_fetch for live docs lookup (MCP-style)
-  - Tighter system prompt that teaches multi-tool parallelism
-  - Same Supabase / AI proxy / auth mandates preserved exactly
-
-The system prompt explicitly teaches the agent to:
-  "On exploration turns, fire 5-10 read/grep/list tools in parallel.
-   On implementation turns, fire 1-3 write tools.
-   The batch limit only applies to WRITES."
-
-This matches Claude Code's mental model: cheap parallel reads, careful
-sequential writes.
 """
 
 from __future__ import annotations
@@ -549,7 +543,6 @@ def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> l
         content = str(m.get("content", ""))
 
         if role == "assistant":
-            # Summarize tool calls compactly
             write_paths = re.findall(
                 r"<function=write_file>[\s\S]*?<parameter=path>\s*([^\s<][^<]*?)\s*</parameter>",
                 content,
@@ -615,7 +608,7 @@ def _compress_history(messages: list, max_tokens: int = MAX_CONTEXT_TOKENS) -> l
 
 
 # ---------------------------------------------------------------------------
-# Observation noise filter (unchanged from v17)
+# Observation noise filter
 # ---------------------------------------------------------------------------
 _VITE_NOISE_RE = re.compile(
     r"""(
@@ -726,7 +719,7 @@ Final turn — `run_bash` to start dev + verify both ports 200, then `mark_done`
 ```tsx
 import { login, logout, onAuthStateChanged } from '@/utils/auth';
 useEffect(() => onAuthStateChanged(setUser), []);
-<button onClick={() => login('google')}>Sign in</button>
+<button onClick={() => login()}>Sign in</button>
 ```
 
 # AI proxy
@@ -876,7 +869,7 @@ Built the dashboard with Navbar, three pages, and the items API. Both servers he
 
 
 # ---------------------------------------------------------------------------
-# Conditional addons — Supabase / Debug — preserved from v17
+# Conditional addons — Supabase / Debug
 # ---------------------------------------------------------------------------
 
 SUPABASE_ADDON = r"""
@@ -943,7 +936,7 @@ Supabase is provisioned and active. The plan MUST include a migration step (run_
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Prompt Expander — unchanged from v17
+#  Prompt Expander
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_expander_system(gorilla_proxy_url: str) -> str:
@@ -1035,7 +1028,7 @@ async def expand_prompt(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Planner — updated for v18 tool model
+#  Planner
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _build_planner_system(gorilla_proxy_url: str) -> str:
@@ -1124,7 +1117,7 @@ async def generate_plan(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Reviewer — unchanged from v17
+#  Reviewer
 # ═══════════════════════════════════════════════════════════════════════════
 
 REVIEWER_SYSTEM = """You are a code reviewer. A developer just finished building a web app. Review the file listing and recent build output for obvious mistakes only.
@@ -1157,7 +1150,7 @@ async def review_output(file_tree_summary: str, last_output: str) -> Optional[st
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  XML repair — same as v17 but tolerates more tool variety
+#  XML repair
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _repair_qwen3_xml(text: str) -> str:
@@ -1186,14 +1179,13 @@ def _repair_qwen3_xml(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  XML tool-call parser — v18 multi-tool aware
+#  XML tool-call parser
 # ═══════════════════════════════════════════════════════════════════════════
 
 _TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>([\s\S]*?)</tool_call>")
 _FUNCTION_RE        = re.compile(r"<function=([^>\s]+)>([\s\S]*?)</function>")
 _PARAMETER_RE       = re.compile(r"<parameter=([^>\s]+)>([\s\S]*?)</parameter>")
 
-# Map tool name -> category for batch limit enforcement
 _TOOL_CATEGORY = {t["name"]: t.get("category", "exec") for t in AGENT_TOOL_DEFS}
 
 
@@ -1226,19 +1218,6 @@ def _parse_xml_functions(block_inner: str) -> List[Dict[str, Any]]:
 
 
 def _parse_response(raw_text: str) -> Dict[str, Any]:
-    """
-    v18 output schema:
-        {
-          "thought": str,
-          "write_files":  [{path, content, reason}],      # write_file
-          "edit_files":   [{path, old_str, new_str}],     # edit_file
-          "read_calls":   [{tool, params}],               # read/grep/list/glob/web
-          "bash":         str,                            # joined run_bash commands
-          "done":         bool,
-          "message":      str,
-          "extra_writes_dropped": int,
-        }
-    """
     result = {
         "thought":              "",
         "write_files":          [],
@@ -1265,7 +1244,6 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
         for block_inner in blocks:
             all_functions.extend(_parse_xml_functions(block_inner))
 
-        # Cap total functions at TOTAL_BATCH_LIMIT (safety)
         if len(all_functions) > TOTAL_BATCH_LIMIT:
             log_agent("agent", f"⚠ Capping {len(all_functions)} functions at {TOTAL_BATCH_LIMIT}")
             all_functions = all_functions[:TOTAL_BATCH_LIMIT]
@@ -1332,7 +1310,6 @@ def _parse_response(raw_text: str) -> Dict[str, Any]:
 
         return result
 
-    # Legacy fallback (GORILLA_DONE / fenced bash)
     if "GORILLA_DONE" in raw_text:
         result["done"] = True
         parts   = raw_text.split("GORILLA_DONE", 1)
@@ -1497,15 +1474,29 @@ async def _call_llm(
     prompt_tokens     = u.get("prompt_tokens",     0)
     completion_tokens = u.get("completion_tokens", 0)
 
-    prompt_price, completion_price = await _fetch_model_price(model)
-    weight = int(
-        (prompt_tokens * prompt_price + completion_tokens * completion_price)
-        * 1_000_000
-    )
+    # ─── BILLING FIX: account for cached input tokens at discounted rate ───
+    # Some providers return `prompt_tokens_details.cached_tokens` indicating
+    # how many prompt tokens hit the prefix cache. Cached tokens are typically
+    # billed at 10% of full rate. If the field is absent, behaviour is
+    # unchanged.
+    prompt_details = u.get("prompt_tokens_details") or {}
+    cached_tokens  = int(prompt_details.get("cached_tokens", 0) or 0)
+    fresh_prompt_tokens = max(0, prompt_tokens - cached_tokens)
 
+    prompt_price, completion_price = await _fetch_model_price(model)
+
+    # Cached prompt tokens billed at 10% of fresh rate (industry standard)
+    weight_usd = (
+        fresh_prompt_tokens * prompt_price
+        + cached_tokens     * prompt_price * 0.1
+        + completion_tokens * completion_price
+    )
+    weight = int(round(weight_usd * 1_000_000))
+
+    cache_note = f" cached={cached_tokens}" if cached_tokens else ""
     log_agent(
         "agent",
-        f"usage p={prompt_tokens} c={completion_tokens} "
+        f"usage p={prompt_tokens}{cache_note} c={completion_tokens} "
         f"cost={weight}µ$ (${weight / 1_000_000:.6f})",
     )
 
@@ -1567,7 +1558,7 @@ def _pick_model(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LineageAgent v18
+#  LineageAgent v18.1
 # ═══════════════════════════════════════════════════════════════════════════
 
 class LineageAgent:
@@ -1777,18 +1768,19 @@ class LineageAgent:
 
         log_agent(
             "agent",
-            f"v18 model={model.split('/')[-1]} step={len(self.messages) // 2} "
+            f"v18.1 model={model.split('/')[-1]} step={len(self.messages) // 2} "
             f"write_limit={WRITE_BATCH_LIMIT} supabase={has_supabase}",
             self.project_id,
         )
 
         try:
-            raw_text, tokens = await _call_llm(
+            raw_text, turn_tokens = await _call_llm(
                 self.messages,
                 model=model,
                 temperature=0.6,
             )
-            self.total_tokens += tokens
+            # ─── BILLING FIX: track per-turn delta cleanly ───
+            self.total_tokens += turn_tokens
         except Exception as e:
             log_agent("agent", f"LLM error: {e}", self.project_id)
             return {
@@ -1798,7 +1790,8 @@ class LineageAgent:
                 "read_calls":  [],
                 "commands":    [],
                 "done":        True,
-                "tokens":      0,
+                "tokens":      self.total_tokens,
+                "turn_tokens": 0,
             }
 
         self.messages.append({"role": "assistant", "content": raw_text or ""})
@@ -1835,19 +1828,21 @@ class LineageAgent:
         n_reads  = len(parsed["read_calls"])
         log_agent(
             "agent",
-            f"{'DONE' if done else f'writes={n_writes} edits={n_edits} reads={n_reads} bash={bool(safe_bash)}'} tok={self.total_tokens}",
+            f"{'DONE' if done else f'writes={n_writes} edits={n_edits} reads={n_reads} bash={bool(safe_bash)}'} "
+            f"turn={turn_tokens}µ$ total={self.total_tokens}µ$",
             self.project_id,
         )
 
         return {
-            "message":     parsed["message"],
-            "write_files": parsed["write_files"],
-            "edit_files":  parsed["edit_files"],
-            "read_calls":  parsed["read_calls"],
-            "commands":    [safe_bash] if safe_bash else [],
-            "done":        done,
-            "tokens":      self.total_tokens,
-            "_parsed":     parsed,
+            "message":      parsed["message"],
+            "write_files":  parsed["write_files"],
+            "edit_files":   parsed["edit_files"],
+            "read_calls":   parsed["read_calls"],
+            "commands":     [safe_bash] if safe_bash else [],
+            "done":         done,
+            "tokens":       self.total_tokens,   # cumulative (existing contract)
+            "turn_tokens":  turn_tokens,         # NEW: per-call delta — bill on THIS
+            "_parsed":      parsed,
         }
 
     def record_tool_results(
@@ -1894,9 +1889,7 @@ __all__ = [
     "AGENT_TOOL_DEFS",
     "WRITE_BATCH_LIMIT",
     "TOTAL_BATCH_LIMIT",
-    # Backward-compat alias
     "BATCH_LIMIT",
 ]
 
-# Backward-compatible alias for code that imported BATCH_LIMIT
 BATCH_LIMIT = WRITE_BATCH_LIMIT

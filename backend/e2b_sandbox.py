@@ -1,27 +1,21 @@
 """
-E2B Sandbox Manager v18 — Claude Code-style tool execution
-===========================================================
+E2B Sandbox Manager v18.1 — Claude Code-style tool execution
+=============================================================
 
-Upgrades from v15:
-  - Native handlers for the v18 expanded toolset:
-      read_files, list_dir, grep_search, glob_files,
-      edit_file, web_search, web_fetch
-    Each runs in ~50-300ms via the sandbox files API or a single
-    ripgrep / find call — no LLM round-trip for exploration.
-  - **Sub-5-second dev server verification.** Instead of a 25s ready-signal
-    poll + 12 × 2s health-check loops (up to ~49s), we now:
-      * Pre-warm: ensure node_modules + start dev server in the background
-        ONCE per session at first use, so subsequent runs find it already up.
-      * Aggressive polling: 200ms intervals against both ports concurrently,
-        up to 5 seconds total. Bails the moment both return.
-      * Parallel log scrape: read /tmp/dev.log in the same gather() as the
-        port checks instead of sequentially.
-  - Edit-file is server-side str_replace (atomic, no rewrite churn).
-  - Reviewer + sync logic preserved exactly from v15.
-  - Pre-final-sync marker reset + hash eviction preserved (the critical
-    bug fix from v15).
+v18.1 patch notes (from v18):
+  - BILLING FIX: bill on turn_tokens (per-call delta) instead of subtracting
+    cumulative-then-cumulative. Reviewer pass no longer double-bills the
+    entire agent history. Compatible with v18.1 lineage_agent's new
+    turn_tokens field; falls back to delta math if it's missing.
+  - RESTART LOOP FIX: pre-warm now sets _dev_server_up immediately after
+    `npm install` completes (not after full health check). Plus the
+    restart-blocker uses live pgrep to detect a running dev server even
+    when the flag is stale.
+  - REVIEWER FIX: skip the reviewer fix-turn when the agent already called
+    mark_done — completed builds don't need a second pass that rewrites
+    files mid-sync.
 
-Performance comparison for dev server verification:
+Performance comparison for dev server verification (unchanged from v18):
                         v15            v18
   cold startup          ~30-45s        ~3-8s (pre-warmed: <1s)
   warm verify           ~10-15s        <2s
@@ -76,12 +70,12 @@ DEFAULT_PREVIEW_PORT = 8080
 DEFAULT_SERVER_PORT  = 3000
 
 # Web tool config
-SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")  # https://serper.dev
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")  # https://tavily.com (fallback)
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
 # Dev server fast-verify tunables
-DEV_READY_TIMEOUT_S      = 5.0    # total time we'll wait for both ports
-DEV_POLL_INTERVAL_S      = 0.2    # 200ms between health probes
+DEV_READY_TIMEOUT_S      = 5.0
+DEV_POLL_INTERVAL_S      = 0.2
 DEV_LOG_TAIL_LINES       = 40
 
 _EDIT_KEYWORDS = frozenset([
@@ -123,7 +117,6 @@ def classify_command(cmd: str) -> Dict[str, str]:
     c   = cmd.strip()
     low = c.lower()
 
-    # v18 synthetic descriptors
     if c.startswith("write_file:"):
         path = c[len("write_file:"):]
         return {"verb": "edit", "target": path, "short": f"Write {path}"}
@@ -154,7 +147,6 @@ def classify_command(cmd: str) -> Dict[str, str]:
     if c == "mark_done":
         return {"verb": "done", "target": "", "short": "Task complete"}
 
-    # Legacy bash classifiers
     m = re.match(r"cat\s+>>?\s+['\"]?([^\s'\"<]+)['\"]?\s+<<", c)
     if m:
         return {"verb": "edit", "target": m.group(1), "short": f"Edit {m.group(1)}"}
@@ -210,7 +202,6 @@ class SandboxSession:
     _tree_cached_at: float          = field(default=0.0,          repr=False)
     _has_files_api:  bool           = field(default=False,        repr=False)
     _agent_written_paths: Set[str]  = field(default_factory=set,  repr=False)
-    # v18: track whether dev server is currently up so we can skip warmup
     _dev_server_up:  bool           = field(default=False,        repr=False)
     _has_ripgrep:    Optional[bool] = field(default=None,         repr=False)
 
@@ -246,6 +237,25 @@ class E2BSandboxManager:
         self._boot_locks:  Dict[str, asyncio.Lock] = {}
         self._turn_locks:  Dict[str, asyncio.Lock] = {}
         self._activity_counter: Dict[str, int] = {}
+
+    # ─── BILLING HELPER (v18.1) ──────────────────────────────────────────
+    def _extract_turn_tokens(
+        self,
+        result: Dict[str, Any],
+        cumulative_before: int,
+    ) -> Tuple[int, int]:
+        """
+        Return (turn_delta, new_cumulative).
+
+        v18.1 lineage_agent returns "turn_tokens" — the per-call delta. Use it.
+        Fall back to subtracting cumulative-then-cumulative for older agents.
+        """
+        new_cumulative = result.get("tokens", 0) or 0
+        if "turn_tokens" in result:
+            return int(result["turn_tokens"] or 0), new_cumulative
+        # Legacy path: compute delta from cumulative
+        delta = max(0, new_cumulative - cumulative_before)
+        return delta, new_cumulative
 
     # -----------------------------------------------------------
     # Emit helpers
@@ -311,7 +321,7 @@ class E2BSandboxManager:
             return f"https://{sbx.sandbox_id}-{port}.e2b.dev"
 
     # -----------------------------------------------------------
-    # Boot-time tar upload (preserved from v15)
+    # Boot-time tar upload
     # -----------------------------------------------------------
     @staticmethod
     def _build_tar_base64(file_tree: Dict[str, str]) -> Tuple[str, int, Dict[str, str]]:
@@ -382,7 +392,7 @@ class E2BSandboxManager:
         return count, hashes
 
     # -----------------------------------------------------------
-    # Native file write (preserved)
+    # Native file write
     # -----------------------------------------------------------
     def _write_one_file_sync(self, sbx, rel_path: str, content: str) -> bool:
         full = f"{APP_DIR}/{rel_path}"
@@ -461,15 +471,13 @@ class E2BSandboxManager:
         return written, obs
 
     # -----------------------------------------------------------
-    # NEW v18: edit_file (server-side str_replace)
+    # edit_file (server-side str_replace)
     # -----------------------------------------------------------
     def _edit_one_file_sync(
         self, sbx, rel_path: str, old_str: str, new_str: str,
     ) -> Tuple[bool, str]:
-        """Atomic str_replace on a file. Returns (ok, message)."""
         full = f"{APP_DIR}/{rel_path}"
 
-        # Read current content
         try:
             if hasattr(sbx, "files") and hasattr(sbx.files, "read"):
                 current = sbx.files.read(full)
@@ -483,7 +491,6 @@ class E2BSandboxManager:
         except Exception as e:
             return False, f"Read failed for {rel_path}: {e}"
 
-        # Validate uniqueness
         occurrences = current.count(old_str)
         if occurrences == 0:
             return False, (
@@ -529,7 +536,6 @@ class E2BSandboxManager:
             self._emit_activity_end(project_id, activity_id, 0 if ok else 1)
 
             if ok:
-                # Recompute hash by reading new content (cheap, we'll need it for sync)
                 try:
                     if hasattr(sbx, "files") and hasattr(sbx.files, "read"):
                         new_content = sbx.files.read(f"{APP_DIR}/{rel}")
@@ -566,7 +572,7 @@ class E2BSandboxManager:
         return edited, obs
 
     # -----------------------------------------------------------
-    # NEW v18: ripgrep availability + install
+    # ripgrep availability + install
     # -----------------------------------------------------------
     async def _ensure_ripgrep(self, session: SandboxSession) -> bool:
         if session._has_ripgrep is not None:
@@ -581,7 +587,6 @@ class E2BSandboxManager:
         except Exception:
             pass
 
-        # Try a fast install (apt or fall back to no-op — grep is always there)
         try:
             r = await asyncio.to_thread(
                 session.sandbox.commands.run,
@@ -596,13 +601,12 @@ class E2BSandboxManager:
         return session._has_ripgrep
 
     # -----------------------------------------------------------
-    # NEW v18: tool executors
+    # Tool executors
     # -----------------------------------------------------------
     async def _exec_read_files(
         self, session: SandboxSession, project_id: str, params: Dict[str, str],
     ) -> str:
         raw = params.get("paths", "")
-        # Accept comma or newline separation
         paths = [p.strip() for p in re.split(r"[,\n]+", raw) if p.strip()][:10]
         if not paths:
             return "read_files: no paths provided."
@@ -636,7 +640,6 @@ class E2BSandboxManager:
 
         parts = []
         for rel, content in results:
-            # Cap each file at 30KB in observation to keep context manageable
             snippet = content[:30_000]
             truncated = " [TRUNCATED]" if len(content) > 30_000 else ""
             parts.append(f"━━━ {rel}{truncated} ━━━\n{snippet}")
@@ -656,7 +659,6 @@ class E2BSandboxManager:
             project_id, activity_id, "scan", path, f"List {path}",
         )
 
-        # Single ls call with size + type
         cmd = (
             f"cd {shlex.quote(full)} 2>/dev/null && "
             f"ls -lhA --time-style=+ 2>/dev/null | "
@@ -703,7 +705,6 @@ class E2BSandboxManager:
             cmd_parts.extend([shlex.quote(pattern), shlex.quote(search_root)])
             cmd = " ".join(cmd_parts) + " 2>/dev/null | head -100"
         else:
-            # Fallback to grep -r
             include = f"--include='{glob}' " if glob else ""
             cmd = (
                 f"grep -r -n {include}"
@@ -718,7 +719,6 @@ class E2BSandboxManager:
         except Exception as e:
             raw = f"[error: {e}]"
 
-        # Strip APP_DIR prefix from output for cleanliness
         cleaned = raw.replace(f"{APP_DIR}/", "")
 
         self._emit_activity_end(project_id, activity_id, 0)
@@ -739,7 +739,6 @@ class E2BSandboxManager:
             f"Glob {pattern[:40]}",
         )
 
-        # Convert glob to find compatible form. Cheapest: use bash extglob.
         cmd = (
             f"cd {APP_DIR} && "
             f"find . -type f -not -path '*/node_modules/*' "
@@ -752,7 +751,6 @@ class E2BSandboxManager:
         except Exception as e:
             raw = f"[error: {e}]"
 
-        # Strip ./ prefix
         cleaned = re.sub(r"^\./", "", raw, flags=re.MULTILINE)
 
         self._emit_activity_end(project_id, activity_id, 0)
@@ -861,7 +859,6 @@ class E2BSandboxManager:
                         },
                     )
                     text = r.text
-                # Strip scripts/styles, collapse whitespace
                 text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.I)
                 text = re.sub(r"<style[\s\S]*?</style>",   " ", text, flags=re.I)
                 text = re.sub(r"<[^>]+>", " ", text)
@@ -878,7 +875,6 @@ class E2BSandboxManager:
         project_id: str,
         read_calls: List[Dict[str, Any]],
     ) -> str:
-        """Fire all read/grep/list/glob/web tool calls in parallel."""
         session = self._sessions.get(project_id)
         if not session or not read_calls:
             return ""
@@ -1021,31 +1017,67 @@ class E2BSandboxManager:
         self._emit_status(project_id, "Session Started..")
         self._emit(project_id, {"type": "sandbox_url", "url": session.url})
 
-        # v18: Pre-warm — kick off dev server in the background so it's ready
-        # by the time the agent needs to verify. Non-blocking.
+        # Pre-warm dev server in background
         asyncio.create_task(self._prewarm_dev_server(project_id))
 
         return session
 
     async def _prewarm_dev_server(self, project_id: str) -> None:
-        """Fire-and-forget: start dev server in background after boot."""
-        await asyncio.sleep(0.5)  # let other init finish
+        """
+        Fire-and-forget: install deps + start dev server.
+
+        v18.1 fix: mark _dev_server_up = True as soon as `npm install` finishes
+        (not after the full health check). This lets the restart-blocker engage
+        the moment the install completes, even if the dev server hasn't yet
+        bound its ports. The blocker will redirect any agent restart-attempt
+        to a verify-only command instead of killing and respawning the
+        background process — which was the source of the 6-turn debug loop.
+        """
+        await asyncio.sleep(0.5)
         session = self._sessions.get(project_id)
         if not session:
             return
         try:
-            await asyncio.to_thread(
-                session.sandbox.commands.run,
+            # Step 1: install (blocking, may take 60-120s on a cold sandbox)
+            install_cmd = (
                 f"cd {APP_DIR} && "
-                f"(test -d node_modules || npm install --no-audit --no-fund > /tmp/install.log 2>&1) && "
-                f"(pgrep -f 'npm run dev' > /dev/null || "
-                f" nohup npm run dev > /tmp/dev.log 2>&1 &)",
-                timeout=180,
+                f"(test -d node_modules || "
+                f" npm install --no-audit --no-fund > /tmp/install.log 2>&1)"
             )
-            log_agent("agent", "Pre-warmed dev server in background", project_id)
+            await asyncio.to_thread(
+                session.sandbox.commands.run, install_cmd, timeout=240,
+            )
+
+            # Step 2: spawn dev server in fully-detached mode
+            start_cmd = (
+                f"cd {APP_DIR} && "
+                f"(pgrep -f 'npm run dev' > /dev/null || "
+                f" nohup npm run dev > /tmp/dev.log 2>&1 </dev/null & disown)"
+            )
+            await asyncio.to_thread(
+                session.sandbox.commands.run, start_cmd, timeout=10,
+            )
+
+            # ─── BILLING-LOOP FIX: mark up NOW, before ports verified ───
+            # This is the key change. The agent may be on turn 5+ already and
+            # any pkill+restart attempt should be blocked, even if vite is
+            # still warming up on its port.
             session._dev_server_up = True
+            log_agent("agent", "Pre-warmed dev server in background", project_id)
         except Exception as e:
             log_agent("agent", f"Pre-warm skipped: {e}", project_id)
+
+    async def _is_dev_process_alive(self, session: SandboxSession) -> bool:
+        """Live check: is there an npm run dev process in the sandbox right now?"""
+        try:
+            r = await asyncio.to_thread(
+                session.sandbox.commands.run,
+                "pgrep -f 'npm run dev' > /dev/null && echo UP || echo DOWN",
+                timeout=3,
+            )
+            return "UP" in (r.stdout or "")
+        except Exception:
+            return False
 
     async def _restore_binary_files(self, sbx, project_id: str, file_tree: Dict[str, str]) -> int:
         count = 0
@@ -1145,16 +1177,11 @@ class E2BSandboxManager:
             return ""
 
     # -----------------------------------------------------------
-    # v18: SUB-5-SECOND dev server verification
+    # SUB-5-SECOND dev server verification
     # -----------------------------------------------------------
     async def _fast_verify_dev_server(
         self, project_id: str, session: SandboxSession,
     ) -> Tuple[bool, bool, str]:
-        """
-        Aggressive parallel polling: probe both ports every 200ms for up to 5s.
-        Returns (frontend_ok, backend_ok, log_tail).
-        Returns the moment BOTH ports respond, or after the timeout.
-        """
         start = time.monotonic()
         deadline = start + DEV_READY_TIMEOUT_S
         sbx = session.sandbox
@@ -1164,7 +1191,6 @@ class E2BSandboxManager:
 
         def probe(port: int) -> bool:
             try:
-                # -m 1 = 1 second max curl timeout. Tight.
                 r = sbx.commands.run(
                     f"curl -s -o /dev/null -m 1 -w '%{{http_code}}' http://localhost:{port}",
                     timeout=2,
@@ -1177,7 +1203,6 @@ class E2BSandboxManager:
         attempts = 0
         while time.monotonic() < deadline:
             attempts += 1
-            # Probe both ports concurrently
             fe_result, api_result = await asyncio.gather(
                 asyncio.to_thread(probe, session.preview_port),
                 asyncio.to_thread(probe, DEFAULT_SERVER_PORT),
@@ -1192,7 +1217,6 @@ class E2BSandboxManager:
 
         elapsed = time.monotonic() - start
 
-        # Pull a small log tail in parallel with anything else the caller does
         try:
             r = await asyncio.to_thread(
                 sbx.commands.run,
@@ -1250,20 +1274,17 @@ class E2BSandboxManager:
         except Exception:
             pass
 
-        # NOTE: v18 keeps the pre-existing pkill, but only when the agent
-        # actually issues npm run dev. We DO NOT kill on entry anymore —
-        # the pre-warmed server should stay alive.
-
         if session.agent is None:
             session.agent = LineageAgent(project_id)
         agent = session.agent
 
         all_commands:   List[str] = []
         final_message             = ""
-        total_tokens              = 0
+        total_tokens              = 0       # cumulative tokens (µ$ weights)
         turn_count                = 0
         previous_output:  Optional[str] = None
         last_raw_output           = ""
+        agent_marked_done         = False   # v18.1: track for reviewer gate
 
         now = time.time()
         if (now - session._tree_cached_at) > 30 or not session._cached_tree:
@@ -1288,16 +1309,16 @@ class E2BSandboxManager:
                 agent_skills=agent_skills if turn == 0 else None,
             )
 
-            turn_tokens   = result.get("tokens", 0) - total_tokens
-            total_tokens  = result.get("tokens", 0)
-            if turn_tokens > 0:
+            # ─── BILLING FIX: use turn_tokens delta directly ─────────────
+            turn_delta, total_tokens = self._extract_turn_tokens(result, total_tokens)
+            if turn_delta > 0:
                 try:
-                    self._add_tokens(session.owner_id, turn_tokens)
-                    self._emit(project_id, {"type": "token_usage", "tokens": turn_tokens})
+                    self._add_tokens(session.owner_id, turn_delta)
+                    self._emit(project_id, {"type": "token_usage", "tokens": turn_delta})
                 except Exception:
                     pass
 
-            # Save plan as .gorilla/todo.md on first turn (unchanged)
+            # Save plan as .gorilla/todo.md on first turn
             if turn == 0 and getattr(agent, "_plan_injected", False):
                 try:
                     first_user_msg = agent.messages[1].get("content", "") if len(agent.messages) > 1 else ""
@@ -1362,7 +1383,6 @@ class E2BSandboxManager:
                 if eobs: write_obs_parts.append(eobs)
                 all_commands.extend(f"edit_file:{ef['path']}" for ef in edit_files)
 
-            # Lint changed .tsx? files
             tsx_paths = [
                 p for p in (written_paths + edited_paths)
                 if p.endswith((".ts", ".tsx"))
@@ -1378,6 +1398,7 @@ class E2BSandboxManager:
             bash_obs = ""
 
             if result.get("done", False) and not commands:
+                agent_marked_done = True
                 if parsed_internal:
                     agent.record_tool_results(
                         parsed_internal,
@@ -1388,52 +1409,60 @@ class E2BSandboxManager:
                 break
 
             if commands:
-                # v18.1: sanitize the agent's "kill+restart dance".
-                # The pre-warmed dev server is already up; if the agent issues
-                # pkill+npm-run-dev chains, we (a) strip the pkill (it hangs on
-                # E2B's stream waiting for the child shell's pipes to drain),
-                # (b) ensure npm run dev is FULLY detached so commands.run
-                # returns immediately instead of blocking 180s on the pipe.
+                # ─── RESTART-LOOP FIX (v18.1): block restart even if flag stale ───
+                # The agent's "kill+restart dance" hangs E2B's stream waiting for
+                # pipes to drain. We sanitize:
+                #   (a) if dev process is alive (live pgrep, not just flag),
+                #       replace with a verify-only echo
+                #   (b) strip any pkill against our own dev processes
+                #   (c) force-detach any npm run dev (nohup + disown)
                 fixed: List[str] = []
+                # Cache the alive-check result for this turn (avoid repeat pgrep)
+                _dev_alive_cached: Optional[bool] = None
+
                 for cmd in commands:
                     original = cmd
                     stripped = cmd.strip()
 
-                    # Detect dev-server-restart attempt
                     is_dev_restart = (
                         "npm run dev" in stripped
                         or re.search(r"pkill.*(vite|npm run dev|node server)", stripped)
                     )
 
-                    if is_dev_restart and session._dev_server_up:
-                        # Pre-warm already brought it up — skip the dance entirely.
-                        # Replace with a fast verification ping so the agent
-                        # gets a sensible observation instead of a hung pipe.
-                        cmd = (
-                            "echo 'DEV_SERVER_ALREADY_RUNNING: pre-warmed on :8080 and :3000. "
-                            "Skipping restart. Use curl to verify if needed.'"
-                        )
-                        log_agent("agent",
-                            f"Skipped restart dance (dev server pre-warmed): {original[:80]}",
-                            project_id)
-                        fixed.append(cmd)
-                        continue
+                    if is_dev_restart:
+                        # Live check: is the dev process actually alive?
+                        if _dev_alive_cached is None:
+                            _dev_alive_cached = (
+                                session._dev_server_up
+                                or await self._is_dev_process_alive(session)
+                            )
+                            # Sync the flag if we found it live
+                            if _dev_alive_cached:
+                                session._dev_server_up = True
 
-                    # Otherwise: strip pkills against our own dev processes
-                    # (they're harmless but can stall the streaming pipe), and
-                    # force-detach any npm run dev so commands.run can return.
+                        if _dev_alive_cached:
+                            cmd = (
+                                "echo 'DEV_SERVER_RUNNING: process exists on :8080 and :3000. "
+                                "Skipping restart. If ports do not respond, fix the actual code "
+                                "error (check /tmp/dev.log) rather than restarting.'"
+                            )
+                            log_agent("agent",
+                                f"Blocked restart dance (process alive): {original[:80]}",
+                                project_id)
+                            fixed.append(cmd)
+                            continue
+
+                    # Otherwise: strip pkills against our dev processes
                     if re.search(r"pkill\s+-f\s+['\"]?(vite|npm run dev|node server)", stripped):
-                        # Remove just the pkill segments, keep the rest of the chain.
-                        # Replace each pkill clause (up to the next ; or &&) with `true`.
                         cmd = re.sub(
                             r"pkill\s+-f\s+['\"]?(?:vite|npm run dev|node server)[^;&|]*"
                             r"(?:\s*\|\|\s*true)?",
                             "true",
                             cmd,
                         )
-                        log_agent("agent", "Stripped pkill from agent bash (use built-in restart)", project_id)
+                        log_agent("agent", "Stripped pkill from agent bash", project_id)
 
-                    # Now make sure any npm run dev is fully detached
+                    # Force-detach any npm run dev so commands.run can return
                     if re.search(r"\bnpm run dev\b", cmd) and "disown" not in cmd:
                         if re.search(r"npm run dev\s*$", cmd.strip()):
                             cmd = cmd.rstrip() + " > /tmp/dev.log 2>&1 </dev/null & disown"
@@ -1467,7 +1496,6 @@ class E2BSandboxManager:
                     else "Command ran successfully with no output."
                 )
 
-                # v18: SUB-5-SECOND verification if dev server was touched
                 touched_dev = any(
                     "npm run dev" in cmd or
                     re.search(r"curl.*localhost:(8080|3000)", cmd)
@@ -1486,7 +1514,6 @@ class E2BSandboxManager:
                 last_raw_output = bash_obs
 
             elif not (write_files or edit_files or read_calls):
-                # Genuinely empty turn — stall recovery
                 previous_output = (
                     "OBSERVATION:\n"
                     "No actions detected. Use read_files/grep_search to explore, "
@@ -1495,7 +1522,6 @@ class E2BSandboxManager:
                 )
                 continue
 
-            # Feed tool results back into agent message history
             if parsed_internal:
                 agent.record_tool_results(
                     parsed_internal,
@@ -1517,14 +1543,26 @@ class E2BSandboxManager:
             previous_output = "\n\n".join(obs_parts)
 
             if result.get("done", False):
+                agent_marked_done = True
                 break
 
         # -----------------------------------------------------------
-        # Reviewer (same gating as v15)
+        # Reviewer — v18.1: skip when agent marked done cleanly
         # -----------------------------------------------------------
         request_lower  = (user_request or "").lower()
         is_edit_request = any(kw in request_lower for kw in _EDIT_KEYWORDS)
-        should_review   = not is_debug and turn_count > 3 and not is_edit_request
+        # ─── REVIEWER FIX: don't second-guess a clean mark_done ───
+        # When the agent explicitly called mark_done, both ports were verified
+        # 200 and the build matched spec. Running a fix-pass here:
+        #   1. Burns more tokens (often on pro model)
+        #   2. May rewrite files post-sync, corrupting the saved state
+        #   3. Was the root cause of "no saving" in the v18 trace
+        should_review = (
+            not is_debug
+            and turn_count > 3
+            and not is_edit_request
+            and not agent_marked_done
+        )
 
         if should_review:
             try:
@@ -1545,7 +1583,15 @@ class E2BSandboxManager:
                         is_debug=True,
                         error_context=review_fixes,
                     )
-                    total_tokens += fix_result.get("tokens", 0)
+                    # ─── BILLING FIX: bill the reviewer turn correctly ───
+                    fix_delta, total_tokens = self._extract_turn_tokens(fix_result, total_tokens)
+                    if fix_delta > 0:
+                        try:
+                            self._add_tokens(session.owner_id, fix_delta)
+                            self._emit(project_id, {"type": "token_usage", "tokens": fix_delta})
+                        except Exception:
+                            pass
+
                     fix_wf = fix_result.get("write_files", [])
                     fix_ef = fix_result.get("edit_files",  [])
                     fix_cmds = fix_result.get("commands",  [])
@@ -1558,6 +1604,8 @@ class E2BSandboxManager:
                         await self._execute_commands_streaming(project_id, fix_cmds)
             except Exception as e:
                 log_agent("agent", f"Reviewer error: {e}", project_id)
+        elif agent_marked_done and turn_count > 3:
+            log_agent("agent", "Skipping reviewer — agent marked done cleanly", project_id)
 
         # -----------------------------------------------------------
         # Pre-sync reset (preserved fix from v15)
@@ -1604,19 +1652,14 @@ class E2BSandboxManager:
         }
 
     # -----------------------------------------------------------
-    # v18 FAST post-dev-server check (<5s typical)
+    # FAST post-dev-server check
     # -----------------------------------------------------------
     async def _post_dev_server_checks_fast(
         self, project_id: str, session: SandboxSession, current_obs: str
     ) -> str:
-        """
-        Sub-5-second health check + error scan + Express drain injection.
-        Replaces the old _post_dev_server_checks which could take 30-45s.
-        """
         obs = current_obs
 
         try:
-            # Run health probes + error scan + drain inject IN PARALLEL
             health_task = self._fast_verify_dev_server(project_id, session)
 
             async def _scan_errors():
@@ -1691,7 +1734,7 @@ class E2BSandboxManager:
         return obs
 
     # -----------------------------------------------------------
-    # Linter helper (unchanged)
+    # Linter helper
     # -----------------------------------------------------------
     async def _lint_paths(self, project_id: str, paths: List[str]) -> str:
         session = self._sessions.get(project_id)
@@ -1719,7 +1762,7 @@ class E2BSandboxManager:
             return ""
 
     # -----------------------------------------------------------
-    # Streaming executor (unchanged)
+    # Streaming executor
     # -----------------------------------------------------------
     async def _execute_commands_streaming(self, project_id, commands):
         session = self._sessions.get(project_id)
@@ -1732,7 +1775,6 @@ class E2BSandboxManager:
         for cmd in commands[:MAX_COMMANDS_PER_TURN]:
             if not cmd or not cmd.strip():
                 continue
-            # Skip synthetic descriptors for read tools
             if any(cmd.startswith(p) for p in (
                 "write_file:", "edit_file:", "read_files:", "list_dir:",
                 "grep_search:", "glob_files:", "web_search:", "web_fetch:",
@@ -1797,8 +1839,6 @@ class E2BSandboxManager:
 
     @staticmethod
     def _run_command_with_streaming(sandbox, cmd, on_stdout, on_stderr):
-        # v18.1: tight timeouts so a stuck pipe (e.g., dev-server pkill dance)
-        # can't freeze the whole agent loop. Longer budget only for installs.
         if re.search(r"\b(npm|pnpm|yarn|bun)\s+(install|i|ci|add)\b", cmd):
             tmo = 180
         elif "npm run build" in cmd or "tsc " in cmd:
@@ -1824,7 +1864,7 @@ class E2BSandboxManager:
             return -1
 
     # -----------------------------------------------------------
-    # Batched tree read (unchanged)
+    # Batched tree read
     # -----------------------------------------------------------
     async def _read_tree_from_sandbox(self, project_id: str) -> Dict[str, str]:
         session = self._sessions.get(project_id)
@@ -2009,7 +2049,7 @@ class E2BSandboxManager:
         return (len(rows), deleted_count)
 
     # -----------------------------------------------------------
-    # Dev server (for /sandbox/start endpoint) — now uses fast verify
+    # Dev server (for /sandbox/start endpoint)
     # -----------------------------------------------------------
     async def start_dev_server(self, project_id: str) -> Tuple[Optional[str], Optional[str]]:
         session = self._sessions.get(project_id)
@@ -2017,13 +2057,11 @@ class E2BSandboxManager:
             return (None, None)
         session.last_activity = time.time()
 
-        # Try fast path first: maybe pre-warm already brought it up
         fe_ok, api_ok, _ = await self._fast_verify_dev_server(project_id, session)
         if fe_ok:
             self._emit(project_id, {"type": "sandbox_url", "url": session.url})
             return (session.url, None)
 
-        # Cold path: restart cleanly
         try:
             await asyncio.to_thread(session.sandbox.commands.run,
                 "pkill -f vite || true; pkill -f 'npm run dev' || true; pkill -f 'node server' || true")
@@ -2037,14 +2075,13 @@ class E2BSandboxManager:
         except Exception:
             pass
 
-        # Now use fast verify (5s budget) instead of 15s loop
         fe_ok, api_ok, _ = await self._fast_verify_dev_server(project_id, session)
 
         self._emit(project_id, {"type": "sandbox_url", "url": session.url})
         return (session.url, None)
 
     # -----------------------------------------------------------
-    # File write/delete for editor bridge (unchanged)
+    # File write/delete for editor bridge
     # -----------------------------------------------------------
     async def write_file(self, project_id: str, rel_path: str, content: str) -> bool:
         session = self._sessions.get(project_id)
@@ -2077,7 +2114,7 @@ class E2BSandboxManager:
             return False
 
     # -----------------------------------------------------------
-    # Billing + idle monitor (unchanged)
+    # Billing + idle monitor
     # -----------------------------------------------------------
     async def _billing_loop(self, project_id: str) -> None:
         accumulated = 0
@@ -2136,28 +2173,17 @@ class E2BSandboxManager:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _glob_to_regex(pattern: str) -> str:
-    """
-    Convert a glob pattern to a regex suitable for `grep -E` filtering of
-    `find` output. Handles **, *, ?, {a,b,c}. Conservative — meant for
-    matching path strings, not full POSIX glob semantics.
-    """
     p = pattern.strip().lstrip("./")
-    # Expand brace alternation {a,b,c} -> (a|b|c)
     def brace_repl(m):
         inner = m.group(1)
         alts  = inner.split(",")
         return "(" + "|".join(re.escape(a.strip()) for a in alts) + ")"
     p = re.sub(r"\{([^{}]+)\}", brace_repl, p)
 
-    # Replace ** with a placeholder
     p = p.replace("**", "\x00DOUBLE\x00")
-    # Escape regex metachars except / * ? \x00 ( ) |
     p = re.sub(r"([.+^${}\[\]\\])", r"\\\1", p)
-    # Single * -> [^/]*
     p = p.replace("*", "[^/]*")
-    # ? -> single non-slash char
     p = p.replace("?", "[^/]")
-    # ** placeholder -> .*
     p = p.replace("\x00DOUBLE\x00", ".*")
     return p + "$"
 
