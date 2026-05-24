@@ -13,78 +13,113 @@
 :root {
   --bg: #0a0b0d;
   --bg-2: #101114;
+  --bg-3: #16181d;
   --fg: #e8e8eb;
   --muted: #8a8c95;
-  --dim: #4a4c55;
-  --faint: #25272d;
-  --line: rgba(255,255,255,0.10);
-  --line-2: rgba(255,255,255,0.18);
-  --blue: oklch(0.74 0.16 248);
-  --blue-2: oklch(0.62 0.2 252);
-  --blue-dim: oklch(0.4 0.12 252);
-  --ok: #3ECF8E;
-  --ok-dim: rgba(62,207,142,0.15);
+  --dim: #56586a;
+  --line: rgba(255,255,255,0.07);
+  --line-2: rgba(255,255,255,0.13);
+  --line-3: rgba(255,255,255,0.2);
+  --accent: oklch(0.74 0.16 248);
+  --accent-2: oklch(0.68 0.18 248);
+  --accent-dim: oklch(0.4 0.12 252);
+  --ok: #4ade80;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 8px;
 }
 
 * { box-sizing: border-box; outline: none; }
+::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
 body {
   margin: 0; background: var(--bg); color: var(--fg);
   min-height: 100vh; display: flex; flex-direction: column;
   font-family: 'DM Sans', system-ui, sans-serif;
-  font-weight: 300; -webkit-font-smoothing: antialiased;
+  font-weight: 400; -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em; position: relative;
 }
 
-/* dot grid */
-body::before {
-  content: "";
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+/* atmospheric horizon glow */
+.horizon {
+  position: fixed; left: 0; right: 0;
+  top: -30%; height: 80%;
+  pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse 50% 70% at 50% 80%,
+    oklch(0.55 0.22 248 / 0.32) 0%,
+    oklch(0.45 0.2 250 / 0.16) 30%,
+    oklch(0.3 0.16 252 / 0.05) 55%,
+    transparent 75%);
+  filter: blur(40px);
 }
 
 .wrap {
-  max-width: 580px; margin: 56px auto;
+  max-width: 620px; margin: 56px auto;
   padding: 0 24px; width: 100%; flex: 1;
   position: relative; z-index: 1;
 }
 
+/* ── LOGO PILL ── */
+.logo {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 9px 5px 5px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  margin-bottom: 32px;
+}
+.logo:hover { background: rgba(255,255,255,0.06); border-color: var(--line-2); }
+.logo-icon {
+  width: 20px; height: 20px;
+  background: var(--bg-3); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo-icon svg { width: 12px; height: 12px; fill: var(--fg); }
+.logo-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px; font-weight: 500;
+  color: var(--fg); letter-spacing: -0.01em;
+}
+
 /* ── HEADER ── */
 .top {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 48px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 40px; gap: 16px;
 }
 .title .eyebrow {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
-  margin-bottom: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: 12px;
+  color: var(--accent); margin-bottom: 8px;
+  font-weight: 500; letter-spacing: -0.005em;
 }
-.title .eyebrow::before { content: "// "; color: var(--dim); }
 .title h1 {
   font-family: 'DM Sans', sans-serif;
-  font-size: 22px; margin: 0; font-weight: 400;
-  letter-spacing: -0.02em; color: var(--fg); line-height: 1.0;
+  font-size: 30px; margin: 0; font-weight: 500;
+  letter-spacing: -0.03em; color: var(--fg); line-height: 1.05;
 }
-.title h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+.title h1 .accent { color: var(--accent); font-style: italic; font-weight: 500; }
 
 .btn-back {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.14em; text-transform: uppercase; font-weight: 400;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--line);
-  color: var(--muted); padding: 8px 14px;
+  font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+  font-weight: 500; letter-spacing: -0.005em;
+  background: var(--bg-2); border: 1px solid var(--line-2);
+  color: var(--fg); padding: 7px 12px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
   transition: all 0.15s var(--ease-out);
-  display: flex; align-items: center; gap: 7px;
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0; margin-top: 22px;
 }
-.btn-back:hover { border-color: var(--line-2); color: var(--fg); transform: translateX(-2px); }
+.btn-back:hover { background: var(--bg-3); border-color: var(--line-3); }
+.btn-back i { font-size: 12px; }
 
-/* ── STEPPER — flat line segments ── */
+/* ── STEPPER ── */
 .stepper-container {
   position: relative; width: 100%;
-  margin: 0 auto 48px auto;
+  margin: 0 auto 32px auto;
 }
 
 .step-nodes {
@@ -92,73 +127,71 @@ body::before {
   gap: 0;
 }
 
-/* each step takes equal width */
 .step-node {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; gap: 10px; position: relative;
 }
 
-/* connecting line between nodes */
 .step-node:not(:last-child)::after {
   content: '';
-  position: absolute; top: 15px; left: 50%; right: -50%;
-  height: 1px; background: var(--line); z-index: 1;
+  position: absolute; top: 14px; left: 50%; right: -50%;
+  height: 1px; background: var(--line-2); z-index: 1;
+  transition: background 0.4s ease;
 }
-.step-node.completed:not(:last-child)::after { background: var(--ok); opacity: 0.4; }
+.step-node.completed:not(:last-child)::after {
+  background: var(--ok);
+  box-shadow: 0 0 6px rgba(74,222,128,0.3);
+}
 
 .step-circle {
-  width: 32px; height: 32px;
+  width: 28px; height: 28px;
   background: var(--bg-2);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 400;
+  font-family: 'DM Sans', sans-serif; font-size: 11.5px; font-weight: 500;
   color: var(--dim);
   transition: all 0.4s ease;
   position: relative; z-index: 2;
 }
 
 .step-label {
-  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 400;
-  color: var(--dim); text-transform: uppercase; letter-spacing: 0.14em;
+  font-family: 'DM Sans', sans-serif; font-size: 11.5px; font-weight: 500;
+  color: var(--dim);
   transition: all 0.4s ease; text-align: center;
+  letter-spacing: -0.005em;
 }
 
 .step-node.completed .step-circle {
   border-color: var(--ok); color: var(--ok);
-  background: rgba(62,207,142,0.06);
+  background: rgba(74,222,128,0.08);
+  box-shadow: 0 0 12px rgba(74,222,128,0.2);
 }
 .step-node.completed .step-label { color: var(--muted); }
 
 .step-node.active .step-circle {
-  border-color: var(--blue); color: var(--blue);
-  background: rgba(255,255,255,0.03);
+  border-color: var(--accent); color: var(--accent);
+  background: oklch(0.6 0.2 248 / 0.08);
+  box-shadow: 0 0 16px oklch(0.6 0.2 248 / 0.3);
 }
 .step-node.active .step-label { color: var(--fg); }
 
-/* ── WIZARD CARD — double-border ASCII window ── */
+/* ── WIZARD CARD ── */
 .wizard-card {
-  border: 3px double rgba(255,255,255,0.22);
-  background: var(--bg);
+  background: rgba(16, 17, 20, 0.6);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
   position: relative; overflow: hidden;
-}
-
-.w-chrome {
-  position: absolute; top: -10px; left: 14px;
-  background: var(--bg); padding: 0 8px;
-  font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted);
-  z-index: 5;
-}
-.w-title-bar {
-  position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-  background: var(--bg); padding: 0 14px;
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.2em; color: var(--fg);
-  text-transform: uppercase; white-space: nowrap; z-index: 5;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 20px 60px rgba(0,0,0,0.35);
 }
 
 .step-container {
-  padding: 48px 40px;
-  min-height: 340px;
+  padding: 44px 40px;
+  min-height: 320px;
   display: flex; flex-direction: column;
   justify-content: center; align-items: center; text-align: center;
 }
@@ -166,77 +199,98 @@ body::before {
 .wizard-step { display: none; width: 100%; animation: fadeIn 0.4s var(--ease-out) forwards; }
 .wizard-step.active { display: block; }
 
-/* step icon — flat square */
+/* step icon */
 .step-icon {
   width: 52px; height: 52px;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--line);
+  background: oklch(0.6 0.2 248 / 0.08);
+  border: 1px solid oklch(0.6 0.2 248 / 0.25);
+  border-radius: var(--radius);
   display: flex; align-items: center; justify-content: center;
-  font-size: 24px; color: var(--blue); margin: 0 auto 22px auto;
+  font-size: 24px; color: var(--accent);
+  margin: 0 auto 22px auto;
+  box-shadow: 0 0 24px oklch(0.6 0.2 248 / 0.15);
 }
 
 .wizard-step h2 {
   font-family: 'DM Sans', sans-serif;
-  margin: 0 0 8px; font-size: 22px; font-weight: 400;
-  letter-spacing: -0.02em; color: var(--fg);
+  margin: 0 0 10px; font-size: 24px; font-weight: 500;
+  letter-spacing: -0.025em; color: var(--fg);
+  line-height: 1.05;
 }
-.wizard-step h2 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+.wizard-step h2 .accent { color: var(--accent); font-style: italic; font-weight: 500; }
 
 .wizard-step .step-eyebrow {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue);
+  font-family: 'DM Sans', sans-serif; font-size: 12px;
+  color: var(--accent);
   margin-bottom: 10px;
+  font-weight: 500; letter-spacing: -0.005em;
 }
-.wizard-step .step-eyebrow::before { content: "// "; color: var(--dim); }
 
 .wizard-step p {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.06em; color: var(--muted);
-  line-height: 1.7; margin: 0 auto 28px auto; max-width: 380px;
+  font-family: 'DM Sans', sans-serif; font-size: 14px;
+  color: var(--muted);
+  line-height: 1.55; margin: 0 auto 24px auto;
+  max-width: 400px;
+  font-weight: 400; letter-spacing: -0.005em;
 }
 .wizard-step p code {
-  background: rgba(255,255,255,0.04); color: var(--blue);
-  padding: 1px 5px; font-family: 'DM Mono', monospace; font-size: 11px;
-  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.05); color: var(--accent);
+  padding: 1px 5px;
+  font-family: 'DM Mono', monospace; font-size: 12.5px;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
 }
 
 /* ── VERCEL BUTTON ── */
 .btn-vercel {
   background: #fff; color: #000;
-  border: 1px solid rgba(255,255,255,0.2);
-  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  padding: 12px 24px;
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.14em; text-transform: uppercase; font-weight: 400;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 10px 22px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  font-weight: 500; letter-spacing: -0.005em;
   text-decoration: none; transition: all 0.15s var(--ease-out);
-  width: 100%; max-width: 300px; margin: 0 auto;
+  width: 100%; max-width: 280px; margin: 0 auto;
+  box-shadow: 0 2px 12px rgba(255,255,255,0.1);
 }
-.btn-vercel:hover { background: #f0f0f0; transform: translateY(-1px); }
-.btn-vercel:active { transform: translateY(1px); }
+.btn-vercel:hover { background: #f0f0f0; box-shadow: 0 4px 18px rgba(255,255,255,0.15); }
 
 /* ── ACTION BUTTON ── */
 .btn-action {
   position: relative;
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  background: var(--blue); color: #fff;
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.18em; text-transform: uppercase; font-weight: 400;
-  padding: 13px 24px; border: none; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  background: var(--accent); color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  font-weight: 500; letter-spacing: -0.005em;
+  padding: 10px 22px; border: none; cursor: pointer; text-decoration: none;
+  border-radius: var(--radius-sm);
   transition: all 0.15s var(--ease-out);
   width: 100%; max-width: 280px; margin: 0 auto;
+  box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
 }
-.btn-action:hover:not(:disabled) { background: var(--blue-2); transform: translateY(-1px); }
-.btn-action:active:not(:disabled) { transform: translateY(1px); }
-.btn-action:disabled { background: rgba(255,255,255,0.04); color: var(--dim); cursor: not-allowed; }
+.btn-action:hover:not(:disabled) {
+  background: var(--accent-2);
+  box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45);
+}
+.btn-action:disabled {
+  background: var(--bg-3); color: var(--dim);
+  cursor: not-allowed; box-shadow: none;
+}
 
 .btn-action.green {
-  background: #2c7a4b;
+  background: var(--ok); color: var(--bg);
+  box-shadow: 0 2px 8px rgba(74,222,128,0.3);
 }
-.btn-action.green:hover:not(:disabled) { background: #236040; }
+.btn-action.green:hover:not(:disabled) {
+  background: #6ee59a;
+  box-shadow: 0 4px 14px rgba(74,222,128,0.45);
+}
 
 /* ── LOADER ── */
 .loader {
   display: none;
-  width: 14px; height: 14px;
+  width: 13px; height: 13px;
   border: 2px solid rgba(255,255,255,0.25);
   border-top-color: #fff;
   border-radius: 50%;
@@ -245,63 +299,72 @@ body::before {
 
 /* ── ERROR ── */
 .error-text {
-  color: #c07070; font-size: 11px; margin-top: 16px;
+  color: #c08585; font-size: 12.5px; margin-top: 14px;
   display: none;
-  background: rgba(100,20,20,0.06); padding: 10px 14px;
-  border: 1px solid rgba(100,20,20,0.2);
-  font-family: 'DM Mono', monospace; letter-spacing: 0.06em;
-  max-width: 340px; margin-left: auto; margin-right: auto;
+  background: rgba(168, 96, 96, 0.08); padding: 9px 13px;
+  border: 1px solid rgba(168, 96, 96, 0.22);
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif; font-weight: 400; letter-spacing: -0.005em;
+  max-width: 360px; margin-left: auto; margin-right: auto;
+  line-height: 1.45;
 }
 
 /* ── LIFTOFF ── */
 .liftoff-icon {
   width: 52px; height: 52px;
   margin: 0 auto 22px auto;
-  background: rgba(62,207,142,0.05);
-  border: 1px solid rgba(62,207,142,0.2);
+  background: rgba(74,222,128,0.08);
+  border: 1px solid rgba(74,222,128,0.3);
+  border-radius: var(--radius);
   display: flex; align-items: center; justify-content: center;
   font-size: 24px; color: var(--ok);
+  box-shadow: 0 0 24px rgba(74,222,128,0.2);
 }
 
 .env-instructions {
-  background: var(--bg-2); border: 1px solid var(--line);
-  border-left: 2px solid rgba(62,207,142,0.3);
-  padding: 16px 18px;
-  margin: 0 auto 28px auto;
-  display: inline-block; text-align: left; max-width: 380px; width: 100%;
+  background: rgba(16, 17, 20, 0.5);
+  border: 1px solid var(--line-2);
+  border-left: 2px solid var(--ok);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 0 auto 24px auto;
+  display: inline-block; text-align: left; max-width: 400px; width: 100%;
 }
 .env-instructions h4 {
-  margin: 0 0 8px;
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  display: flex; align-items: center; gap: 8px; color: var(--fg); font-weight: 400;
+  margin: 0 0 6px;
+  font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+  font-weight: 500; letter-spacing: -0.005em;
+  display: flex; align-items: center; gap: 8px; color: var(--fg);
 }
-.env-instructions h4 i { color: var(--ok); font-size: 12px; }
+.env-instructions h4 i { color: var(--ok); font-size: 13px; }
 .env-instructions p {
-  margin: 0; font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.06em; color: var(--muted);
-  line-height: 1.6; max-width: 100%;
+  margin: 0; font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5; max-width: 100%;
+  font-weight: 400; letter-spacing: -0.005em;
 }
 
 .source-link {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--dim); text-decoration: none;
-  display: inline-flex; align-items: center; gap: 7px;
-  border-bottom: 1px dashed transparent;
-  transition: color 0.15s, border-color 0.15s;
+  font-family: 'DM Sans', sans-serif; font-size: 12px;
+  color: var(--muted); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: color 0.15s;
+  font-weight: 500; letter-spacing: -0.005em;
 }
-.source-link:hover { color: var(--fg); border-color: var(--line-2); }
+.source-link:hover { color: var(--fg); }
+.source-link i { font-size: 13px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 </style>
 </head>
 
 <body class="{% if user.plan == 'premium' %}premium{% endif %}">
+
+<div class="horizon"></div>
 
 {% set current_step = 1 %}
 {% set fill_width = "0%" %}
@@ -319,14 +382,30 @@ body::before {
 
 <div class="wrap">
 
+  <a class="logo" href="/dashboard">
+    <span class="logo-icon">
+      <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
+          <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+          <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+          <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+          <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+          <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+          <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+        </g>
+      </svg>
+    </span>
+    <span class="logo-text">gor://a</span>
+  </a>
+
   <div class="top">
     <div class="title">
-      <div class="eyebrow">Deployment Pipeline</div>
-      <h1>{{ project.name if project else project_id }}<br/><span class="accent">deploy.</span></h1>
+      <div class="eyebrow">Deployment pipeline</div>
+      <h1>{{ project.name if project else project_id }} <span class="accent">deploy.</span></h1>
     </div>
     <a class="btn-back" href="/projects/{{ project_id }}/editor">
-      <i class="ph-bold ph-arrow-left" style="font-size:11px;"></i>
-      Back to Editor
+      <i class="ph-bold ph-arrow-left"></i>
+      Editor
     </a>
   </div>
 
@@ -335,22 +414,22 @@ body::before {
     <div class="step-nodes">
 
       <div class="step-node {% if current_step > 1 %}completed{% elif current_step == 1 %}active{% endif %}" id="node1">
-        <div class="step-circle">{% if current_step > 1 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}01{% endif %}</div>
+        <div class="step-circle">{% if current_step > 1 %}<i class="ph-bold ph-check" style="font-size:11px;"></i>{% else %}1{% endif %}</div>
         <div class="step-label">Connect</div>
       </div>
 
       <div class="step-node {% if current_step > 2 %}completed{% elif current_step == 2 %}active{% endif %}" id="node2">
-        <div class="step-circle">{% if current_step > 2 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}02{% endif %}</div>
+        <div class="step-circle">{% if current_step > 2 %}<i class="ph-bold ph-check" style="font-size:11px;"></i>{% else %}2{% endif %}</div>
         <div class="step-label">Optimize</div>
       </div>
 
       <div class="step-node {% if current_step > 3 %}completed{% elif current_step == 3 %}active{% endif %}" id="node3">
-        <div class="step-circle">{% if current_step > 3 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}03{% endif %}</div>
+        <div class="step-circle">{% if current_step > 3 %}<i class="ph-bold ph-check" style="font-size:11px;"></i>{% else %}3{% endif %}</div>
         <div class="step-label">Push</div>
       </div>
 
       <div class="step-node {% if current_step == 4 %}completed active{% endif %}" id="node4">
-        <div class="step-circle">{% if current_step == 4 %}<i class="ph-bold ph-check" style="font-size:12px;"></i>{% else %}04{% endif %}</div>
+        <div class="step-circle">{% if current_step == 4 %}<i class="ph-bold ph-check" style="font-size:11px;"></i>{% else %}4{% endif %}</div>
         <div class="step-label">Deploy</div>
       </div>
 
@@ -359,32 +438,30 @@ body::before {
 
   <!-- ── WIZARD CARD ── -->
   <div class="wizard-card">
-    <span class="w-chrome">≡ ×</span>
-    <span class="w-title-bar" id="stepTitle">[ STEP / 0{{ current_step }} ]</span>
 
     <div class="step-container">
 
       <!-- Step 1: Connect GitHub -->
       <div class="wizard-step {% if current_step == 1 %}active{% endif %}" id="step1">
         <div class="step-icon"><i class="ph-fill ph-github-logo"></i></div>
-        <div class="step-eyebrow">01 — connect</div>
+        <div class="step-eyebrow">Connect</div>
         <h2>Link <span class="accent">GitHub.</span></h2>
         <p>Connect your GitHub account to create a secure, private repository for your source code.</p>
         <a href="/auth/github" class="btn-action green">
           <i class="ph-fill ph-github-logo"></i>
-          Connect Account →
+          Connect account →
         </a>
       </div>
 
       <!-- Step 2: Optimize -->
       <div class="wizard-step {% if current_step == 2 %}active{% endif %}" id="step2">
         <div class="step-icon"><i class="ph-bold ph-magic-wand"></i></div>
-        <div class="step-eyebrow">02 — optimize</div>
+        <div class="step-eyebrow">Optimize</div>
         <h2>Optimize <span class="accent">codebase.</span></h2>
         <p>Gor://a will restructure your Express server into serverless functions and generate the required <code>vercel.json</code> routing map.</p>
         <button class="btn-action" id="btn-optimize" onclick="runOptimization()">
           <div class="loader" id="loader-optimize"></div>
-          <span>Start Optimization →</span>
+          <span>Start optimization →</span>
         </button>
         <div class="error-text" id="err-optimize"></div>
       </div>
@@ -392,12 +469,12 @@ body::before {
       <!-- Step 3: Push -->
       <div class="wizard-step {% if current_step == 3 %}active{% endif %}" id="step3">
         <div class="step-icon"><i class="ph-bold ph-git-commit"></i></div>
-        <div class="step-eyebrow">03 — push</div>
+        <div class="step-eyebrow">Push</div>
         <h2>Push to <span class="accent">repository.</span></h2>
         <p>Commit your fully optimized, production-ready codebase to a brand new private repository on your GitHub account.</p>
         <button class="btn-action" id="btn-push" onclick="pushToGithub()">
           <div class="loader" id="loader-push"></div>
-          <span>Create &amp; Push →</span>
+          <span>Create &amp; push →</span>
         </button>
         <div class="error-text" id="err-push"></div>
       </div>
@@ -405,12 +482,12 @@ body::before {
       <!-- Step 4: Deploy -->
       <div class="wizard-step {% if current_step == 4 %}active{% endif %}" id="step4">
         <div class="liftoff-icon"><i class="ph-fill ph-rocket-launch"></i></div>
-        <div class="step-eyebrow">04 — deploy</div>
+        <div class="step-eyebrow">Deploy</div>
         <h2>Ready for <span class="accent">liftoff.</span></h2>
-        <p style="margin-bottom: 20px;">Your codebase is safely stored in a private repository and ready to deploy to the edge.</p>
+        <p style="margin-bottom: 18px;">Your codebase is safely stored in a private repository and ready to deploy to the edge.</p>
 
         <div class="env-instructions">
-          <h4><i class="ph-fill ph-lock-key"></i> Zero-Config Security</h4>
+          <h4><i class="ph-fill ph-lock-key"></i> Zero-config security</h4>
           <p>We securely injected your API keys directly into the build environment. Vercel will ask for permission to read your private repo — just click deploy.</p>
         </div>
 
@@ -421,9 +498,9 @@ body::before {
           </a>
         </div>
 
-        <div style="margin-top: 24px;">
+        <div style="margin-top: 20px;">
           <a href="{{ project.github_repo_url }}" target="_blank" id="repo-link" class="source-link">
-            <i class="ph-fill ph-github-logo"></i> View Source Code
+            <i class="ph-fill ph-github-logo"></i> View source code
           </a>
         </div>
       </div>
@@ -436,25 +513,15 @@ body::before {
 <script>
   const projectId = "{{ project_id }}";
 
-  const STEP_LABELS = {
-    1: "[ STEP / 01 ]",
-    2: "[ STEP / 02 ]",
-    3: "[ STEP / 03 ]",
-    4: "[ STEP / 04 ]"
-  };
-
   function advanceProgress(stepNum) {
-    const titleEl = document.getElementById("stepTitle");
-    if (titleEl) titleEl.textContent = STEP_LABELS[stepNum] || STEP_LABELS[4];
-
     for (let i = 1; i <= 4; i++) {
       const node = document.getElementById("node" + i);
       if (i < stepNum) {
         node.className = "step-node completed";
-        node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check" style="font-size:12px;"></i>';
+        node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check" style="font-size:11px;"></i>';
       } else if (i === stepNum) {
         node.className = "step-node active" + (i === 4 ? " completed" : "");
-        if (i === 4) node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check" style="font-size:12px;"></i>';
+        if (i === 4) node.querySelector('.step-circle').innerHTML = '<i class="ph-bold ph-check" style="font-size:11px;"></i>';
       } else {
         node.className = "step-node";
       }
@@ -486,7 +553,7 @@ body::before {
     } catch (err) {
       btn.disabled = false;
       loader.style.display = "none";
-      span.innerHTML = 'Retry Optimization →';
+      span.innerHTML = 'Retry optimization →';
       errBox.innerText = err.message;
       errBox.style.display = "block";
     }
@@ -500,7 +567,7 @@ body::before {
 
     btn.disabled = true;
     loader.style.display = "block";
-    span.innerText = "Encrypting & Pushing…";
+    span.innerText = "Encrypting & pushing…";
     errBox.style.display = "none";
 
     try {
@@ -520,7 +587,7 @@ body::before {
     } catch (err) {
       btn.disabled = false;
       loader.style.display = "none";
-      span.innerHTML = 'Retry Push →';
+      span.innerHTML = 'Retry push →';
       errBox.innerText = err.message;
       errBox.style.display = "block";
     }

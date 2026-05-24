@@ -15,347 +15,381 @@
     :root {
       --bg: #0a0b0d;
       --bg-2: #101114;
+      --bg-3: #16181d;
       --fg: #e8e8eb;
       --muted: #8a8c95;
-      --dim: #4a4c55;
-      --faint: #25272d;
-      --line: rgba(255,255,255,0.10);
-      --line-2: rgba(255,255,255,0.18);
-      --blue: oklch(0.74 0.16 248);
-      --blue-2: oklch(0.62 0.2 252);
-      --blue-dim: oklch(0.4 0.12 252);
-      --amber: oklch(0.78 0.13 80);
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
     body {
       margin: 0; background: var(--bg); color: var(--fg);
       height: 100vh; display: flex; overflow: hidden;
       font-family: 'DM Sans', system-ui, sans-serif;
-      font-weight: 300; -webkit-font-smoothing: antialiased;
+      font-weight: 400; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em; position: relative;
     }
 
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    .horizon {
+      position: fixed; left: 232px; right: 0; bottom: -50%; height: 110%;
+      pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 65% 75% at 50% 0%,
+        oklch(0.55 0.22 248 / 0.4) 0%,
+        oklch(0.45 0.2 250 / 0.2) 28%,
+        oklch(0.3 0.16 252 / 0.08) 52%,
+        transparent 75%);
+      filter: blur(24px);
+    }
+    .horizon::after {
+      content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+      background: linear-gradient(90deg, transparent 15%, oklch(0.78 0.16 248 / 0.45) 50%, transparent 85%);
+      filter: blur(1.5px);
     }
 
     /* ── SIDEBAR ── */
     aside {
-      width: 260px; background: var(--bg);
-      border-right: 3px double rgba(255,255,255,0.15);
+      width: 232px; background: var(--bg);
+      border-right: 1px solid var(--line);
       display: flex; flex-direction: column;
-      padding: 28px 14px; z-index: 10; position: relative; flex-shrink: 0;
+      padding: 18px 12px 14px; z-index: 10; position: relative; flex-shrink: 0;
     }
 
-    .logo {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 20px; font-weight: 500; letter-spacing: -0.02em;
-      color: var(--fg); display: flex; align-items: center; gap: 10px;
-      margin-bottom: 40px; padding-left: 10px; text-decoration: none;
+    .workspace-switcher {
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 8px; margin-bottom: 16px;
+      border-radius: 5px; cursor: pointer;
+      transition: background 0.12s; text-decoration: none;
     }
-    .logo .proto { color: var(--blue); font-weight: 400; }
-    .logo-icon { width: 22px; height: 22px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .logo-icon svg { width: 22px; height: 22px; fill: var(--fg); }
+    .workspace-switcher:hover { background: rgba(255,255,255,0.035); }
+    .ws-logo {
+      width: 26px; height: 26px; background: var(--bg-3);
+      border: 1px solid var(--line-2); border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .ws-logo svg { width: 15px; height: 15px; fill: var(--fg); }
+    .ws-info { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+    .ws-name {
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 500;
+      color: var(--fg); letter-spacing: -0.005em;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ws-plan { font-family: 'DM Sans', sans-serif; font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+    .ws-caret { opacity: 0.5; font-size: 12px; color: var(--muted); }
 
     nav { display: flex; flex-direction: column; gap: 1px; flex: 1; }
     nav a {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--dim); text-decoration: none; padding: 9px 10px;
-      transition: all 0.15s var(--ease-out);
-      display: flex; align-items: center; gap: 10px;
-      position: relative; border: 1px solid transparent; font-weight: 400;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      letter-spacing: -0.005em; color: var(--muted);
+      text-decoration: none; padding: 6px 9px; border-radius: 4px;
+      transition: all 0.12s ease; display: flex; align-items: center; gap: 10px;
+      font-weight: 400;
     }
-    nav a:hover { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
-    nav a.active { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
-    nav a.active::before {
-      content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 2px;
-      background: var(--blue);
+    nav a:hover { background: rgba(255,255,255,0.035); color: var(--fg); }
+    nav a.active { background: rgba(255,255,255,0.05); color: var(--fg); }
+    nav a i { font-size: 15px; opacity: 0.75; }
+
+    .nav-section-label {
+      display: block; font-family: 'DM Sans', sans-serif; font-size: 11px;
+      color: var(--dim); padding: 16px 10px 4px; font-weight: 500;
     }
-    nav a i { font-size: 14px; opacity: 0.4; }
-    nav a:hover i, nav a.active i { opacity: 1; color: var(--blue); }
-    nav::after { content: ''; display: block; height: 1px; margin-top: 6px; background: linear-gradient(90deg, var(--line), transparent); }
+    .nav-tag-new {
+      margin-left: auto; font-family: 'DM Sans', sans-serif; font-size: 10px;
+      background: oklch(0.6 0.2 248 / 0.15); color: var(--accent);
+      padding: 1px 5px; border-radius: 3px; font-weight: 500;
+      border: 1px solid oklch(0.6 0.2 248 / 0.25);
+    }
 
     .nav-promo {
-      margin-top: 12px; background: rgba(255,255,255,0.02);
-      border: 1px solid var(--line); padding: 10px;
-      display: flex; align-items: center; gap: 10px; text-decoration: none;
-      position: relative; transition: all 0.2s var(--ease-out);
+      margin-top: 10px; background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line); border-radius: 5px;
+      padding: 9px 10px; display: flex; align-items: center; gap: 9px;
+      text-decoration: none; transition: all 0.15s ease;
     }
-    .nav-promo:hover { border-color: var(--line-2); background: rgba(255,255,255,0.03); transform: translateY(-1px); }
-    .nav-promo.active { border-color: var(--line-2); background: rgba(255,255,255,0.04); }
-    .promo-icon { font-size: 18px; min-width: 34px; height: 34px; display: flex; justify-content: center; align-items: center; }
-    .promo-text { display: flex; flex-direction: column; gap: 2px; }
-    .promo-text strong { color: var(--fg); font-size: 12px; font-weight: 400; font-family: 'DM Sans', sans-serif; }
-    .promo-text span { color: var(--dim); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.08em; line-height: 1.3; }
-    .promo-badge { position: absolute; top: 7px; right: 7px; background: var(--blue); color: #fff; font-family: 'DM Mono', monospace; font-size: 8px; font-weight: 500; padding: 2px 5px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .nav-promo:hover { background: rgba(255,255,255,0.05); border-color: var(--line-2); }
+    .nav-promo.active {
+      background: oklch(0.6 0.2 248 / 0.08);
+      border-color: oklch(0.6 0.2 248 / 0.25);
+    }
+    .promo-icon { font-size: 17px; min-width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; }
+    .promo-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .promo-text strong { color: var(--fg); font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; letter-spacing: -0.005em; }
+    .promo-text span { color: var(--muted); font-size: 10.5px; line-height: 1.3; }
 
     /* ── PROFILE ── */
-    .profile-container { margin-top: auto; position: relative; padding-top: 16px; border-top: 1px solid var(--line); }
-    .user-profile { display: flex; align-items: center; gap: 10px; padding: 9px; cursor: pointer; transition: background 0.15s; }
-    .user-profile:hover { background: rgba(255,255,255,0.03); }
+    .profile-container { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); position: relative; }
+    .user-profile {
+      display: flex; align-items: center; gap: 9px;
+      padding: 6px 7px; border-radius: 4px;
+      cursor: pointer; transition: background 0.12s;
+    }
+    .user-profile:hover { background: rgba(255,255,255,0.035); }
     .avatar {
-      width: 34px; height: 34px; background: var(--blue-dim); border: 1px solid var(--line-2);
+      width: 24px; height: 24px; background: var(--bg-3);
+      border: 1px solid var(--line-2); border-radius: 4px;
       display: flex; align-items: center; justify-content: center;
-      font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--fg);
-      position: relative; flex-shrink: 0;
+      font-family: 'DM Sans', sans-serif; font-size: 11.5px;
+      font-weight: 500; color: var(--fg); flex-shrink: 0;
     }
-    .avatar::after {
-      content: ''; position: absolute; bottom: -2px; right: -2px;
-      width: 8px; height: 8px; background: var(--blue);
-      border: 2px solid var(--bg); border-radius: 50%;
-    }
-    .user-info { display: flex; flex-direction: column; font-size: 12px; line-height: 1.3; }
-    .user-name { color: var(--fg); font-weight: 400; }
-    .user-plan { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+    .user-info { display: flex; flex-direction: column; font-size: 12.5px; line-height: 1.3; min-width: 0; flex: 1; }
+    .user-name { color: var(--fg); font-weight: 500; letter-spacing: -0.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-plan { font-size: 11px; color: var(--muted); margin-top: 1px; }
 
     .profile-menu {
       position: absolute; bottom: 100%; left: 0; width: 100%;
       background: var(--bg-2); border: 1px solid var(--line-2);
-      padding: 5px; display: flex; flex-direction: column; gap: 2px;
-      opacity: 0; pointer-events: none; transform: translateY(8px);
-      transition: all 0.18s var(--ease-out);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.95); z-index: 20; margin-bottom: 8px;
+      border-radius: 6px; padding: 4px;
+      display: flex; flex-direction: column; gap: 1px;
+      opacity: 0; pointer-events: none; transform: translateY(6px);
+      transition: all 0.15s var(--ease-out);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 20; margin-bottom: 6px;
     }
     .profile-container:hover .profile-menu { opacity: 1; pointer-events: auto; transform: translateY(0); }
     .menu-item {
-      padding: 7px 10px; font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
-      text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.12s;
+      padding: 7px 10px; border-radius: 4px;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      color: var(--muted); text-decoration: none;
+      display: flex; align-items: center; gap: 9px; transition: all 0.1s;
     }
-    .menu-item:hover { background: rgba(255,255,255,0.03); color: var(--fg); }
-    .menu-item.logout { color: #6a3535; }
-    .menu-item.logout:hover { background: rgba(100,30,30,0.08); color: #b05050; }
+    .menu-item i { font-size: 13px; }
+    .menu-item:hover { background: rgba(255,255,255,0.04); color: var(--fg); }
+    .menu-item.logout:hover { background: rgba(168, 96, 96, 0.08); color: #d09595; }
 
     /* ── MAIN ── */
     main {
       flex: 1; display: flex; align-items: center; justify-content: center;
-      position: relative; z-index: 1; padding: 24px;
+      position: relative; z-index: 2; padding: 24px;
     }
 
-    /* ── CHAT WINDOW — double-border ASCII window ── */
+    /* ── CHAT WINDOW ── */
     .chat-window {
-      width: 100%; max-width: 860px; height: 88vh;
-      border: 3px double rgba(255,255,255,0.22);
-      background: var(--bg);
+      width: 100%; max-width: 820px; height: 86vh;
+      background: rgba(16, 17, 20, 0.7);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      border: 1px solid var(--line-2);
+      border-radius: 8px;
       display: flex; flex-direction: column;
       position: relative; overflow: hidden;
       transition: transform 0.1s, border-color 0.3s;
-    }
-
-    /* floating window chrome */
-    .w-chrome {
-      position: absolute; top: -10px; left: 14px;
-      background: var(--bg); padding: 0 8px;
-      font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted);
-      z-index: 5;
-    }
-    .w-title {
-      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-      background: var(--bg); padding: 0 14px;
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.2em; color: var(--fg);
-      text-transform: uppercase; white-space: nowrap; z-index: 5;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.04) inset,
+        0 20px 60px rgba(0,0,0,0.4),
+        0 0 80px oklch(0.6 0.2 248 / 0.08);
     }
 
     @keyframes shake {
-      0%   { transform: translate(2px, 2px) rotate(0deg); }
-      20%  { transform: translate(-3px, 0px) rotate(1deg); }
-      40%  { transform: translate(2px, -2px) rotate(1deg); }
-      60%  { transform: translate(-3px, 2px) rotate(0deg); }
-      80%  { transform: translate(-2px, -2px) rotate(1deg); }
-      100% { transform: translate(2px, -2px) rotate(-1deg); }
+      0%   { transform: translate(2px, 2px); }
+      20%  { transform: translate(-3px, 0px); }
+      40%  { transform: translate(2px, -2px); }
+      60%  { transform: translate(-3px, 2px); }
+      80%  { transform: translate(-2px, -2px); }
+      100% { transform: translate(2px, -2px); }
     }
     .chat-window.shake {
       animation: shake 0.4s;
-      border-color: rgba(160, 64, 64, 0.5);
+      border-color: rgba(168, 96, 96, 0.5);
     }
 
     /* ── CHAT HEADER ── */
     .chat-header {
-      padding: 16px 22px; border-bottom: 1px solid var(--line);
+      padding: 14px 20px; border-bottom: 1px solid var(--line);
       display: flex; justify-content: space-between; align-items: center;
       background: var(--bg-2); flex-shrink: 0;
     }
-    .monkey-profile { display: flex; align-items: center; gap: 14px; }
+    .monkey-profile { display: flex; align-items: center; gap: 12px; }
     .monkey-avatar {
-      width: 44px; height: 44px; background: rgba(255,255,255,0.03);
-      border: 1px solid var(--line);
-      display: flex; align-items: center; justify-content: center; font-size: 26px;
+      width: 38px; height: 38px;
+      background: var(--bg-3); border: 1px solid var(--line-2);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
     }
     .monkey-info h2 {
-      margin: 0 0 6px; font-size: 15px; font-weight: 500; color: var(--fg);
-      letter-spacing: -0.01em; font-family: 'DM Sans', system-ui, sans-serif;
+      margin: 0 0 4px; font-size: 14px; font-weight: 500; color: var(--fg);
+      letter-spacing: -0.01em; font-family: 'DM Sans', sans-serif;
     }
 
-    .patience-container { display: flex; align-items: center; gap: 8px; }
+    .patience-container { display: flex; align-items: center; gap: 7px; }
     .patience-lbl {
-      font-family: 'DM Mono', monospace;
-      font-size: 9px; color: var(--dim); text-transform: uppercase;
-      letter-spacing: 0.16em; font-weight: 400;
+      font-family: 'DM Sans', sans-serif; font-size: 11px;
+      color: var(--muted); font-weight: 400; letter-spacing: -0.005em;
     }
     .patience-track {
-      width: 100px; height: 3px; background: var(--line);
-      border: 1px solid var(--line); overflow: hidden;
+      width: 90px; height: 4px; background: var(--line-2);
+      border-radius: 2px; overflow: hidden;
     }
     .patience-fill {
-      height: 100%; background: #3a8a5a; width: 100%;
+      height: 100%; background: #4ade80; width: 100%;
       transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.4s;
+      box-shadow: 0 0 6px currentColor;
     }
 
     .cost-badge {
-      font-family: 'DM Mono', monospace;
-      font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-      color: #8a4040; background: rgba(100,20,20,0.07);
-      padding: 5px 10px; border: 1px solid rgba(100,20,20,0.2);
-      display: flex; align-items: center; gap: 5px; font-weight: 400;
+      font-family: 'DM Sans', sans-serif; font-size: 11.5px;
+      color: #c08585; background: rgba(168, 96, 96, 0.08);
+      padding: 4px 9px; border: 1px solid rgba(168, 96, 96, 0.22);
+      border-radius: 4px;
+      display: flex; align-items: center; gap: 4px;
+      font-weight: 500; letter-spacing: -0.005em;
     }
+    .cost-badge i { font-size: 11px; }
 
     /* ── MESSAGES ── */
     .chat-history {
-      flex: 1; padding: 24px 28px; overflow-y: auto;
-      display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth;
+      flex: 1; padding: 20px 22px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth;
     }
-    .chat-history::-webkit-scrollbar { width: 3px; }
-    .chat-history::-webkit-scrollbar-thumb { background: var(--line); }
+    .chat-history::-webkit-scrollbar { width: 4px; }
+    .chat-history::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 2px; }
 
     @keyframes springIn {
-      0%   { opacity: 0; transform: translateY(12px); }
-      60%  { opacity: 1; transform: translateY(-2px); }
+      0%   { opacity: 0; transform: translateY(8px); }
       100% { opacity: 1; transform: translateY(0); }
     }
 
     .msg {
-      max-width: 80%; padding: 12px 16px;
-      font-size: 14px; line-height: 1.65; word-wrap: break-word; font-weight: 300;
-      animation: springIn 0.35s var(--ease-out) forwards;
+      max-width: 82%; padding: 11px 14px;
+      font-size: 13.5px; line-height: 1.55;
+      word-wrap: break-word; font-weight: 400;
+      animation: springIn 0.3s var(--ease-out) forwards;
+      border-radius: 6px;
+      letter-spacing: -0.005em;
+      font-family: 'DM Sans', sans-serif;
     }
     .msg.bot {
       align-self: flex-start;
-      background: var(--bg-2); color: var(--fg);
+      background: var(--bg-3);
+      color: var(--fg);
       border: 1px solid var(--line);
-      border-left: 2px solid var(--blue-dim);
     }
     .msg.user {
       align-self: flex-end;
-      background: var(--blue); color: #fff;
+      background: var(--accent);
+      color: #fff; font-weight: 500;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.25);
     }
 
-    .msg p { margin: 0 0 10px 0; }
+    .msg p { margin: 0 0 8px 0; }
     .msg p:last-child { margin: 0; }
-    .msg strong { color: var(--fg); font-weight: 500; }
+    .msg strong { color: var(--fg); font-weight: 600; }
     .msg.user strong { color: #fff; }
     .msg em { color: var(--muted); font-style: italic; }
-    .msg ul { margin: 8px 0; padding-left: 18px; }
-    .msg li { margin-bottom: 4px; }
+    .msg ul { margin: 6px 0; padding-left: 18px; }
+    .msg li { margin-bottom: 3px; }
     .msg code {
-      background: rgba(255,255,255,0.06); color: var(--blue);
+      background: rgba(0,0,0,0.3); color: var(--fg);
       padding: 1px 5px; font-family: 'DM Mono', monospace;
-      font-size: 12px; border: 1px solid var(--line);
+      font-size: 11.5px; border: 1px solid var(--line);
+      border-radius: 3px;
     }
 
     /* ── DEAL BUTTON ── */
     .stripe-btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      margin-top: 14px; width: 100%;
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.18em; text-transform: uppercase; font-weight: 400;
-      background: var(--blue); color: #fff; border: none;
-      padding: 12px 20px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 12px; width: 100%;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      background: var(--accent); color: #fff; border: none;
+      padding: 10px 16px; cursor: pointer;
+      border-radius: 5px;
+      font-weight: 500; letter-spacing: -0.005em;
       transition: all 0.15s var(--ease-out);
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
     }
-    .stripe-btn:hover { background: var(--blue-2); transform: translateY(-1px); }
-    .stripe-btn:active { transform: translateY(1px); }
-    .stripe-btn:disabled {
-      background: rgba(255,255,255,0.04); color: var(--dim);
-      cursor: not-allowed; transform: none;
-    }
+    .stripe-btn:hover { background: var(--accent-2); box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45); }
+    .stripe-btn:disabled { background: var(--bg-3); color: var(--dim); cursor: not-allowed; box-shadow: none; }
 
     /* ── INPUT ── */
     .chat-input-area {
-      padding: 14px 18px; border-top: 1px solid var(--line);
-      background: var(--bg-2); display: flex; gap: 10px; align-items: center;
+      padding: 10px 12px; border-top: 1px solid var(--line);
+      background: var(--bg-2); display: flex; gap: 8px; align-items: center;
       flex-shrink: 0;
     }
     .chat-input {
       flex: 1; background: var(--bg);
-      border: 1px solid var(--line); padding: 11px 14px;
-      color: var(--fg); font-size: 14px;
-      transition: all 0.2s var(--ease-out); font-weight: 300;
+      border: 1px solid var(--line-2); padding: 9px 12px;
+      color: var(--fg); font-size: 13.5px;
+      transition: all 0.15s var(--ease-out); font-weight: 400;
       font-family: 'DM Sans', sans-serif;
+      border-radius: 5px; letter-spacing: -0.005em;
     }
-    .chat-input::placeholder { color: var(--dim); font-style: italic; }
-    .chat-input:focus { border-color: var(--line-2); box-shadow: 0 0 0 3px rgba(255,255,255,0.03); }
+    .chat-input::placeholder { color: var(--dim); }
+    .chat-input:focus { border-color: var(--line-3); }
 
     .chat-btn {
-      width: 42px; height: 42px; border: none;
-      background: var(--blue); color: #fff; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; font-size: 16px;
+      width: 32px; height: 32px; border: none;
+      background: var(--accent); color: #fff; cursor: pointer;
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; font-size: 13px;
       transition: all 0.15s var(--ease-out); flex-shrink: 0;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
     }
-    .chat-btn:hover { background: var(--blue-2); transform: translateY(-1px); }
-    .chat-btn:active { transform: translateY(1px); }
-    .chat-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; background: rgba(255,255,255,0.04); color: var(--dim); }
+    .chat-btn:hover { background: var(--accent-2); box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45); }
+    .chat-btn:disabled { opacity: 0.4; cursor: not-allowed; background: var(--bg-3); color: var(--dim); box-shadow: none; }
 
     /* ── GAME OVER OVERLAY ── */
     .game-over {
       position: absolute; inset: 0;
-      background: rgba(10,11,13,0.95);
+      background: rgba(10,11,13,0.92);
+      backdrop-filter: blur(10px);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       z-index: 50; opacity: 0; pointer-events: none;
-      transition: opacity 0.5s; text-align: center; padding: 40px;
+      transition: opacity 0.5s; text-align: center; padding: 32px;
     }
     .game-over.active { opacity: 1; pointer-events: auto; }
 
-    .game-over-window {
-      border: 3px double rgba(160,64,64,0.4);
-      padding: 48px 56px;
-      position: relative; display: flex; flex-direction: column; align-items: center;
+    .game-over-card {
+      background: rgba(168, 96, 96, 0.06);
+      border: 1px solid rgba(168, 96, 96, 0.3);
+      border-radius: 8px;
+      padding: 36px 44px;
+      display: flex; flex-direction: column; align-items: center;
+      max-width: 420px;
     }
-    .game-over-window .w-title-err {
-      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-      background: rgba(10,11,13,0.95); padding: 0 14px;
-      font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.2em;
-      color: #b05050; text-transform: uppercase; white-space: nowrap;
-    }
-
     .game-over h1 {
       font-family: 'DM Sans', sans-serif;
-      color: #b05050; font-size: 36px; margin: 0 0 12px;
-      letter-spacing: -0.03em; font-weight: 400;
+      color: #d09595; font-size: 28px; margin: 0 0 8px;
+      letter-spacing: -0.03em; font-weight: 500; line-height: 1.05;
     }
-    .game-over h1 em { font-style: italic; }
+    .game-over h1 em {
+      font-style: italic;
+      color: oklch(0.6 0.18 30);
+      font-weight: 500;
+    }
     .game-over p {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.1em; color: var(--muted);
-      margin-bottom: 32px; line-height: 1.65; text-transform: uppercase;
+      font-family: 'DM Sans', sans-serif; font-size: 13.5px;
+      color: var(--muted); margin: 0 0 24px;
+      line-height: 1.55; letter-spacing: -0.005em;
     }
     .btn-return {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
-      padding: 12px 24px; background: var(--blue); color: #fff;
-      text-decoration: none; font-weight: 400;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px; font-weight: 500; letter-spacing: -0.005em;
+      padding: 9px 16px; background: var(--accent); color: #fff;
+      text-decoration: none; border-radius: 5px;
       transition: all 0.15s var(--ease-out);
-      display: inline-flex; align-items: center; gap: 8px;
+      display: inline-flex; align-items: center; gap: 6px;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
     }
-    .btn-return:hover { background: var(--blue-2); transform: translateY(-1px); }
+    .btn-return:hover { background: var(--accent-2); box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45); }
 
     @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
+  <div class="horizon"></div>
+
   <aside>
-    <a href="/dashboard" class="logo">
-      <span class="logo-icon">
+    <a href="/dashboard" class="workspace-switcher">
+      <div class="ws-logo">
         <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
           <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
             <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
@@ -366,23 +400,37 @@
             <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
           </g>
         </svg>
-      </span>
-      gor<span class="proto">://</span>a
+      </div>
+      <div class="ws-info">
+        <span class="ws-name">{% if user.email %}{{ user.email.split('@')[0] }}{% else %}gor://a{% endif %}</span>
+        <span class="ws-plan">{{ user.plan|capitalize }}</span>
+      </div>
+      <i class="ph ph-caret-up-down ws-caret"></i>
     </a>
 
     <nav>
       <a href="/dashboard"><i class="ph ph-squares-four"></i> Projects</a>
       <a href="/settings/skills"><i class="ph ph-brain"></i> Agent Skills</a>
+      <a href="/docs/intro"><i class="ph ph-book"></i> Docs</a>
+
+      <span class="nav-section-label">Workspace</span>
+
       <a href="/settings"><i class="ph ph-gear"></i> Settings</a>
       <a href="/pricing"><i class="ph ph-lightning"></i> Upgrade</a>
-      <a href="/docs/intro"><i class="ph ph-book"></i> Docs</a>
+
+      <span class="nav-section-label">Tools</span>
+
+      <a href="/design">
+        <i class="ph ph-pen-nib"></i> Gorilla Design
+        <span class="nav-tag-new">New</span>
+      </a>
+
       <a href="/pricing/negotiate" class="nav-promo active">
         <div class="promo-icon">😎</div>
         <div class="promo-text">
           <strong>Haggle with Monke</strong>
-          <span>Negotiate your plan to $0.67/mo</span>
+          <span>Plans from $0.67/mo</span>
         </div>
-        <div class="promo-badge">HOT</div>
       </a>
     </nav>
 
@@ -395,23 +443,21 @@
         <div class="avatar">{{ user.email[0].upper() if user.email else 'U' }}</div>
         <div class="user-info">
           <span class="user-name">{% if user.email %}{{ user.email.split('@')[0] }}{% else %}User{% endif %}</span>
-          <span class="user-plan">{{ user.plan|capitalize }} Plan</span>
+
         </div>
-        <i class="ph ph-caret-up" style="margin-left:auto; opacity:0.3; font-size:11px;"></i>
+        <i class="ph ph-dots-three" style="opacity:0.5; font-size:14px; color: var(--muted);"></i>
       </div>
     </div>
   </aside>
 
   <main>
     <div class="chat-window" id="chatContainer">
-      <span class="w-chrome">≡ ×</span>
-      <span class="w-title">[ MONKE / NEGOTIATOR ]</span>
 
       <div class="chat-header">
         <div class="monkey-profile">
           <div class="monkey-avatar">🦍</div>
           <div class="monkey-info">
-            <h2>Monke The Negotiator</h2>
+            <h2>Monke the negotiator</h2>
             <div class="patience-container">
               <span class="patience-lbl">Patience</span>
               <div class="patience-track">
@@ -421,7 +467,7 @@
           </div>
         </div>
         <div class="cost-badge">
-          <i class="ph-bold ph-fire"></i> -100 / Msg
+          <i class="ph-fill ph-fire"></i> −100 / msg
         </div>
       </div>
 
@@ -429,14 +475,13 @@
 
       <div class="chat-input-area">
         <input type="text" class="chat-input" id="chatInput" placeholder="State your price…" onkeydown="handleEnter(event)" autocomplete="off" autofocus>
-        <button class="chat-btn" id="sendBtn" onclick="sendMessage()"><i class="ph-bold ph-paper-plane-right"></i></button>
+        <button class="chat-btn" id="sendBtn" onclick="sendMessage()"><i class="ph-bold ph-arrow-up"></i></button>
       </div>
 
       <div class="game-over" id="gameOver">
-        <div class="game-over-window">
-          <span class="w-title-err">[ DEAL / CANCELLED ]</span>
+        <div class="game-over-card">
           <h1>Deal <em>cancelled.</em></h1>
-          <p>Monke is utterly disgusted by your poverty.<br/>Full price for you.</p>
+          <p>Monke is utterly disgusted by your poverty. Full price for you.</p>
           <a href="/pricing" class="btn-return"><i class="ph ph-receipt"></i> Pay $13.99/mo →</a>
         </div>
       </div>
@@ -507,9 +552,9 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
       patience = Math.max(0, Math.min(100, patience + dropAmount));
       patienceFill.style.width = patience + '%';
 
-      if (patience > 60) { patienceFill.style.background = '#3a8a5a'; }
-      else if (patience > 30) { patienceFill.style.background = '#b5956a'; }
-      else { patienceFill.style.background = '#b05050'; }
+      if (patience > 60) { patienceFill.style.background = '#4ade80'; patienceFill.style.color = '#4ade80'; }
+      else if (patience > 30) { patienceFill.style.background = '#fbbf24'; patienceFill.style.color = '#fbbf24'; }
+      else { patienceFill.style.background = '#c08585'; patienceFill.style.color = '#c08585'; }
 
       if (dropAmount < 0) {
         container.classList.remove('shake');
@@ -532,7 +577,7 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
 
     async function saveDealAndCheckout(btnElement, agreedPrice) {
       btnElement.disabled = true;
-      btnElement.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite;"></i> Saving Deal…';
+      btnElement.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite;"></i> Saving deal…';
 
       try {
         const res = await fetch('/api/pricing/save-negotiation', {
@@ -543,8 +588,8 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
         const data = await res.json();
 
         if (data.status === "success") {
-          btnElement.innerHTML = '<i class="ph-bold ph-check-circle"></i> Deal Locked! Redirecting…';
-          btnElement.style.background = "#3a8a5a";
+          btnElement.innerHTML = '<i class="ph-bold ph-check-circle"></i> Deal locked! Redirecting…';
+          btnElement.style.background = "#4ade80";
           setTimeout(function() { window.location.href = "/pricing"; }, 1000);
         } else {
           alert("Failed to save price. Monke's database is down.");
@@ -598,7 +643,7 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
         });
 
         if (res.status === 401 || res.status === 402) {
-          aiDiv.innerHTML = '<span style="color:#b05050"><i class="ph-fill ph-warning-circle"></i> You\'re out of credits or your API key is invalid. No deal.</span>';
+          aiDiv.innerHTML = '<span style="color:#c08585"><i class="ph-fill ph-warning-circle"></i> You\'re out of credits or your API key is invalid. No deal.</span>';
           sendBtn.disabled = false;
           return;
         }
@@ -653,11 +698,14 @@ At the VERY END of every single response, you MUST output a hidden JSON block to
 
       } catch (err) {
         console.error(err);
-        aiDiv.innerHTML = '<span style="color:#b05050"><i class="ph-fill ph-warning-circle"></i> Monke\'s server crashed. Try again.</span>';
+        aiDiv.innerHTML = '<span style="color:#c08585"><i class="ph-fill ph-warning-circle"></i> Monke\'s server crashed. Try again.</span>';
         sendBtn.disabled = false;
         chatInput.focus();
       }
     }
+
+    // initialize patience bar color
+    patienceFill.style.color = '#4ade80';
   </script>
 </body>
 </html>

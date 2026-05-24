@@ -14,316 +14,364 @@
     :root {
       --bg: #0a0b0d;
       --bg-2: #101114;
+      --bg-3: #16181d;
       --fg: #e8e8eb;
       --muted: #8a8c95;
-      --dim: #4a4c55;
-      --faint: #25272d;
-      --line: rgba(255,255,255,0.10);
-      --line-2: rgba(255,255,255,0.18);
-      --blue: oklch(0.74 0.16 248);
-      --blue-2: oklch(0.62 0.2 252);
-      --blue-dim: oklch(0.4 0.12 252);
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
       --amber: oklch(0.78 0.13 80);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
     body {
       margin: 0; background: var(--bg); color: var(--fg);
       height: 100vh; display: flex; overflow: hidden;
       font-family: 'DM Sans', system-ui, sans-serif;
-      font-weight: 300; -webkit-font-smoothing: antialiased;
+      font-weight: 400; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em; position: relative;
     }
 
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    .horizon {
+      position: fixed; left: 232px; right: 0; bottom: -50%; height: 110%;
+      pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 65% 75% at 50% 0%,
+        oklch(0.55 0.22 248 / 0.4) 0%,
+        oklch(0.45 0.2 250 / 0.2) 28%,
+        oklch(0.3 0.16 252 / 0.08) 52%,
+        transparent 75%);
+      filter: blur(24px);
+    }
+    .horizon::after {
+      content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+      background: linear-gradient(90deg, transparent 15%, oklch(0.78 0.16 248 / 0.45) 50%, transparent 85%);
+      filter: blur(1.5px);
     }
 
     /* ── SIDEBAR ── */
     aside {
-      width: 260px; background: var(--bg);
-      border-right: 3px double rgba(255,255,255,0.15);
+      width: 232px; background: var(--bg);
+      border-right: 1px solid var(--line);
       display: flex; flex-direction: column;
-      padding: 28px 14px; z-index: 10; position: relative; flex-shrink: 0;
+      padding: 18px 12px 14px; z-index: 10; position: relative; flex-shrink: 0;
     }
 
-    .logo {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 20px; font-weight: 500; letter-spacing: -0.02em;
-      color: var(--fg); display: flex; align-items: center; gap: 10px;
-      margin-bottom: 40px; padding-left: 10px; text-decoration: none;
+    .workspace-switcher {
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 8px; margin-bottom: 16px;
+      border-radius: 5px; cursor: pointer;
+      transition: background 0.12s; text-decoration: none;
     }
-    .logo .proto { color: var(--blue); font-weight: 400; }
-    .logo-icon { width: 22px; height: 22px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .logo-icon svg { width: 22px; height: 22px; fill: var(--fg); }
+    .workspace-switcher:hover { background: rgba(255,255,255,0.035); }
+    .ws-logo {
+      width: 26px; height: 26px; background: var(--bg-3);
+      border: 1px solid var(--line-2); border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .ws-logo svg { width: 15px; height: 15px; fill: var(--fg); }
+    .ws-info { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+    .ws-name {
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 500;
+      color: var(--fg); letter-spacing: -0.005em;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ws-plan { font-family: 'DM Sans', sans-serif; font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+    .ws-caret { opacity: 0.5; font-size: 12px; color: var(--muted); }
 
     .premium-badge {
       font-family: 'DM Mono', monospace; font-size: 9px;
-      background: var(--blue); color: #fff; padding: 2px 7px;
-      font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
-      display: none; transform: translateY(-1px);
+      background: oklch(0.6 0.2 248 / 0.15); color: var(--accent);
+      padding: 2px 6px; border-radius: 3px; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      display: none; border: 1px solid oklch(0.6 0.2 248 / 0.25);
     }
     body.premium .premium-badge { display: inline-block; }
 
     nav { display: flex; flex-direction: column; gap: 1px; flex: 1; }
     nav a {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--dim); text-decoration: none; padding: 9px 10px;
-      transition: all 0.15s var(--ease-out);
-      display: flex; align-items: center; gap: 10px;
-      position: relative; border: 1px solid transparent; font-weight: 400;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      letter-spacing: -0.005em; color: var(--muted);
+      text-decoration: none; padding: 6px 9px; border-radius: 4px;
+      transition: all 0.12s ease; display: flex; align-items: center; gap: 10px;
+      font-weight: 400;
     }
-    nav a:hover { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
-    nav a.active { background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line); }
-    nav a.active::before {
-      content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 2px;
-      background: var(--blue);
+    nav a:hover { background: rgba(255,255,255,0.035); color: var(--fg); }
+    nav a.active { background: rgba(255,255,255,0.05); color: var(--fg); }
+    nav a i { font-size: 15px; opacity: 0.75; }
+
+    .nav-section-label {
+      display: block; font-family: 'DM Sans', sans-serif; font-size: 11px;
+      color: var(--dim); padding: 16px 10px 4px; font-weight: 500;
     }
-    nav a i { font-size: 14px; opacity: 0.4; }
-    nav a:hover i, nav a.active i { opacity: 1; color: var(--blue); }
-    nav::after { content: ''; display: block; height: 1px; margin-top: 6px; background: linear-gradient(90deg, var(--line), transparent); }
+    .nav-tag-new {
+      margin-left: auto; font-family: 'DM Sans', sans-serif; font-size: 10px;
+      background: oklch(0.6 0.2 248 / 0.15); color: var(--accent);
+      padding: 1px 5px; border-radius: 3px; font-weight: 500;
+      border: 1px solid oklch(0.6 0.2 248 / 0.25);
+    }
 
     .nav-promo {
-      margin-top: 12px; background: rgba(255,255,255,0.02);
-      border: 1px solid var(--line); padding: 10px;
-      display: flex; align-items: center; gap: 10px; text-decoration: none;
-      position: relative; transition: all 0.2s var(--ease-out);
+      margin-top: 10px; background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line); border-radius: 5px;
+      padding: 9px 10px; display: flex; align-items: center; gap: 9px;
+      text-decoration: none; transition: all 0.15s ease;
     }
-    .nav-promo:hover { border-color: var(--line-2); background: rgba(255,255,255,0.03); transform: translateY(-1px); }
-    .promo-icon { font-size: 18px; min-width: 34px; height: 34px; display: flex; justify-content: center; align-items: center; }
-    .promo-text { display: flex; flex-direction: column; gap: 2px; }
-    .promo-text strong { color: var(--fg); font-size: 12px; font-weight: 400; font-family: 'DM Sans', sans-serif; }
-    .promo-text span { color: var(--dim); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.08em; line-height: 1.3; }
-    .promo-badge { position: absolute; top: 7px; right: 7px; background: var(--blue); color: #fff; font-family: 'DM Mono', monospace; font-size: 8px; font-weight: 500; padding: 2px 5px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .nav-promo:hover { background: rgba(255,255,255,0.05); border-color: var(--line-2); }
+    .promo-icon { font-size: 17px; min-width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; }
+    .promo-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .promo-text strong { color: var(--fg); font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; letter-spacing: -0.005em; }
+    .promo-text span { color: var(--muted); font-size: 10.5px; line-height: 1.3; }
 
     /* ── PROFILE ── */
-    .profile-container { margin-top: auto; position: relative; padding-top: 16px; border-top: 1px solid var(--line); }
-    .user-profile { display: flex; align-items: center; gap: 10px; padding: 9px; cursor: pointer; transition: background 0.15s; }
-    .user-profile:hover { background: rgba(255,255,255,0.03); }
+    .profile-container { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); position: relative; }
+    .user-profile {
+      display: flex; align-items: center; gap: 9px;
+      padding: 6px 7px; border-radius: 4px;
+      cursor: pointer; transition: background 0.12s;
+    }
+    .user-profile:hover { background: rgba(255,255,255,0.035); }
     .avatar {
-      width: 34px; height: 34px; background: var(--blue-dim); border: 1px solid var(--line-2);
+      width: 24px; height: 24px; background: var(--bg-3);
+      border: 1px solid var(--line-2); border-radius: 4px;
       display: flex; align-items: center; justify-content: center;
-      font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--fg);
-      position: relative; flex-shrink: 0;
+      font-family: 'DM Sans', sans-serif; font-size: 11.5px;
+      font-weight: 500; color: var(--fg); flex-shrink: 0;
     }
-    .avatar::after {
-      content: ''; position: absolute; bottom: -2px; right: -2px;
-      width: 8px; height: 8px; background: var(--blue);
-      border: 2px solid var(--bg); border-radius: 50%;
-    }
-    .user-info { display: flex; flex-direction: column; font-size: 12px; line-height: 1.3; }
-    .user-name { color: var(--fg); font-weight: 400; }
-    .user-plan { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+    .user-info { display: flex; flex-direction: column; font-size: 12.5px; line-height: 1.3; min-width: 0; flex: 1; }
+    .user-name { color: var(--fg); font-weight: 500; letter-spacing: -0.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-plan { font-size: 11px; color: var(--muted); margin-top: 1px; }
 
     .profile-menu {
       position: absolute; bottom: 100%; left: 0; width: 100%;
       background: var(--bg-2); border: 1px solid var(--line-2);
-      padding: 5px; display: flex; flex-direction: column; gap: 2px;
-      opacity: 0; pointer-events: none; transform: translateY(8px);
-      transition: all 0.18s var(--ease-out);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.95); z-index: 20; margin-bottom: 8px;
+      border-radius: 6px; padding: 4px;
+      display: flex; flex-direction: column; gap: 1px;
+      opacity: 0; pointer-events: none; transform: translateY(6px);
+      transition: all 0.15s var(--ease-out);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 20; margin-bottom: 6px;
     }
     .profile-container:hover .profile-menu { opacity: 1; pointer-events: auto; transform: translateY(0); }
     .menu-item {
-      padding: 7px 10px; font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
-      text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.12s;
+      padding: 7px 10px; border-radius: 4px;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      color: var(--muted); text-decoration: none;
+      display: flex; align-items: center; gap: 9px; transition: all 0.1s;
     }
-    .menu-item:hover { background: rgba(255,255,255,0.03); color: var(--fg); }
-    .menu-item.logout { color: #6a3535; }
-    .menu-item.logout:hover { background: rgba(100,30,30,0.08); color: #b05050; }
+    .menu-item i { font-size: 13px; }
+    .menu-item:hover { background: rgba(255,255,255,0.04); color: var(--fg); }
+    .menu-item.logout:hover { background: rgba(168, 96, 96, 0.08); color: #d09595; }
 
     /* ── MAIN ── */
-    main { flex: 1; overflow-y: auto; padding: 48px 64px; position: relative; z-index: 1; }
-    main::-webkit-scrollbar { width: 4px; }
+    main { flex: 1; overflow-y: auto; padding: 0; position: relative; z-index: 2; }
+    main::-webkit-scrollbar { width: 6px; }
     main::-webkit-scrollbar-track { background: transparent; }
-    main::-webkit-scrollbar-thumb { background: var(--line); }
-    main::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
+    main::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
 
-    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-entry { animation: slideUp 0.6s var(--ease-out) forwards; opacity: 0; }
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 28px; border-bottom: 1px solid var(--line);
+      background: rgba(10, 11, 13, 0.7);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      position: sticky; top: 0; z-index: 5;
+    }
+    .topbar-crumbs {
+      display: flex; align-items: center; gap: 6px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+    }
+    .topbar-crumbs a { color: var(--muted); text-decoration: none; transition: color 0.12s; }
+    .topbar-crumbs a:hover { color: var(--fg); }
+    .topbar-crumbs i { font-size: 10px; opacity: 0.4; color: var(--muted); }
+    .topbar-crumbs .current { color: var(--fg); font-weight: 500; }
+
+    .content { padding: 56px 48px 80px; max-width: 1080px; margin: 0 auto; position: relative; z-index: 2; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-entry { animation: slideUp 0.4s var(--ease-out) forwards; opacity: 0; }
 
     /* ── PRICING HEADER ── */
-    .pricing-header { margin-bottom: 56px; }
+    .pricing-header { margin-bottom: 40px; text-align: center; }
     .pricing-header .eyebrow {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
-      margin-bottom: 14px;
+      font-family: 'DM Sans', sans-serif; font-size: 12px;
+      color: var(--accent); margin-bottom: 10px;
+      font-weight: 500; letter-spacing: -0.005em;
     }
-    .pricing-header .eyebrow::before { content: "// "; color: var(--dim); }
     .pricing-header h1 {
       font-family: 'DM Sans', sans-serif;
-      font-size: clamp(28px, 3vw, 44px); font-weight: 400;
-      letter-spacing: -0.04em; margin: 0 0 12px; color: var(--fg); line-height: 1.0;
+      font-size: clamp(32px, 3.5vw, 44px); font-weight: 500;
+      letter-spacing: -0.035em; margin: 0 0 12px; color: var(--fg); line-height: 1.05;
     }
-    .pricing-header h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+    .pricing-header h1 .accent { color: var(--accent); font-style: italic; font-weight: 500; }
     .pricing-header p {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.08em; color: var(--muted);
-      margin: 0; line-height: 1.65; max-width: 500px;
+      font-family: 'DM Sans', sans-serif; font-size: 14.5px;
+      color: var(--muted); margin: 0 auto; max-width: 500px;
+      line-height: 1.55; font-weight: 400; letter-spacing: -0.005em;
     }
 
-    /* ── PRICING GRID — bento ── */
+    /* ── PRICING GRID ── */
     .pricing-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 0;
+      gap: 12px;
       max-width: 1000px;
-      border-top: 1px solid var(--line);
-      border-left: 1px solid var(--line);
+      margin: 0 auto;
     }
 
     /* ── CARDS ── */
     .card {
-      background: var(--bg-2);
-      border-right: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
-      padding: 32px 28px;
+      background: rgba(16, 17, 20, 0.65);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 24px 22px;
       position: relative;
-      transition: background 0.2s var(--ease-out);
+      transition: all 0.2s var(--ease-out);
       display: flex; flex-direction: column;
     }
-    .card:hover { background: rgba(255,255,255,0.02); }
-
-    /* top-line accent on hover */
-    .card::before {
-      content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 1px;
-      background: linear-gradient(90deg, transparent 10%, var(--blue) 50%, transparent 90%);
-      opacity: 0; transition: opacity 0.25s; z-index: 2;
-    }
-    .card:hover::before { opacity: 0.5; }
-
-    /* corner marks */
-    .card::after {
-      content: ''; position: absolute; top: 8px; left: 8px;
-      width: 10px; height: 10px;
-      border-top: 1px solid var(--muted); border-left: 1px solid var(--muted);
-      opacity: 0.4; pointer-events: none;
+    .card:hover {
+      border-color: var(--line-2);
+      background: rgba(22, 24, 29, 0.75);
+      transform: translateY(-2px);
     }
 
-    /* featured / highlighted card */
     .card.featured {
-      background: rgba(255,255,255,0.015);
-      border-right-color: var(--blue-dim);
+      border-color: oklch(0.6 0.2 248 / 0.35);
+      background: rgba(22, 24, 29, 0.7);
+      box-shadow: 0 0 32px oklch(0.6 0.2 248 / 0.1);
     }
-    .card.featured::before { opacity: 0.3; }
+    .card.featured:hover {
+      border-color: oklch(0.6 0.2 248 / 0.5);
+      box-shadow: 0 0 48px oklch(0.6 0.2 248 / 0.15);
+    }
 
-    /* discounted card */
     .card.discounted {
-      border-right-color: oklch(0.4 0.1 80);
+      border-color: oklch(0.55 0.15 80 / 0.35);
+      background: rgba(40, 32, 18, 0.4);
     }
-    .card.discounted::before {
-      background: linear-gradient(90deg, transparent 10%, var(--amber) 50%, transparent 90%);
-    }
-    .card.discounted:hover::before { opacity: 0.5; }
 
-    /* ── PLAN BADGE (floating title) ── */
+    /* ── PLAN BADGE ── */
     .plan-badge {
-      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-      background: var(--bg-2); padding: 0 12px;
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.18em; text-transform: uppercase;
-      white-space: nowrap;
+      position: absolute; top: -10px; left: 22px;
+      background: var(--accent); color: #fff;
+      padding: 3px 9px; border-radius: 3px;
+      font-family: 'DM Sans', sans-serif; font-size: 10.5px;
+      font-weight: 500; letter-spacing: -0.005em;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.4);
     }
-    .card.featured .plan-badge { color: var(--blue); }
-    .card.discounted .plan-badge { color: var(--amber); }
+    .card.discounted .plan-badge {
+      background: var(--amber); color: var(--bg);
+      box-shadow: 0 2px 8px oklch(0.55 0.15 80 / 0.4);
+    }
 
-    /* ── CARD EYEBROW / TAG ── */
+    /* ── CARD TAG ── */
     .card-tag {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.16em; text-transform: uppercase; color: var(--blue);
-      margin-bottom: 16px;
+      font-family: 'DM Sans', sans-serif; font-size: 11.5px;
+      color: var(--accent); margin-bottom: 14px;
+      font-weight: 500; letter-spacing: -0.005em;
+      display: flex; align-items: center; gap: 6px;
     }
+    .card-tag i { font-size: 13px; opacity: 0.9; }
     .card.discounted .card-tag { color: var(--amber); }
     .card-tag.enterprise { color: var(--muted); }
 
     /* ── PRICE ── */
-    .price-container { margin-bottom: 24px; }
+    .price-container { margin-bottom: 20px; }
     .price {
       font-family: 'DM Sans', sans-serif;
-      font-size: 48px; font-weight: 500; color: var(--fg);
-      letter-spacing: -0.04em; display: flex; align-items: baseline; gap: 6px;
+      font-size: 42px; font-weight: 500; color: var(--fg);
+      letter-spacing: -0.035em; display: flex; align-items: baseline; gap: 5px;
       line-height: 1;
     }
     .price .period {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      color: var(--muted); font-weight: 400; letter-spacing: 0.1em;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      color: var(--muted); font-weight: 400; letter-spacing: -0.005em;
     }
     .price.amber { color: var(--amber); }
 
     .discount-strike {
-      font-family: 'DM Mono', monospace;
-      font-size: 13px; color: #8a4040; text-decoration: line-through;
-      font-weight: 400; display: block; margin-bottom: 6px;
-      letter-spacing: 0.06em;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      color: #c08585; text-decoration: line-through;
+      font-weight: 400; display: block; margin-bottom: 4px;
+      letter-spacing: -0.005em;
     }
 
     .monke-deal {
-      font-family: 'DM Mono', monospace;
-      font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--amber); background: rgba(255,255,255,0.03);
-      border: 1px solid oklch(0.4 0.1 80);
-      padding: 4px 10px; display: inline-block; margin-top: 10px;
+      font-family: 'DM Sans', sans-serif; font-size: 11px;
+      color: var(--amber); background: oklch(0.55 0.15 80 / 0.1);
+      border: 1px solid oklch(0.55 0.15 80 / 0.3);
+      padding: 3px 8px; border-radius: 3px;
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 8px; font-weight: 500; letter-spacing: -0.005em;
     }
 
     .card-note {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.06em; color: var(--muted);
-      margin-top: 8px; line-height: 1.6;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      color: var(--muted); margin-top: 8px; line-height: 1.5;
+      font-weight: 400; letter-spacing: -0.005em;
     }
 
     /* ── FEATURES ── */
-    .features { list-style: none; padding: 0; margin: 0 0 32px 0; flex: 1; }
+    .features { list-style: none; padding: 0; margin: 0 0 22px 0; flex: 1; }
     .features li {
-      display: flex; align-items: flex-start; gap: 10px;
-      margin-bottom: 10px; color: var(--fg);
-      font-size: 13px; font-weight: 300; line-height: 1.5;
+      display: flex; align-items: flex-start; gap: 9px;
+      margin-bottom: 9px; color: var(--fg);
+      font-size: 13px; font-weight: 400; line-height: 1.45;
+      letter-spacing: -0.005em;
     }
-    .features li i { font-size: 14px; color: var(--blue); flex-shrink: 0; margin-top: 1px; }
+    .features li i { font-size: 13px; color: var(--accent); flex-shrink: 0; margin-top: 3px; }
     .card.discounted .features li i { color: var(--amber); }
     .features li.dim { color: var(--muted); }
-    .features li .feat-label {
-      font-family: 'DM Sans', sans-serif;
-    }
     .features li .feat-strong { font-weight: 500; color: var(--fg); }
 
     /* ── BUTTONS ── */
     .btn {
-      width: 100%; padding: 12px;
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.16em; text-transform: uppercase; font-weight: 400;
-      cursor: pointer; border: 1px solid var(--line);
+      width: 100%; padding: 9px 14px;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      font-weight: 500; letter-spacing: -0.005em;
+      cursor: pointer; border: 1px solid var(--line-2);
+      border-radius: 4px;
       transition: all 0.15s var(--ease-out);
-      background: rgba(255,255,255,0.03); color: var(--muted);
-      display: block; text-align: center; text-decoration: none;
+      background: var(--bg-2); color: var(--fg);
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      text-decoration: none;
     }
-    .btn:hover { background: rgba(255,255,255,0.06); border-color: var(--line-2); color: var(--fg); transform: translateY(-1px); }
-    .btn:active { transform: translateY(1px); }
+    .btn:hover { background: var(--bg-3); border-color: var(--line-3); }
 
     .btn.primary {
-      background: var(--blue); color: #fff; border-color: transparent;
+      background: var(--accent); color: #fff; border-color: transparent;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
     }
-    .btn.primary:hover { background: var(--blue-2); transform: translateY(-1px); }
+    .btn.primary:hover { background: var(--accent-2); box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45); }
 
     .btn.amber-btn {
       background: var(--amber); color: var(--bg); border-color: transparent;
+      box-shadow: 0 2px 8px oklch(0.55 0.15 80 / 0.3);
     }
-    .btn.amber-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn.amber-btn:hover { opacity: 0.92; box-shadow: 0 4px 14px oklch(0.55 0.15 80 / 0.45); }
+
+    @media (max-width: 768px) {
+      aside { display: none; }
+      .content { padding: 32px 20px 60px; }
+    }
   </style>
 </head>
 
 <body class="{% if user.plan == 'premium' %}premium{% endif %}">
 
+  <div class="horizon"></div>
+
   <aside>
-    <a href="/dashboard" class="logo">
-      <span class="logo-icon">
+    <a href="/dashboard" class="workspace-switcher">
+      <div class="ws-logo">
         <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
           <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
             <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
@@ -334,28 +382,37 @@
             <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
           </g>
         </svg>
-      </span>
-      gor://a
-      <span class="premium-badge">PRO</span>
+      </div>
+      <div class="ws-info">
+        <span class="ws-name">{% if user.email %}{{ user.email.split('@')[0] }}{% else %}gor://a{% endif %}</span>
+        <span class="ws-plan">{{ user.plan|capitalize }}</span>
+      </div>
+      <i class="ph ph-caret-up-down ws-caret"></i>
     </a>
 
     <nav>
       <a href="/dashboard"><i class="ph ph-squares-four"></i> Projects</a>
       <a href="/settings/skills"><i class="ph ph-brain"></i> Agent Skills</a>
+      <a href="/docs/intro"><i class="ph ph-book"></i> Docs</a>
+
+      <span class="nav-section-label">Workspace</span>
+
       <a href="/settings"><i class="ph ph-gear"></i> Settings</a>
       <a href="/pricing" class="active"><i class="ph ph-lightning"></i> Upgrade</a>
-      <a href="/docs/intro"><i class="ph ph-book"></i> Docs</a>
+
+      <span class="nav-section-label">Tools</span>
+
       <a href="/design">
         <i class="ph ph-pen-nib"></i> Gorilla Design
-        <span style="margin-left:auto;font-family:'DM Mono',monospace;font-size:9px;background:rgba(255,255,255,0.05);color:var(--blue);padding:2px 6px;border:1px solid var(--blue-dim);letter-spacing:0.1em;text-transform:uppercase;">New</span>
+        <span class="nav-tag-new">New</span>
       </a>
+
       <a href="/pricing/negotiate" class="nav-promo">
         <div class="promo-icon">😎</div>
         <div class="promo-text">
           <strong>Haggle with Monke</strong>
-          <span>Negotiate your plan to $0.67/mo</span>
+          <span>Plans from $0.67/mo</span>
         </div>
-        <div class="promo-badge">HOT</div>
       </a>
     </nav>
 
@@ -368,101 +425,111 @@
         <div class="avatar">{{ user.email[0].upper() if user.email else 'U' }}</div>
         <div class="user-info">
           <span class="user-name">{% if user.email %}{{ user.email.split('@')[0] }}{% else %}User{% endif %}</span>
-          <span class="user-plan">{{ user.plan|capitalize }} Plan</span>
         </div>
-        <i class="ph ph-caret-up" style="margin-left:auto; opacity:0.3; font-size:11px;"></i>
+        <i class="ph ph-dots-three" style="opacity:0.5; font-size:14px; color: var(--muted);"></i>
       </div>
     </div>
   </aside>
 
   <main>
 
-    <div class="pricing-header animate-entry" style="animation-delay: 0ms;">
-      <div class="eyebrow">Pricing</div>
-      <h1>We undercut<br/><span class="accent">the entire market.</span></h1>
-      <p>Scale your applications with faster models, custom domains, and infinite infrastructure. Pay for what you build.</p>
+    <div class="topbar">
+      <div class="topbar-crumbs">
+        <a href="/dashboard">Dashboard</a>
+        <i class="ph ph-caret-right"></i>
+        <span class="current">Pricing</span>
+      </div>
     </div>
 
-    {% set standard_price = "13.99" %}
-    {% set display_price = standard_price %}
-    {% set is_discounted = false %}
+    <div class="content">
 
-    {% if db_user and db_user.first_month_price %}
-      {% set parsed_val = db_user.first_month_price | string %}
-      {% if parsed_val != "13.99" and parsed_val != "13.990000000000002" %}
-        {% set display_price = parsed_val %}
-        {% set is_discounted = true %}
-      {% endif %}
-    {% endif %}
-
-    <div class="pricing-grid">
-
-      <!-- Token Top-up -->
-      <div class="card animate-entry" style="animation-delay: 80ms;">
-        <div class="card-tag">// 01 — top-up</div>
-        <div class="price-container">
-          <div class="price">$1 <span class="period">/ 500k</span></div>
-          <p class="card-note">One-time purchase. Never expires.</p>
-        </div>
-        <ul class="features">
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Add 500,000 Tokens</span></li>
-          <li class="dim"><i class="ph-bold ph-check"></i><span class="feat-label">Decreases tokens used — limits unchanged.</span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Instant availability</span></li>
-        </ul>
-        <button onclick="window.location.href='/checkout/tokens'" class="btn">Buy Tokens →</button>
+      <div class="pricing-header animate-entry" style="animation-delay: 0ms;">
+        <div class="eyebrow">Pricing</div>
+        <h1>We undercut <span class="accent">the entire market.</span></h1>
+        <p>Scale your applications with faster models, custom domains, and infinite infrastructure. Pay for what you build.</p>
       </div>
 
-      <!-- Premium -->
-      <div class="card featured {% if is_discounted %}discounted{% endif %} animate-entry" style="animation-delay: 160ms; position: relative;">
-        <div class="plan-badge">// Popular</div>
-        <div class="card-tag">// 02 — premium</div>
+      {% set standard_price = "13.99" %}
+      {% set display_price = standard_price %}
+      {% set is_discounted = false %}
 
-        <div class="price-container">
-          {% if is_discounted %}
-            <span class="discount-strike">${{ standard_price }} / mo</span>
-            <div class="price amber">
-              ${{ "%.2f"|format(display_price|float) }}
-              <span class="period">/ first month</span>
-            </div>
-            <div class="monke-deal">🦍 Monke's Deal Applied</div>
-          {% else %}
-            <div class="price">${{ display_price }} <span class="period">/ month</span></div>
-          {% endif %}
-          <p class="card-note">For indie builders shipping real products.</p>
-        </div>
-
-        <ul class="features">
-          <li><i class="ph-bold ph-check"></i><span class="feat-label"><span class="feat-strong">5M Monthly Tokens</span></span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label"><span class="feat-strong">Xmode — Best LLMs available</span></span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Unlimited hosting &amp; deployments</span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Custom domains + SSL</span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Ad-free experience</span></li>
-        </ul>
-
-        {% if is_discounted %}
-          <button onclick="window.location.href='/checkout/premium'" class="btn amber-btn">Upgrade to Pro →</button>
-        {% else %}
-          <button onclick="window.location.href='/checkout/premium'" class="btn primary">Upgrade to Pro →</button>
+      {% if db_user and db_user.first_month_price %}
+        {% set parsed_val = db_user.first_month_price | string %}
+        {% if parsed_val != "13.99" and parsed_val != "13.990000000000002" %}
+          {% set display_price = parsed_val %}
+          {% set is_discounted = true %}
         {% endif %}
-      </div>
+      {% endif %}
 
-      <!-- Enterprise -->
-      <div class="card animate-entry" style="animation-delay: 240ms;">
-        <div class="card-tag enterprise">// 03 — enterprise</div>
-        <div class="price-container">
-          <div class="price" style="font-size:36px;">Custom</div>
-          <p class="card-note">For agencies and high-volume orchestration.</p>
+      <div class="pricing-grid">
+
+        <!-- Token Top-up -->
+        <div class="card animate-entry" style="animation-delay: 60ms;">
+          <div class="card-tag"><i class="ph ph-coin"></i> Top-up</div>
+          <div class="price-container">
+            <div class="price">$1 <span class="period">/ 500k</span></div>
+            <p class="card-note">One-time purchase. Never expires.</p>
+          </div>
+          <ul class="features">
+            <li><i class="ph-bold ph-check"></i><span>Add 500,000 tokens</span></li>
+            <li class="dim"><i class="ph-bold ph-check"></i><span>Decreases tokens used — limits unchanged</span></li>
+            <li><i class="ph-bold ph-check"></i><span>Instant availability</span></li>
+          </ul>
+          <button onclick="window.location.href='/checkout/tokens'" class="btn">Buy tokens →</button>
         </div>
-        <ul class="features">
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Custom VPC deployments</span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">SSO &amp; advanced security</span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Dedicated support &amp; SLAs</span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">On-premise installs</span></li>
-          <li><i class="ph-bold ph-check"></i><span class="feat-label">Unlimited tokens</span></li>
-        </ul>
-        <a href="mailto:gorillabuilder.dev@gmail.com" class="btn">Contact Sales →</a>
-      </div>
 
+        <!-- Premium -->
+        <div class="card featured {% if is_discounted %}discounted{% endif %} animate-entry" style="animation-delay: 120ms;">
+          <div class="plan-badge">Popular</div>
+          <div class="card-tag"><i class="ph ph-lightning"></i> Premium</div>
+
+          <div class="price-container">
+            {% if is_discounted %}
+              <span class="discount-strike">${{ standard_price }} / mo</span>
+              <div class="price amber">
+                ${{ "%.2f"|format(display_price|float) }}
+                <span class="period">/ first month</span>
+              </div>
+              <div class="monke-deal">🦍 Monke's deal applied</div>
+            {% else %}
+              <div class="price">${{ display_price }} <span class="period">/ month</span></div>
+            {% endif %}
+            <p class="card-note">For indie builders shipping real products.</p>
+          </div>
+
+          <ul class="features">
+            <li><i class="ph-bold ph-check"></i><span class="feat-strong">5M monthly tokens</span></li>
+            <li><i class="ph-bold ph-check"></i><span class="feat-strong">Xmode — best LLMs available</span></li>
+            <li><i class="ph-bold ph-check"></i><span>Unlimited hosting &amp; deployments</span></li>
+            <li><i class="ph-bold ph-check"></i><span>Custom domains + SSL</span></li>
+            <li><i class="ph-bold ph-check"></i><span>Ad-free experience</span></li>
+          </ul>
+
+          {% if is_discounted %}
+            <button onclick="window.location.href='/checkout/premium'" class="btn amber-btn">Upgrade to Pro →</button>
+          {% else %}
+            <button onclick="window.location.href='/checkout/premium'" class="btn primary">Upgrade to Pro →</button>
+          {% endif %}
+        </div>
+
+        <!-- Enterprise -->
+        <div class="card animate-entry" style="animation-delay: 180ms;">
+          <div class="card-tag enterprise"><i class="ph ph-buildings"></i> Enterprise</div>
+          <div class="price-container">
+            <div class="price" style="font-size:32px;">Custom</div>
+            <p class="card-note">For agencies and high-volume orchestration.</p>
+          </div>
+          <ul class="features">
+            <li><i class="ph-bold ph-check"></i><span>Custom VPC deployments</span></li>
+            <li><i class="ph-bold ph-check"></i><span>SSO &amp; advanced security</span></li>
+            <li><i class="ph-bold ph-check"></i><span>Dedicated support &amp; SLAs</span></li>
+            <li><i class="ph-bold ph-check"></i><span>On-premise installs</span></li>
+            <li><i class="ph-bold ph-check"></i><span>Unlimited tokens</span></li>
+          </ul>
+          <a href="mailto:gorillabuilder.dev@gmail.com" class="btn">Contact sales →</a>
+        </div>
+
+      </div>
     </div>
   </main>
 

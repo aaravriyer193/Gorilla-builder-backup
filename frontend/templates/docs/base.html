@@ -18,35 +18,40 @@
     :root {
       --bg: #0a0b0d;
       --bg-2: #101114;
-      --sidebar-bg: #0a0b0d;
+      --bg-3: #16181d;
       --fg: #e8e8eb;
       --muted: #8a8c95;
-      --dim: #4a4c55;
-      --faint: #25272d;
-      --line: rgba(255,255,255,0.10);
-      --line-2: rgba(255,255,255,0.18);
-      --blue: oklch(0.74 0.16 248);
-      --blue-2: oklch(0.62 0.2 252);
-      --blue-dim: oklch(0.4 0.12 252);
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
     body {
       margin: 0; background: var(--bg); color: var(--fg);
       font-family: 'DM Sans', system-ui, sans-serif;
       height: 100vh; display: flex; overflow: hidden;
-      font-weight: 300; -webkit-font-smoothing: antialiased;
+      font-weight: 400; -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em; position: relative;
     }
 
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    /* subtle horizon glow behind content */
+    .horizon {
+      position: fixed; left: 264px; right: 0;
+      top: -20%; height: 60%;
+      pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 60% 100% at 50% 50%,
+        oklch(0.55 0.22 248 / 0.18) 0%,
+        oklch(0.45 0.2 250 / 0.08) 35%,
+        transparent 70%);
+      filter: blur(40px);
     }
 
     /* --- SHELL --- */
@@ -54,255 +59,256 @@
 
     /* --- SIDEBAR --- */
     aside.sidebar {
-      width: 260px; min-width: 260px;
-      background: var(--sidebar-bg);
-      border-right: 3px double rgba(255,255,255,0.15);
+      width: 264px; min-width: 264px;
+      background: var(--bg);
+      border-right: 1px solid var(--line);
       display: flex; flex-direction: column; overflow-y: auto;
       position: relative; flex-shrink: 0;
     }
 
-    aside.sidebar::-webkit-scrollbar { width: 3px; }
+    aside.sidebar::-webkit-scrollbar { width: 4px; }
     aside.sidebar::-webkit-scrollbar-track { background: transparent; }
-    aside.sidebar::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
-    aside.sidebar::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
+    aside.sidebar::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 2px; }
+    aside.sidebar::-webkit-scrollbar-thumb:hover { background: var(--line-3); }
 
     .logo-container {
-      padding: 28px 14px 20px;
+      padding: 18px 12px 14px;
       position: sticky; top: 0;
-      background: var(--sidebar-bg);
+      background: var(--bg);
       border-bottom: 1px solid var(--line); z-index: 20;
     }
 
     .logo {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 20px; font-weight: 500; letter-spacing: -0.02em;
-      color: var(--fg);
-      display: flex; align-items: center; gap: 10px; text-decoration: none;
+      display: flex; align-items: center; gap: 9px;
+      padding: 6px 8px;
+      border-radius: 5px;
+      text-decoration: none;
+      transition: background 0.12s;
     }
+    .logo:hover { background: rgba(255,255,255,0.035); }
     .logo-icon {
-      width: 22px; height: 22px; flex-shrink: 0;
+      width: 24px; height: 24px;
+      background: var(--bg-3);
+      border: 1px solid var(--line-2);
+      border-radius: 5px;
+      flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
-    .logo-icon svg { width: 22px; height: 22px; fill: var(--fg); }
+    .logo-icon svg { width: 14px; height: 14px; fill: var(--fg); }
+    .logo-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px; font-weight: 500;
+      color: var(--fg); letter-spacing: -0.01em;
+    }
 
     .back-btn {
       display: flex; align-items: center; gap: 6px;
-      font-family: 'DM Mono', monospace;
-      font-size: 10px; color: var(--dim); text-decoration: none;
-      margin-top: 12px; transition: color 0.2s;
-      text-transform: uppercase; letter-spacing: 0.12em; font-weight: 400;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11.5px; color: var(--muted); text-decoration: none;
+      margin-top: 10px; padding: 5px 9px;
+      border-radius: 4px;
+      transition: all 0.15s; font-weight: 400; letter-spacing: -0.005em;
     }
-    .back-btn:hover { color: var(--fg); }
-    .back-btn i { color: var(--blue); font-size: 12px; }
+    .back-btn:hover { color: var(--fg); background: rgba(255,255,255,0.035); }
+    .back-btn i { color: var(--accent); font-size: 12px; }
 
     nav.docs-nav {
-      padding: 16px 10px; display: flex; flex-direction: column; gap: 20px;
+      padding: 12px 8px 16px;
+      display: flex; flex-direction: column; gap: 18px;
     }
 
     .nav-group { display: flex; flex-direction: column; gap: 1px; }
 
     .nav-group-title {
-      font-family: 'DM Mono', monospace;
-      font-size: 9px; font-weight: 400; color: var(--dim);
-      text-transform: uppercase; letter-spacing: 0.18em;
-      padding: 0 8px; margin-bottom: 8px;
-      display: flex; align-items: center; gap: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px; font-weight: 500; color: var(--dim);
+      padding: 0 9px; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 7px;
+      letter-spacing: -0.005em;
     }
-    .nav-group-title i { color: var(--blue); opacity: 0.7; font-size: 12px; }
+    .nav-group-title i { color: var(--accent); opacity: 0.85; font-size: 12px; }
 
     nav.docs-nav a {
-      font-family: 'DM Mono', monospace;
-      font-size: 10.5px; letter-spacing: 0.07em;
-      color: var(--dim); text-decoration: none; padding: 7px 8px;
-      transition: all 0.15s var(--ease-out);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px; letter-spacing: -0.005em;
+      color: var(--muted); text-decoration: none;
+      padding: 5px 9px; border-radius: 4px;
+      transition: all 0.12s ease;
       display: flex; align-items: center; gap: 8px;
-      border: 1px solid transparent; position: relative; font-weight: 400;
+      position: relative; font-weight: 400;
     }
     nav.docs-nav a:hover {
-      background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line);
+      background: rgba(255,255,255,0.035); color: var(--fg);
     }
     nav.docs-nav a.active {
-      background: rgba(255,255,255,0.03); color: var(--fg); border-color: var(--line);
-    }
-    nav.docs-nav a.active::before {
-      content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 2px;
-      background: var(--blue);
+      background: rgba(255,255,255,0.05); color: var(--fg);
     }
 
     .nav-number {
-      font-size: 9px; opacity: 0.35; width: 20px; flex-shrink: 0;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px; opacity: 0.45; width: 18px; flex-shrink: 0;
+      color: var(--dim);
     }
+    nav.docs-nav a.active .nav-number { color: var(--accent); opacity: 1; }
 
     /* --- MAIN --- */
     main.content-area {
       flex: 1; overflow-y: auto; scroll-behavior: smooth;
-      display: flex; flex-direction: column; position: relative; z-index: 1;
+      display: flex; flex-direction: column; position: relative; z-index: 2;
     }
-    main.content-area::-webkit-scrollbar { width: 4px; }
+    main.content-area::-webkit-scrollbar { width: 6px; }
     main.content-area::-webkit-scrollbar-track { background: transparent; }
-    main.content-area::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
-    main.content-area::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
+    main.content-area::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
 
     .topbar {
-      height: 52px; border-bottom: 1px solid var(--line);
-      display: flex; align-items: center; padding: 0 48px;
-      background: rgba(10,11,13,0.85); backdrop-filter: blur(16px);
+      height: 50px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; padding: 0 40px;
+      background: rgba(10,11,13,0.7); backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       position: sticky; top: 0; z-index: 10; flex-shrink: 0;
     }
     .breadcrumb {
-      font-family: 'DM Mono', monospace;
-      font-size: 10px; color: var(--dim);
-      display: flex; align-items: center; gap: 8px;
-      letter-spacing: 0.12em; text-transform: uppercase;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+      letter-spacing: -0.005em;
     }
-    .breadcrumb i { color: var(--blue); font-size: 12px; }
-    .breadcrumb span { color: var(--fg); }
+    .breadcrumb a { color: var(--muted); text-decoration: none; transition: color 0.12s; }
+    .breadcrumb a:hover { color: var(--fg); }
+    .breadcrumb i { font-size: 10px; opacity: 0.4; color: var(--muted); }
+    .breadcrumb .current { color: var(--fg); font-weight: 500; }
 
     .reading-container {
       max-width: 720px; margin: 0 auto;
-      padding: 48px 48px 100px; width: 100%;
+      padding: 48px 40px 100px; width: 100%;
     }
 
     /* --- PROSE / MARKDOWN --- */
-    .prose { color: var(--muted); font-size: 14px; line-height: 1.8; font-weight: 300; }
+    .prose { color: var(--muted); font-size: 14.5px; line-height: 1.75; font-weight: 400; letter-spacing: -0.005em; }
 
     .prose h1 {
       font-family: 'DM Sans', sans-serif;
-      font-size: clamp(28px, 3vw, 38px); font-weight: 400;
+      font-size: clamp(30px, 3vw, 40px); font-weight: 500;
       letter-spacing: -0.035em; color: var(--fg);
-      margin: 0 0 6px; line-height: 1.1;
+      margin: 0 0 8px; line-height: 1.05;
     }
-    .prose h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+    .prose h1 .accent { color: var(--accent); font-style: italic; font-weight: 500; }
 
     .prose h2 {
       font-family: 'DM Sans', sans-serif;
-      font-size: 20px; font-weight: 400; color: var(--fg);
-      margin: 48px 0 16px; padding-bottom: 10px;
+      font-size: 21px; font-weight: 500; color: var(--fg);
+      margin: 44px 0 14px; padding-bottom: 8px;
       border-bottom: 1px solid var(--line); position: relative;
       letter-spacing: -0.02em;
     }
     .prose h2::after {
-      content: ''; position: absolute; bottom: -1px; left: 0; width: 48px; height: 1px;
-      background: var(--blue); opacity: 0.7;
+      content: ''; position: absolute; bottom: -1px; left: 0; width: 32px; height: 1px;
+      background: var(--accent); opacity: 0.85;
     }
     .prose h3 {
       font-family: 'DM Sans', sans-serif;
-      font-size: 16px; font-weight: 400; color: var(--fg);
-      margin: 28px 0 12px; letter-spacing: -0.01em;
+      font-size: 16px; font-weight: 500; color: var(--fg);
+      margin: 26px 0 10px; letter-spacing: -0.01em;
     }
-    .prose p { margin: 0 0 20px; }
+    .prose p { margin: 0 0 18px; }
     .prose a {
-      color: var(--blue); text-decoration: none;
-      border-bottom: 1px solid rgba(255,255,255,0.12); transition: 0.2s;
+      color: var(--accent); text-decoration: none;
+      border-bottom: 1px solid oklch(0.6 0.2 248 / 0.3); transition: 0.15s;
+      font-weight: 500;
     }
-    .prose a:hover { border-bottom-color: var(--blue); }
+    .prose a:hover { border-bottom-color: var(--accent); }
 
-    .prose ul, .prose ol { margin: 0 0 20px; padding-left: 20px; }
-    .prose li { margin-bottom: 8px; line-height: 1.7; }
-    .prose li::marker { color: var(--blue); }
-    .prose strong { color: var(--fg); font-weight: 400; }
+    .prose ul, .prose ol { margin: 0 0 18px; padding-left: 18px; }
+    .prose li { margin-bottom: 6px; line-height: 1.65; }
+    .prose li::marker { color: var(--accent); }
+    .prose strong { color: var(--fg); font-weight: 500; }
 
     /* Inline code */
     .prose code {
-      font-family: 'DM Mono', monospace; font-size: 12px;
+      font-family: 'DM Mono', monospace; font-size: 12.5px;
       background: rgba(255,255,255,0.05);
-      padding: 2px 6px; color: var(--blue);
-      border: 1px solid var(--line-2); font-weight: 400;
+      padding: 1px 5px; color: var(--accent);
+      border: 1px solid var(--line-2);
+      border-radius: 3px; font-weight: 400;
     }
 
     /* Code block */
     .prose pre {
       background: var(--bg-2);
       border: 1px solid var(--line);
-      padding: 20px 22px; overflow-x: auto; margin: 24px 0;
+      border-radius: 6px;
+      padding: 16px 18px; overflow-x: auto; margin: 20px 0;
       position: relative;
-    }
-    .prose pre::before {
-      content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 1px;
-      background: linear-gradient(90deg, transparent 10%, var(--blue) 50%, transparent 90%);
-      opacity: 0.4;
     }
     .prose pre code {
       background: transparent; border: none; padding: 0;
-      color: #c8d0e8; font-size: 12.5px; line-height: 1.7; font-weight: 400;
+      color: #c8d0e8; font-size: 12.5px; line-height: 1.65; font-weight: 400;
     }
 
     .hljs { background: transparent !important; color: #c8d0e8 !important; }
 
     /* Callouts */
     .callout {
-      padding: 16px 20px; margin: 24px 0;
-      display: flex; gap: 14px;
+      padding: 14px 16px; margin: 20px 0;
+      display: flex; gap: 12px;
       background: var(--bg-2); border: 1px solid var(--line);
-      position: relative;
+      border-radius: 6px;
     }
-    .callout::before {
-      content: ""; position: absolute; top: 8px; left: 8px;
-      width: 8px; height: 8px;
-      border-top: 1px solid var(--muted); border-left: 1px solid var(--muted);
-      opacity: 0.3; pointer-events: none;
-    }
-    .callout::after {
-      content: ""; position: absolute; bottom: 8px; right: 8px;
-      width: 8px; height: 8px;
-      border-bottom: 1px solid var(--muted); border-right: 1px solid var(--muted);
-      opacity: 0.3; pointer-events: none;
-    }
-    .callout.warning { border-color: rgba(100,20,20,0.3); background: rgba(100,20,20,0.04); }
-    .callout.success { border-color: rgba(30,120,70,0.3); background: rgba(30,120,70,0.04); }
-    .callout.info { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.02); }
-    .callout i { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-    .callout.warning i { color: #b05050; }
-    .callout.success i { color: #3ECF8E; }
-    .callout.info i { color: var(--blue); }
-    .callout-content p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
-    .callout-content p:not(:last-child) { margin-bottom: 8px; }
-    .callout-content strong { color: var(--fg); font-weight: 400; }
+    .callout.warning { border-color: rgba(168, 96, 96, 0.25); background: rgba(168, 96, 96, 0.05); }
+    .callout.success { border-color: rgba(74, 222, 128, 0.25); background: rgba(74, 222, 128, 0.04); }
+    .callout.info { border-color: oklch(0.6 0.2 248 / 0.25); background: oklch(0.6 0.2 248 / 0.05); }
+    .callout i { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+    .callout.warning i { color: #c08585; }
+    .callout.success i { color: #4ade80; }
+    .callout.info i { color: var(--accent); }
+    .callout-content p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+    .callout-content p:not(:last-child) { margin-bottom: 6px; }
+    .callout-content strong { color: var(--fg); font-weight: 500; }
 
     /* --- DOCS FOOTER NAV --- */
     .docs-footer {
       display: flex; justify-content: space-between;
-      margin-top: 60px; padding-top: 24px;
-      border-top: 1px solid var(--line); gap: 16px;
+      margin-top: 56px; padding-top: 20px;
+      border-top: 1px solid var(--line); gap: 12px;
     }
 
     .docs-nav-btn {
-      display: flex; flex-direction: column; gap: 4px;
-      text-decoration: none; padding: 16px 18px;
+      display: flex; flex-direction: column; gap: 3px;
+      text-decoration: none; padding: 14px 16px;
       border: 1px solid var(--line);
-      background: var(--bg-2);
+      background: rgba(16, 17, 20, 0.6);
+      backdrop-filter: blur(12px);
+      border-radius: 6px;
       transition: all 0.2s var(--ease-out); width: 48%;
-      position: relative;
     }
-    .docs-nav-btn::before {
-      content: ""; position: absolute; top: 6px; left: 6px;
-      width: 6px; height: 6px;
-      border-top: 1px solid var(--muted); border-left: 1px solid var(--muted);
-      opacity: 0.3;
+    .docs-nav-btn:hover {
+      border-color: var(--line-2);
+      background: rgba(22, 24, 29, 0.7);
+      transform: translateY(-2px);
     }
-    .docs-nav-btn::after {
-      content: ""; position: absolute; bottom: 6px; right: 6px;
-      width: 6px; height: 6px;
-      border-bottom: 1px solid var(--muted); border-right: 1px solid var(--muted);
-      opacity: 0.3;
-    }
-    .docs-nav-btn:hover { border-color: var(--line-2); transform: translateY(-2px); }
-    .docs-nav-btn:active { transform: translateY(0); }
 
     .docs-nav-btn span {
-      font-family: 'DM Mono', monospace;
-      font-size: 9px; text-transform: uppercase; color: var(--dim);
-      font-weight: 400; letter-spacing: 0.15em;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px; color: var(--muted);
+      font-weight: 400; letter-spacing: -0.005em;
     }
     .docs-nav-btn strong {
-      font-size: 14px; color: var(--fg); font-weight: 400;
+      font-size: 13.5px; color: var(--fg); font-weight: 500;
       font-family: 'DM Sans', sans-serif; letter-spacing: -0.01em;
     }
     .docs-nav-btn.next { align-items: flex-end; text-align: right; }
+
+    @media (max-width: 768px) {
+      aside.sidebar { display: none; }
+      .topbar { padding: 0 20px; }
+      .reading-container { padding: 32px 20px 60px; }
+    }
   </style>
 </head>
 
 <body class="{% if user and user.plan == 'premium' %}premium{% endif %}">
+
+  <div class="horizon"></div>
 
   <div class="shell">
 
@@ -322,85 +328,85 @@
               </g>
             </svg>
           </span>
-          Gor://a Docs
+          <span class="logo-text">Gor://a Docs</span>
         </a>
-        <a href="/dashboard" class="back-btn"><i class="ph-bold ph-arrow-left"></i> Back to Dashboard</a>
+        <a href="/dashboard" class="back-btn"><i class="ph-bold ph-arrow-left"></i> Back to dashboard</a>
       </div>
 
       <nav class="docs-nav" id="sidebarNav">
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-books"></i> Getting Started</div>
-          <a href="/docs/intro" data-page="intro"><span class="nav-number">01</span> Introduction to Gor://a Builder</a>
-          <a href="/docs/quickstart" data-page="quickstart"><span class="nav-number">02</span> Quickstart: Your First App</a>
-          <a href="/docs/dashboard" data-page="dashboard"><span class="nav-number">03</span> Navigating the Dashboard</a>
-          <a href="/docs/tiers" data-page="tiers"><span class="nav-number">04</span> Free vs. Premium (Pro)</a>
-          <a href="/docs/account-settings" data-page="account-settings"><span class="nav-number">05</span> Account & Settings</a>
+          <div class="nav-group-title"><i class="ph-bold ph-books"></i> Getting started</div>
+          <a href="/docs/intro" data-page="intro"><span class="nav-number">01</span> Introduction</a>
+          <a href="/docs/quickstart" data-page="quickstart"><span class="nav-number">02</span> Quickstart</a>
+          <a href="/docs/dashboard" data-page="dashboard"><span class="nav-number">03</span> The dashboard</a>
+          <a href="/docs/tiers" data-page="tiers"><span class="nav-number">04</span> Free vs Premium</a>
+          <a href="/docs/account-settings" data-page="account-settings"><span class="nav-number">05</span> Account &amp; settings</a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-brain"></i> Agent Skills</div>
-          <a href="/docs/skills-overview" data-page="skills-overview"><span class="nav-number">06</span> What are Agent Skills?</a>
-          <a href="/docs/visual-prefs" data-page="visual-prefs"><span class="nav-number">07</span> Visual Preferences</a>
-          <a href="/docs/ui-frameworks" data-page="ui-frameworks"><span class="nav-number">08</span> UI Frameworks</a>
-          <a href="/docs/code-style" data-page="code-style"><span class="nav-number">09</span> Code Style</a>
-          <a href="/docs/agent-personality" data-page="agent-personality"><span class="nav-number">10</span> Agent Personality</a>
-          <a href="/docs/golden-rules" data-page="golden-rules"><span class="nav-number">11</span> Drafting Golden Rules</a>
+          <div class="nav-group-title"><i class="ph-bold ph-brain"></i> Agent skills</div>
+          <a href="/docs/skills-overview" data-page="skills-overview"><span class="nav-number">06</span> What are agent skills?</a>
+          <a href="/docs/visual-prefs" data-page="visual-prefs"><span class="nav-number">07</span> Visual preferences</a>
+          <a href="/docs/ui-frameworks" data-page="ui-frameworks"><span class="nav-number">08</span> UI frameworks</a>
+          <a href="/docs/code-style" data-page="code-style"><span class="nav-number">09</span> Code style</a>
+          <a href="/docs/agent-personality" data-page="agent-personality"><span class="nav-number">10</span> Agent personality</a>
+          <a href="/docs/golden-rules" data-page="golden-rules"><span class="nav-number">11</span> Drafting golden rules</a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-paint-brush"></i> Designing & Prompting</div>
-          <a href="/docs/perfect-prompt" data-page="perfect-prompt"><span class="nav-number">12</span> Masterclass: The Perfect Prompt</a>
-          <a href="/docs/image-references" data-page="image-references"><span class="nav-number">13</span> Using Image References</a>
-          <a href="/docs/figma-overview" data-page="figma-overview"><span class="nav-number">14</span> The Figma Compiler</a>
-          <a href="/docs/figma-import" data-page="figma-import"><span class="nav-number">15</span> How to Import from Figma</a>
-          <a href="/docs/ideas-chips" data-page="ideas-chips"><span class="nav-number">16</span> Using "Ideas" Chips</a>
+          <div class="nav-group-title"><i class="ph-bold ph-paint-brush"></i> Designing &amp; prompting</div>
+          <a href="/docs/perfect-prompt" data-page="perfect-prompt"><span class="nav-number">12</span> The perfect prompt</a>
+          <a href="/docs/image-references" data-page="image-references"><span class="nav-number">13</span> Image references</a>
+          <a href="/docs/figma-overview" data-page="figma-overview"><span class="nav-number">14</span> The Figma compiler</a>
+          <a href="/docs/figma-import" data-page="figma-import"><span class="nav-number">15</span> Importing from Figma</a>
+          <a href="/docs/ideas-chips" data-page="ideas-chips"><span class="nav-number">16</span> Using ideas chips</a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-terminal-window"></i> In-Browser IDE</div>
-          <a href="/docs/editor-interface" data-page="editor-interface"><span class="nav-number">17</span> The Editor Interface</a>
-          <a href="/docs/webcontainers" data-page="webcontainers"><span class="nav-number">18</span> How WebContainers Work</a>
-          <a href="/docs/auto-healing" data-page="auto-healing"><span class="nav-number">19</span> The Auto-Healing Loop</a>
-          <a href="/docs/manual-editing" data-page="manual-editing"><span class="nav-number">20</span> Manual Code Editing</a>
-          <a href="/docs/file-tree" data-page="file-tree"><span class="nav-number">21</span> Understanding the File Tree</a>
+          <div class="nav-group-title"><i class="ph-bold ph-terminal-window"></i> In-browser IDE</div>
+          <a href="/docs/editor-interface" data-page="editor-interface"><span class="nav-number">17</span> The editor interface</a>
+          <a href="/docs/webcontainers" data-page="webcontainers"><span class="nav-number">18</span> How WebContainers work</a>
+          <a href="/docs/auto-healing" data-page="auto-healing"><span class="nav-number">19</span> The auto-healing loop</a>
+          <a href="/docs/manual-editing" data-page="manual-editing"><span class="nav-number">20</span> Manual code editing</a>
+          <a href="/docs/file-tree" data-page="file-tree"><span class="nav-number">21</span> The file tree</a>
           <a href="/docs/export-zip" data-page="export-zip"><span class="nav-number">22</span> Exporting to ZIP</a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-database"></i> Full-Stack & Databases</div>
-          <a href="/docs/backend-overview" data-page="backend-overview"><span class="nav-number">23</span> Node.js + Express Backend</a>
+          <div class="nav-group-title"><i class="ph-bold ph-database"></i> Full-stack &amp; databases</div>
+          <a href="/docs/backend-overview" data-page="backend-overview"><span class="nav-number">23</span> Node.js + Express backend</a>
           <a href="/docs/supabase-link" data-page="supabase-link"><span class="nav-number">24</span> Linking Supabase</a>
-          <a href="/docs/db-provisioning" data-page="db-provisioning"><span class="nav-number">25</span> Autonomous Provisioning</a>
-          <a href="/docs/sql-migrations" data-page="sql-migrations"><span class="nav-number">26</span> Automated SQL Migrations</a>
-          <a href="/docs/db-healing" data-page="db-healing"><span class="nav-number">27</span> Database Auto-Healing</a>
+          <a href="/docs/db-provisioning" data-page="db-provisioning"><span class="nav-number">25</span> Autonomous provisioning</a>
+          <a href="/docs/sql-migrations" data-page="sql-migrations"><span class="nav-number">26</span> Automated SQL migrations</a>
+          <a href="/docs/db-healing" data-page="db-healing"><span class="nav-number">27</span> Database auto-healing</a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-plug"></i> Built-In Integrations</div>
-          <a href="/docs/auth-gateway" data-page="auth-gateway"><span class="nav-number">28</span> Gor://a Auth Gateway</a>
-          <a href="/docs/ai-integrations" data-page="ai-integrations"><span class="nav-number">29</span> LLM Chat Integration</a>
-          <a href="/docs/image-gen" data-page="image-gen"><span class="nav-number">30</span> Image Generation (Fireworks)</a>
-          <a href="/docs/voice-stt" data-page="voice-stt"><span class="nav-number">31</span> Speech-to-Text (Whisper)</a>
-          <a href="/docs/bg-removal" data-page="bg-removal"><span class="nav-number">32</span> Background Removal (RemBG)</a>
+          <div class="nav-group-title"><i class="ph-bold ph-plug"></i> Built-in integrations</div>
+          <a href="/docs/auth-gateway" data-page="auth-gateway"><span class="nav-number">28</span> Auth gateway</a>
+          <a href="/docs/ai-integrations" data-page="ai-integrations"><span class="nav-number">29</span> LLM chat integration</a>
+          <a href="/docs/image-gen" data-page="image-gen"><span class="nav-number">30</span> Image generation</a>
+          <a href="/docs/voice-stt" data-page="voice-stt"><span class="nav-number">31</span> Speech-to-text</a>
+          <a href="/docs/bg-removal" data-page="bg-removal"><span class="nav-number">32</span> Background removal</a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-rocket-launch"></i> Deployment Pipeline</div>
-          <a href="/docs/deploy-prep" data-page="deploy-prep"><span class="nav-number">33</span> Preparing for Deployment</a>
+          <div class="nav-group-title"><i class="ph-bold ph-rocket-launch"></i> Deployment</div>
+          <a href="/docs/deploy-prep" data-page="deploy-prep"><span class="nav-number">33</span> Preparing for deployment</a>
           <a href="/docs/github-link" data-page="github-link"><span class="nav-number">34</span> Linking GitHub</a>
-          <a href="/docs/vercel-opt" data-page="vercel-opt"><span class="nav-number">35</span> Vercel Optimization Phase</a>
+          <a href="/docs/vercel-opt" data-page="vercel-opt"><span class="nav-number">35</span> Vercel optimization</a>
           <a href="/docs/github-push" data-page="github-push"><span class="nav-number">36</span> Pushing to GitHub</a>
           <a href="/docs/vercel-deploy" data-page="vercel-deploy"><span class="nav-number">37</span> Deploying to Vercel</a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-title"><i class="ph-bold ph-coins"></i> Economy & Tokens</div>
-          <a href="/docs/api-tokens" data-page="api-tokens"><span class="nav-number">38</span> Understanding API Tokens</a>
-          <a href="/docs/error-402" data-page="error-402"><span class="nav-number">39</span> The 402 Error (Out of Credits)</a>
-          <a href="/docs/spin-wheel" data-page="spin-wheel"><span class="nav-number">40</span> Daily Spin the Wheel</a>
-          <a href="/docs/monke-negotiator" data-page="monke-negotiator"><span class="nav-number">41</span> The Monke Negotiator</a>
-          <a href="/docs/enterprise-tier" data-page="enterprise-tier"><span class="nav-number">42</span> Enterprise Tier</a>
+          <div class="nav-group-title"><i class="ph-bold ph-coins"></i> Economy &amp; tokens</div>
+          <a href="/docs/api-tokens" data-page="api-tokens"><span class="nav-number">38</span> Understanding tokens</a>
+          <a href="/docs/error-402" data-page="error-402"><span class="nav-number">39</span> The 402 error</a>
+          <a href="/docs/spin-wheel" data-page="spin-wheel"><span class="nav-number">40</span> Daily spin the wheel</a>
+          <a href="/docs/monke-negotiator" data-page="monke-negotiator"><span class="nav-number">41</span> The Monke negotiator</a>
+          <a href="/docs/enterprise-tier" data-page="enterprise-tier"><span class="nav-number">42</span> Enterprise tier</a>
         </div>
 
       </nav>
@@ -409,7 +415,11 @@
     <main class="content-area">
       <div class="topbar">
         <div class="breadcrumb">
-          <i class="ph-bold ph-book-open"></i> <span>Documentation</span> / {{ self.title() }}
+          <a href="/dashboard">Dashboard</a>
+          <i class="ph ph-caret-right"></i>
+          <a href="/docs/intro">Docs</a>
+          <i class="ph ph-caret-right"></i>
+          <span class="current">{{ self.title() }}</span>
         </div>
       </div>
 

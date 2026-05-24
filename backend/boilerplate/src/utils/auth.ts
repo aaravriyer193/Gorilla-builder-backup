@@ -9,7 +9,7 @@ export interface GorillaUser {
   provider: string;
 }
 
-const GATEWAY_BASE_URL = 'https://slaw-carefully-cried.ngrok-free.dev';
+const GATEWAY_BASE_URL = 'https://precious-lorianne-walnutlabs-bc5e943d.koyeb.app';
 
 /**
  * Opens the secure Gorilla Auth Gateway login page in a popup window.

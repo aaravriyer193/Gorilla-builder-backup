@@ -5,104 +5,261 @@
   <title>Terms of Service · Gor://a Builder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <style>
-    @font-face { font-family: 'din-next-w01-light'; font-style: normal; font-weight: 400; src: url('//static.parastorage.com/fonts/v2/eca8b0cd-45d8-43cf-aee7-ca462bc5497c/v1/din-next-w02-light.woff2') format('woff2'); font-display: swap; }
-    
-    :root { 
-      --bg: #050505; 
-      --panel: rgba(14, 16, 21, 0.7); 
-      --border: rgba(255, 255, 255, 0.08); 
-      --accent: #3b6cff; 
-      --accent-glow: rgba(59, 108, 255, 0.25); 
-      --text: #ffffff; 
-      --text-muted: #94a3b8; 
-      --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E"); 
+    :root {
+      --bg: #0a0b0d;
+      --bg-2: #101114;
+      --bg-3: #16181d;
+      --fg: #e8e8eb;
+      --muted: #8a8c95;
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
-    
-    * { box-sizing: border-box; font-family: 'Funnel Display', system-ui, sans-serif; outline: none; }
-    
-    body { 
-      margin: 0; 
-      background: var(--bg); 
-      color: var(--text); 
-      min-height: 100vh; 
-      overflow-x: hidden; 
-      font-size: 17px; 
-      line-height: 1.8;
+
+    * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      overflow-x: hidden;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-size: 14.5px;
+      line-height: 1.75;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em;
+      position: relative;
     }
 
-    .noise-overlay { position: fixed; inset: 0; background-image: var(--noise); pointer-events: none; z-index: 0; }
-    .glow-spot { position: fixed; width: 800px; height: 800px; background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%); opacity: 0.5; pointer-events: none; z-index: 0; top: -150px; left: 50%; transform: translateX(-50%); filter: blur(90px); }
+    .horizon {
+      position: fixed; left: 0; right: 0;
+      top: -30%; height: 80%;
+      pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 50% 70% at 50% 80%,
+        oklch(0.55 0.22 248 / 0.3) 0%,
+        oklch(0.45 0.2 250 / 0.15) 30%,
+        oklch(0.3 0.16 252 / 0.05) 55%,
+        transparent 75%);
+      filter: blur(40px);
+    }
 
-    main { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 60px 20px; }
-    
-    .back-btn { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); text-decoration: none; font-size: 15px; margin-bottom: 40px; transition: all 0.2s var(--ease-out); border: 1px solid var(--border); padding: 12px 20px; border-radius: 12px; background: rgba(255,255,255,0.02); }
-    .back-btn:hover { color: #fff; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); transform: translateX(-4px); }
-    .back-btn i { font-size: 20px; }
+    main {
+      position: relative; z-index: 1;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
 
-    .content-box { background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 60px 80px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); backdrop-filter: blur(20px); }
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--muted); text-decoration: none;
+      font-size: 12.5px; margin-bottom: 32px;
+      transition: all 0.15s var(--ease-out);
+      border: 1px solid var(--line-2);
+      padding: 7px 13px;
+      border-radius: 5px;
+      background: rgba(255,255,255,0.03);
+      font-weight: 500; letter-spacing: -0.005em;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .back-btn:hover {
+      color: var(--fg);
+      background: rgba(255,255,255,0.06);
+      border-color: var(--line-3);
+    }
+    .back-btn i { font-size: 13px; }
 
-    h1 { font-size: 48px; font-weight: 600; margin: 0 0 8px; letter-spacing: -1px; color: #fff; }
-    .meta-data { color: var(--accent); font-size: 15px; font-weight: 500; margin-bottom: 50px; text-transform: uppercase; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
-    
-    h2 { font-size: 26px; font-weight: 600; margin: 50px 0 20px; color: #fff; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
-    p { margin: 0 0 24px; color: var(--text-muted); }
-    
-    ul { margin: 0 0 32px; padding-left: 20px; color: var(--text-muted); list-style-type: none; }
-    li { margin-bottom: 16px; position: relative; padding-left: 16px; }
-    li::before { content: '■'; position: absolute; left: -16px; color: var(--accent); font-size: 10px; top: 8px; }
-    strong { color: #fff; font-weight: 600; }
+    .content-box {
+      background: rgba(16, 17, 20, 0.6);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      border: 1px solid var(--line-2);
+      border-radius: 8px;
+      padding: 44px 52px;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.04) inset,
+        0 20px 60px rgba(0,0,0,0.35);
+    }
 
-    .highlight-box { background: rgba(59, 108, 255, 0.08); border-left: 4px solid var(--accent); padding: 24px 30px; border-radius: 0 16px 16px 0; margin: 40px 0; display: flex; gap: 16px; align-items: flex-start; }
-    .highlight-box i { font-size: 28px; color: var(--accent); margin-top: 2px; }
-    .highlight-box p { margin: 0; color: #fff; font-size: 16px; }
+    .logo {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 9px 5px 5px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      margin-bottom: 28px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .logo:hover { background: rgba(255,255,255,0.06); border-color: var(--line-2); }
+    .logo-icon {
+      width: 20px; height: 20px;
+      background: var(--bg-3); border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-icon svg { width: 12px; height: 12px; fill: var(--fg); }
+    .logo-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px; font-weight: 500;
+      color: var(--fg); letter-spacing: -0.01em;
+    }
 
-    .footer-note { text-align: center; margin-top: 60px; padding-top: 30px; border-top: 1px dashed var(--border); color: rgba(255,255,255,0.3); font-size: 14px; }
+    h1 {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 40px; font-weight: 500; margin: 0 0 6px;
+      letter-spacing: -0.035em; color: var(--fg); line-height: 1.05;
+    }
+    h1 .accent { color: var(--accent); font-style: italic; font-weight: 500; }
+
+    .meta-data {
+      color: var(--muted); font-size: 12.5px;
+      font-weight: 500; margin-bottom: 40px;
+      display: flex; align-items: center; gap: 6px;
+      letter-spacing: -0.005em;
+    }
+    .meta-data i { color: var(--accent); font-size: 14px; }
+
+    h2 {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 21px; font-weight: 500;
+      margin: 40px 0 14px; color: var(--fg);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      letter-spacing: -0.02em;
+      position: relative;
+    }
+    h2::after {
+      content: ''; position: absolute; bottom: -1px; left: 0;
+      width: 32px; height: 1px;
+      background: var(--accent); opacity: 0.85;
+    }
+
+    p { margin: 0 0 18px; color: var(--muted); font-weight: 400; }
+
+    ul {
+      margin: 0 0 22px; padding-left: 0;
+      color: var(--muted); list-style-type: none;
+    }
+    li {
+      margin-bottom: 10px; position: relative; padding-left: 18px;
+      line-height: 1.65;
+    }
+    li::before {
+      content: '–'; position: absolute; left: 0;
+      color: var(--accent); font-weight: 500;
+    }
+    strong { color: var(--fg); font-weight: 500; }
+
+    code {
+      font-family: 'DM Mono', monospace; font-size: 12.5px;
+      background: rgba(255,255,255,0.05);
+      padding: 1px 5px; color: var(--accent);
+      border: 1px solid var(--line-2);
+      border-radius: 3px; font-weight: 400;
+    }
+
+    .highlight-box {
+      background: oklch(0.6 0.2 248 / 0.06);
+      border: 1px solid oklch(0.6 0.2 248 / 0.25);
+      border-left: 3px solid var(--accent);
+      padding: 16px 18px;
+      border-radius: 5px;
+      margin: 28px 0;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .highlight-box i { font-size: 18px; color: var(--accent); margin-top: 2px; flex-shrink: 0; }
+    .highlight-box p {
+      margin: 0;
+      color: var(--fg);
+      font-size: 13.5px;
+      font-weight: 400;
+      line-height: 1.55;
+    }
+    .highlight-box strong { color: var(--fg); font-weight: 500; }
+
+    .highlight-box.warning {
+      background: rgba(168, 96, 96, 0.06);
+      border-color: rgba(168, 96, 96, 0.25);
+      border-left-color: #c08585;
+    }
+    .highlight-box.warning i { color: #c08585; }
+
+    .footer-note {
+      text-align: center; margin-top: 48px; padding-top: 24px;
+      border-top: 1px solid var(--line);
+      color: var(--dim); font-size: 12px;
+      font-family: 'DM Sans', sans-serif;
+      letter-spacing: -0.005em;
+    }
 
     @media (max-width: 768px) {
-      .content-box { padding: 40px 30px; }
-      h1 { font-size: 36px; }
+      .content-box { padding: 32px 24px; }
+      h1 { font-size: 30px; }
+      main { padding: 32px 16px 60px; }
     }
   </style>
 </head>
 <body>
 
-  <div class="noise-overlay"></div>
-  <div class="glow-spot"></div>
+  <div class="horizon"></div>
 
   <main>
     <a href="/" class="back-btn"><i class="ph ph-arrow-left"></i> Back</a>
 
     <div class="content-box">
-      <h1>Terms of Service</h1>
-      <div class="meta-data"><i class="ph-bold ph-file-text"></i> Last Updated: March 2026</div>
+      <a href="/" class="logo">
+        <span class="logo-icon">
+          <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
+              <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+              <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+              <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+              <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+              <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+              <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+            </g>
+          </svg>
+        </span>
+        <span class="logo-text">gor://a</span>
+      </a>
 
-      <h2>1. Acceptance of Terms</h2>
+      <h1>Terms of <span class="accent">service.</span></h1>
+      <div class="meta-data"><i class="ph-bold ph-file-text"></i> Last updated: March 2026</div>
+
+      <h2>1. Acceptance of terms</h2>
       <p>By accessing or using Gor://a Builder, you agree to be bound by these Terms of Service. If you do not agree to these terms, you may not use our platform, AI generation services, or the API Proxy Gateway.</p>
 
-      <h2>2. AI-Generated Content & Code Ownership</h2>
+      <h2>2. AI-generated content &amp; code ownership</h2>
       <p>Gor://a Builder utilizes advanced Language Models to generate source code based on your prompts. <strong>You retain 100% ownership and copyright of all code generated within your projects.</strong></p>
-      
-      <div class="highlight-box">
+
+      <div class="highlight-box warning">
         <i class="ph-fill ph-warning-circle"></i>
-        <p><strong>Disclaimer of Liability:</strong> AI can make mistakes. We do not guarantee that the generated code is free from bugs, security vulnerabilities, or performance issues. You are solely responsible for reviewing, testing, and securing any code before deploying it to a production environment.</p>
+        <p><strong>Disclaimer of liability:</strong> AI can make mistakes. We do not guarantee that the generated code is free from bugs, security vulnerabilities, or performance issues. You are solely responsible for reviewing, testing, and securing any code before deploying it to a production environment.</p>
       </div>
 
-      <h2>3. Gorilla Tokens & Billing</h2>
-      <p>Access to our AI Proxy Gateway is governed by "Gorilla Credits" (Tokens). Tokens are deducted based on the complexity of the request (e.g., 0.5 credits per LLM token, 250 credits per image generated).</p>
+      <h2>3. Gorilla tokens &amp; billing</h2>
+      <p>Access to our AI Proxy Gateway is governed by "Gorilla Credits" (Tokens). Tokens are deducted based on the complexity of the request (e.g. 0.5 credits per LLM token, 250 credits per image generated).</p>
       <ul>
         <li>Free tier accounts receive a daily limit. Premium users receive a monthly allotment as defined by their active Stripe subscription.</li>
         <li>Tokens do not roll over month-to-month.</li>
         <li>Attempting to bypass, reverse-engineer, or abuse the API gateway using your <code>gb_live_</code> key will result in immediate account termination without a refund.</li>
       </ul>
 
-      <h2>4. Prohibited Uses</h2>
+      <h2>4. Prohibited uses</h2>
       <p>You agree not to use Gor://a Builder to generate, host, or deploy:</p>
       <ul>
         <li>Malicious software (malware, ransomware, phishing pages).</li>

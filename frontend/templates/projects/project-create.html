@@ -13,185 +13,252 @@
     :root {
       --bg: #0a0b0d;
       --bg-2: #101114;
+      --bg-3: #16181d;
       --fg: #e8e8eb;
       --muted: #8a8c95;
-      --dim: #4a4c55;
-      --faint: #25272d;
-      --line: rgba(255,255,255,0.10);
-      --line-2: rgba(255,255,255,0.18);
-      --blue: oklch(0.74 0.16 248);
-      --blue-2: oklch(0.62 0.2 252);
-      --blue-dim: oklch(0.4 0.12 252);
+      --dim: #56586a;
+      --line: rgba(255,255,255,0.07);
+      --line-2: rgba(255,255,255,0.13);
+      --line-3: rgba(255,255,255,0.2);
+      --accent: oklch(0.74 0.16 248);
+      --accent-2: oklch(0.68 0.18 248);
+      --accent-dim: oklch(0.4 0.12 252);
       --amber: oklch(0.78 0.13 80);
+      --purple: oklch(0.72 0.14 295);
+      --purple-dim: oklch(0.4 0.12 295);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --radius-lg: 8px;
     }
 
     * { box-sizing: border-box; outline: none; }
+    ::selection { background: oklch(0.74 0.16 248 / 0.35); color: #fff; }
 
     body {
       margin: 0; background: var(--bg); color: var(--fg);
       min-height: 100vh; display: flex; align-items: center; justify-content: center;
-      overflow: hidden; font-weight: 300;
+      overflow: hidden; font-weight: 400;
       font-family: 'DM Sans', system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.005em; position: relative;
     }
 
-    /* dot grid */
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: 28px 28px;
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    /* atmospheric horizon glow centered behind card */
+    .horizon {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 50% 60% at 50% 55%,
+        oklch(0.55 0.22 248 / 0.32) 0%,
+        oklch(0.45 0.2 250 / 0.16) 28%,
+        oklch(0.3 0.16 252 / 0.06) 52%,
+        transparent 75%);
+      filter: blur(40px);
     }
 
-    /* ── CARD — double-border ASCII window ── */
+    /* ── CARD ── */
     .card {
-      width: min(480px, 90%);
-      background: var(--bg);
-      border: 3px double rgba(255,255,255,0.22);
+      width: min(500px, 92%);
+      background: rgba(16, 17, 20, 0.7);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius-lg);
       position: relative; z-index: 1;
-      padding: 48px 40px 40px;
-      animation: cardEntry 0.6s var(--ease-out) forwards;
+      padding: 40px 36px 32px;
+      animation: cardEntry 0.5s var(--ease-out) forwards;
       opacity: 0;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.04) inset,
+        0 20px 60px rgba(0,0,0,0.45),
+        0 0 80px oklch(0.6 0.2 248 / 0.08);
     }
     @keyframes cardEntry {
-      from { opacity: 0; transform: translateY(20px); }
+      from { opacity: 0; transform: translateY(12px); }
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* floating chrome */
-    .w-chrome {
-      position: absolute; top: -10px; left: 14px;
-      background: var(--bg); padding: 0 8px;
-      font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted);
+    /* ── LOGO PILL ── */
+    .logo {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 9px 5px 5px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      margin-bottom: 22px;
+      text-decoration: none;
+      transition: all 0.15s ease;
     }
-    .w-title {
-      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-      background: var(--bg); padding: 0 14px;
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.2em; color: var(--fg);
-      text-transform: uppercase; white-space: nowrap;
+    .logo:hover { background: rgba(255,255,255,0.06); border-color: var(--line-2); }
+    .logo-icon {
+      width: 20px; height: 20px;
+      background: var(--bg-3); border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-icon svg { width: 12px; height: 12px; fill: var(--fg); }
+    .logo-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12.5px; font-weight: 500;
+      color: var(--fg); letter-spacing: -0.01em;
     }
 
     /* ── HEADINGS ── */
     .eyebrow {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue);
-      margin-bottom: 12px;
+      font-family: 'DM Sans', sans-serif; font-size: 12px;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-weight: 500; letter-spacing: -0.005em;
     }
-    .eyebrow::before { content: "// "; color: var(--dim); }
 
     h1 {
       font-family: 'DM Sans', sans-serif;
-      font-size: 26px; font-weight: 400; letter-spacing: -0.03em;
+      font-size: 28px; font-weight: 500; letter-spacing: -0.03em;
       margin: 0 0 6px; color: var(--fg); line-height: 1.05;
     }
-    h1 .accent { color: var(--blue); font-style: italic; font-weight: 400; }
+    h1 .accent { color: var(--accent); font-style: italic; font-weight: 500; }
 
     p.subtitle {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.08em; color: var(--muted);
-      margin: 0 0 28px; line-height: 1.65;
+      font-family: 'DM Sans', sans-serif; font-size: 13.5px;
+      color: var(--muted);
+      margin: 0 0 24px; line-height: 1.55;
+      font-weight: 400; letter-spacing: -0.005em;
     }
 
     /* ── PROMPT PREVIEW ── */
     .prompt-preview {
-      background: var(--bg-2); border: 1px solid var(--line);
-      border-left: 2px solid var(--blue-dim);
+      background: rgba(16, 17, 20, 0.5);
+      border: 1px solid var(--line-2);
+      border-left: 2px solid var(--accent);
+      border-radius: var(--radius-sm);
       padding: 12px 14px;
-      margin-bottom: 24px;
+      margin-bottom: 22px;
       display: flex; gap: 12px; align-items: flex-start;
     }
-    .prompt-icon { color: var(--blue); font-size: 16px; margin-top: 2px; flex-shrink: 0; }
+    .prompt-icon {
+      color: var(--accent); font-size: 16px;
+      margin-top: 2px; flex-shrink: 0;
+    }
     .prompt-content { flex: 1; min-width: 0; }
     .prompt-content strong {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--muted); display: block; margin-bottom: 6px; font-weight: 400;
+      font-family: 'DM Sans', sans-serif; font-size: 11.5px;
+      color: var(--muted); display: block; margin-bottom: 6px;
+      font-weight: 500; letter-spacing: -0.005em;
     }
     .prompt-content .prompt-text {
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.04em; color: var(--fg);
-      display: block; word-break: break-word; font-weight: 300; line-height: 1.55;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      color: var(--fg);
+      display: block; word-break: break-word;
+      font-weight: 400; line-height: 1.5;
+      letter-spacing: -0.005em;
     }
 
     /* ── MODE BADGE ── */
     .mode-badge {
       display: none; align-items: center; gap: 5px;
-      font-family: 'DM Mono', monospace;
-      font-size: 9px; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase;
-      padding: 3px 8px; margin-bottom: 8px; border: 1px solid var(--line);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px; font-weight: 500;
+      letter-spacing: -0.005em;
+      padding: 2px 7px; margin-bottom: 6px;
+      border: 1px solid var(--line-2);
+      border-radius: 3px;
     }
     .mode-badge .badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-    .mode-badge.fast { color: var(--blue); border-color: var(--blue-dim); }
-    .mode-badge.fast .badge-dot { background: var(--blue); }
-    .mode-badge.normal { color: var(--fg); border-color: var(--line-2); }
+    .mode-badge.fast {
+      color: var(--accent);
+      border-color: oklch(0.6 0.2 248 / 0.3);
+      background: oklch(0.6 0.2 248 / 0.08);
+    }
+    .mode-badge.fast .badge-dot {
+      background: var(--accent);
+      box-shadow: 0 0 5px var(--accent);
+    }
+    .mode-badge.normal {
+      color: var(--fg);
+      border-color: var(--line-3);
+      background: rgba(255,255,255,0.04);
+    }
     .mode-badge.normal .badge-dot { background: var(--fg); }
-    .mode-badge.deep { color: oklch(0.72 0.12 280); border-color: oklch(0.4 0.1 280); }
-    .mode-badge.deep .badge-dot { background: oklch(0.72 0.12 280); }
+    .mode-badge.deep {
+      color: var(--purple);
+      border-color: oklch(0.5 0.13 295 / 0.3);
+      background: oklch(0.5 0.13 295 / 0.08);
+    }
+    .mode-badge.deep .badge-dot {
+      background: var(--purple);
+      box-shadow: 0 0 5px var(--purple);
+    }
 
     .stashed-thumbnail {
-      width: 36px; height: 36px;
-      object-fit: cover; border: 1px solid var(--line); flex-shrink: 0;
+      width: 40px; height: 40px;
+      object-fit: cover;
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
     }
 
     /* ── FORM ── */
-    .form-group { margin-bottom: 18px; }
+    .form-group { margin-bottom: 16px; }
     label {
       display: block;
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      text-transform: uppercase; letter-spacing: 0.18em;
-      color: var(--dim); margin-bottom: 8px; font-weight: 400;
+      font-family: 'DM Sans', sans-serif; font-size: 11.5px;
+      color: var(--muted); margin-bottom: 6px;
+      font-weight: 500; letter-spacing: -0.005em;
     }
 
     input, textarea {
-      width: 100%; background: var(--bg-2); border: 1px solid var(--line);
-      color: var(--fg); padding: 12px 14px;
-      font-size: 14px; font-weight: 300;
+      width: 100%; background: var(--bg-2);
+      border: 1px solid var(--line-2);
+      color: var(--fg); padding: 11px 13px;
+      font-size: 13.5px; font-weight: 400;
       font-family: 'DM Sans', sans-serif;
-      transition: all 0.2s var(--ease-out);
+      transition: all 0.15s var(--ease-out);
+      border-radius: var(--radius-sm);
+      letter-spacing: -0.005em;
     }
-    input:focus, textarea:focus { border-color: var(--line-2); box-shadow: 0 0 0 3px rgba(255,255,255,0.03); }
+    input:focus, textarea:focus { border-color: var(--line-3); }
     input::placeholder, textarea::placeholder { color: var(--dim); }
-    textarea { min-height: 90px; resize: none; line-height: 1.55; }
+    textarea { min-height: 90px; resize: none; line-height: 1.5; }
 
     /* ── BUTTONS ── */
-    .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 
     .btn {
-      width: 100%; padding: 12px;
-      font-family: 'DM Mono', monospace; font-size: 11px;
-      letter-spacing: 0.18em; text-transform: uppercase; font-weight: 400;
+      width: 100%; padding: 10px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      font-weight: 500; letter-spacing: -0.005em;
       border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
       transition: all 0.15s var(--ease-out);
+      border-radius: var(--radius-sm);
     }
-    .btn-primary { background: var(--blue); color: #fff; }
-    .btn-primary:hover { background: var(--blue-2); transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(1px); }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      box-shadow: 0 2px 8px oklch(0.6 0.2 248 / 0.3);
+    }
+    .btn-primary:hover {
+      background: var(--accent-2);
+      box-shadow: 0 4px 14px oklch(0.6 0.2 248 / 0.45);
+    }
 
     .btn-ghost {
-      background: rgba(255,255,255,0.03); color: var(--muted);
-      border: 1px solid var(--line);
+      background: var(--bg-2); color: var(--fg);
+      border: 1px solid var(--line-2);
     }
-    .btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--fg); border-color: var(--line-2); transform: translateY(-1px); }
-    .btn-ghost:active { transform: translateY(1px); }
+    .btn-ghost:hover { background: var(--bg-3); border-color: var(--line-3); }
 
     .back-link {
-      display: block; text-align: center; margin-top: 20px;
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--dim); text-decoration: none;
-      border-bottom: 1px dashed transparent;
-      transition: color 0.15s, border-color 0.15s;
+      display: block; text-align: center; margin-top: 18px;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px;
+      color: var(--muted); text-decoration: none;
+      transition: color 0.15s;
+      font-weight: 500; letter-spacing: -0.005em;
     }
-    .back-link:hover { color: var(--blue); border-color: var(--blue-dim); }
+    .back-link:hover { color: var(--accent); }
 
     /* ── LOADING STATE ── */
     .loading-state {
-      display: none; text-align: center; padding: 32px 0; position: relative;
+      display: none; text-align: center; padding: 28px 0; position: relative;
     }
     .loading-state.active {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -200,13 +267,13 @@
     /* compiler core */
     .compiler-core {
       position: relative; width: 110px; height: 110px;
-      margin: 0 auto 36px;
+      margin: 0 auto 32px;
       display: flex; align-items: center; justify-content: center;
     }
     .compiler-glow {
       position: absolute; width: 100%; height: 100%;
-      background: radial-gradient(circle, var(--blue) 0%, transparent 60%);
-      opacity: 0.12; filter: blur(20px);
+      background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
+      opacity: 0.18; filter: blur(20px);
       animation: corePulse 2s ease-in-out infinite alternate;
     }
     .figma-icon {
@@ -221,21 +288,23 @@
       z-index: 15; opacity: 0.8;
       animation: scan 2s linear infinite;
     }
-    /* square tech ring — no border-radius, matches gor://a aesthetic */
+    /* round tech ring with subtle glow dots */
     .tech-ring {
       position: absolute; width: 88%; height: 88%;
-      border: 1px dashed var(--line-2);
+      border: 1px dashed var(--line-3);
+      border-radius: 50%;
       z-index: 5;
       animation: spinAnim 10s linear infinite;
     }
     .tech-ring::before, .tech-ring::after {
       content: ''; position: absolute;
-      width: 5px; height: 5px;
-      background: var(--blue);
-      box-shadow: 0 0 8px var(--blue);
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
     }
-    .tech-ring::before { top: -2.5px; left: 50%; transform: translateX(-50%); }
-    .tech-ring::after  { bottom: -2.5px; left: 50%; transform: translateX(-50%); }
+    .tech-ring::before { top: -3px; left: 50%; transform: translateX(-50%); }
+    .tech-ring::after  { bottom: -3px; left: 50%; transform: translateX(-50%); }
 
     #matrixCanvas {
       position: absolute; top: -50px; left: -50px;
@@ -244,29 +313,30 @@
     }
 
     .abstract-icon {
-      font-size: 46px; color: var(--blue); z-index: 10;
+      font-size: 46px; color: var(--accent); z-index: 10;
       animation: levitate 3s ease-in-out infinite;
-      filter: drop-shadow(0 0 12px oklch(0.4 0.12 252));
+      filter: drop-shadow(0 0 12px oklch(0.5 0.18 252 / 0.8));
     }
 
     .loading-title {
       font-family: 'DM Sans', sans-serif;
-      font-size: 20px; font-weight: 400; color: var(--fg);
-      margin-bottom: 14px; letter-spacing: -0.02em;
+      font-size: 20px; font-weight: 500; color: var(--fg);
+      margin-bottom: 12px; letter-spacing: -0.025em;
     }
-    .loading-title .accent { color: var(--blue); font-style: italic; }
+    .loading-title .accent { color: var(--accent); font-style: italic; }
 
     .loading-subtitle {
-      font-family: 'DM Mono', monospace; font-size: 10px;
-      color: var(--blue); letter-spacing: 0.18em; text-transform: uppercase;
-      background: rgba(255,255,255,0.03);
-      padding: 6px 14px;
-      border: 1px solid var(--blue-dim);
-      font-weight: 400;
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase;
+      background: oklch(0.6 0.2 248 / 0.08);
+      padding: 5px 12px;
+      border: 1px solid oklch(0.6 0.2 248 / 0.25);
+      border-radius: 3px;
+      font-weight: 500;
     }
     .typewriter-text {
       display: inline-block; overflow: hidden; white-space: nowrap;
-      border-right: 2px solid var(--blue);
+      border-right: 2px solid var(--accent);
       animation: blinkCursor 1s steps(2) infinite;
     }
 
@@ -275,8 +345,8 @@
       50%      { transform: translateY(-8px) scale(1.04); }
     }
     @keyframes corePulse {
-      0%   { opacity: 0.08; transform: scale(0.8); }
-      100% { opacity: 0.2;  transform: scale(1.2); }
+      0%   { opacity: 0.12; transform: scale(0.8); }
+      100% { opacity: 0.25; transform: scale(1.2); }
     }
     @keyframes scan {
       0%   { top: -10%; opacity: 0; }
@@ -291,13 +361,29 @@
 
 <body class="{% if user.plan == 'premium' %}premium{% endif %}">
 
+  <div class="horizon"></div>
+
   <div class="card" id="mainCard">
-    <span class="w-chrome">≡ ×</span>
-    <span class="w-title">[ PROJECT / INIT ]</span>
 
     <!-- ── FORM VIEW ── -->
     <div id="formView">
-      <div class="eyebrow">New Project</div>
+      <a href="/dashboard" class="logo">
+        <span class="logo-icon">
+          <svg viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(0,603) scale(0.1,-0.1)" stroke="none">
+              <path d="M2802 5273 c-43 -24 -131 -143 -182 -246 -99 -202 -106 -410 -19 -598 59 -128 153 -189 246 -158 56 18 81 37 108 84 34 57 32 112 -6 216 -54 145 -51 327 7 490 41 113 27 176 -46 214 -38 20 -68 19 -108 -2z"/>
+              <path d="M3290 5268 c-74 -50 -185 -230 -228 -369 -44 -142 -37 -293 19 -440 52 -134 141 -208 234 -195 131 20 194 151 136 281 -67 150 -67 316 0 522 26 80 29 98 20 126 -28 83 -116 119 -181 75z"/>
+              <path d="M685 4560 c-171 -34 -283 -139 -331 -306 -15 -50 -18 -129 -23 -519 -4 -321 -10 -466 -18 -480 -32 -56 -64 -70 -205 -90 -26 -4 -46 -17 -72 -45 -33 -36 -36 -45 -36 -99 0 -98 62 -161 157 -161 59 0 119 -26 146 -64 22 -31 22 -35 28 -496 5 -424 8 -471 26 -531 11 -37 31 -87 46 -111 72 -124 228 -198 418 -198 125 0 200 111 151 223 -26 59 -64 82 -148 90 -73 7 -116 27 -148 70 -20 28 -21 41 -27 490 -6 505 -8 526 -68 632 l-28 50 28 50 c60 106 62 128 68 630 6 427 7 462 25 491 26 44 68 65 139 71 81 7 131 35 157 88 26 53 25 91 -2 145 -32 61 -73 80 -168 79 -41 -1 -93 -5 -115 -9z"/>
+              <path d="M5102 4550 c-68 -42 -92 -135 -54 -209 26 -52 60 -72 140 -81 83 -9 128 -32 157 -80 19 -33 20 -56 26 -500 6 -505 6 -513 66 -621 l26 -45 -26 -45 c-59 -103 -61 -113 -67 -619 -5 -461 -5 -465 -28 -501 -28 -45 -72 -67 -156 -77 -111 -14 -160 -66 -153 -165 4 -66 26 -103 78 -130 28 -15 50 -18 124 -13 218 12 351 101 416 278 22 61 23 74 28 533 6 503 6 500 58 547 19 18 78 34 155 43 33 4 56 15 78 35 29 27 30 31 30 118 0 88 -1 91 -31 116 -33 28 -45 32 -127 40 -66 7 -110 31 -137 76 -19 33 -20 56 -26 505 -6 496 -6 500 -55 598 -70 138 -221 217 -414 217 -57 0 -83 -5 -108 -20z"/>
+              <path d="M1965 3849 c-113 -9 -166 -24 -280 -79 -312 -150 -493 -462 -471 -810 13 -209 89 -379 238 -529 161 -163 321 -236 545 -248 269 -14 478 70 667 267 61 65 95 111 130 179 70 136 89 217 89 386 0 124 -3 151 -27 230 -53 176 -145 314 -282 425 -174 139 -372 197 -609 179z m214 -324 c173 -46 319 -185 372 -354 23 -76 28 -212 9 -282 -50 -186 -208 -340 -391 -384 -181 -42 -372 15 -499 152 -100 106 -144 218 -143 363 1 290 228 517 518 519 44 0 104 -6 134 -14z"/>
+              <path d="M3880 3849 c-190 -17 -341 -86 -488 -224 -112 -104 -200 -249 -239 -395 -25 -92 -25 -339 0 -430 78 -281 316 -519 597 -597 101 -28 339 -25 443 5 152 44 285 128 397 250 146 158 211 332 212 557 0 244 -82 436 -259 606 -181 175 -402 251 -663 228z m213 -324 c282 -73 454 -362 382 -640 -45 -171 -179 -312 -355 -371 -80 -27 -243 -25 -324 5 -202 73 -337 252 -353 466 -17 243 150 475 388 539 71 19 191 20 262 1z"/>
+            </g>
+          </svg>
+        </span>
+        <span class="logo-text">gor://a</span>
+      </a>
+
+      <div class="eyebrow">New project</div>
       <h1>Initialize <span class="accent">project.</span></h1>
       <p class="subtitle">Review details before the AI begins construction.</p>
 
@@ -305,7 +391,7 @@
       <div class="prompt-preview">
         <i class="ph-fill ph-sparkle prompt-icon"></i>
         <div class="prompt-content">
-          <strong>Prompt Loaded</strong>
+          <strong>Prompt loaded</strong>
 
           <span class="mode-badge fast" id="modeBadge">
             <span class="badge-dot"></span>
@@ -333,7 +419,7 @@
         {% endif %}
 
         <div class="form-group">
-          <label>Project Name</label>
+          <label>Project name</label>
           <input name="name" placeholder="e.g. Finance Dashboard" required autofocus />
         </div>
 
@@ -355,7 +441,7 @@
         </div>
       </form>
 
-      <a href="/dashboard" class="back-link">← Cancel &amp; Return</a>
+      <a href="/dashboard" class="back-link">← Cancel &amp; return</a>
     </div>
 
     <!-- ── LOADING VIEW ── -->
@@ -381,11 +467,11 @@
 
       {% if is_figma_link %}
         <div class="loading-title">Compiling <span class="accent">Figma design.</span></div>
-        <div class="loading-subtitle" id="statusText">EXTRACTING_AST <span class="typewriter-text">...</span></div>
-        <p style="margin-top:16px; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--dim);">Translating vector layout into React TSX</p>
+        <div class="loading-subtitle" id="statusText">extracting_ast <span class="typewriter-text">...</span></div>
+        <p style="margin-top:16px; font-family:'DM Sans',sans-serif; font-size:12.5px; color:var(--muted); font-weight:400; letter-spacing:-0.005em;">Translating vector layout into React TSX</p>
       {% else %}
         <div class="loading-title">Initializing <span class="accent">environment.</span></div>
-        <div class="loading-subtitle">BOOTING_VM <span class="typewriter-text">...</span></div>
+        <div class="loading-subtitle">booting_vm <span class="typewriter-text">...</span></div>
       {% endif %}
     </div>
 
@@ -456,7 +542,7 @@
       const isFigma = {{ 'true' if is_figma_link else 'false' }};
       if (isFigma) {
         startMatrixEffect();
-        const texts = ["EXTRACTING_AST", "PURGING_MATH", "TRANSLATING_FLEXBOX", "WRITING_COMPONENTS"];
+        const texts = ["extracting_ast", "purging_math", "translating_flexbox", "writing_components"];
         let i = 0;
         setInterval(() => {
           i = (i + 1) % texts.length;
