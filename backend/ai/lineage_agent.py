@@ -34,10 +34,31 @@ import httpx
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-MODEL         = os.getenv("LINEAGE_MODEL",   "xiaomi/mimo-v2.5")
-SMART_MODEL   = os.getenv("SMART_MODEL",     "xiaomi/mimo-v2.5-pro")
-PLANNER_MODEL = os.getenv("PLANNER_MODEL",   "xiaomi/mimo-v2.5-pro")
-VISION_MODEL  = os.getenv("VISION_MODEL",    "xiaomi/mimo-v2.5")
+MODEL           = os.getenv("LINEAGE_MODEL",     "xiaomi/mimo-v2.5")
+SMART_MODEL     = os.getenv("SMART_MODEL",       "xiaomi/mimo-v2.5-pro")
+PLANNER_MODEL   = os.getenv("PLANNER_MODEL",     "xiaomi/mimo-v2.5-pro")
+VISION_MODEL    = os.getenv("VISION_MODEL",      "xiaomi/mimo-v2.5")
+DEEP_THINK_MODEL = os.getenv("DEEP_THINK_MODEL", "xiaomi/mimo-v2.5-pro")
+
+# When this exact phrase appears in the user's prompt, every turn of that
+# request (and any follow-up tool turns in the same agent instance) routes
+# to DEEP_THINK_MODEL — overriding the smart/base picker. Match is
+# whitespace-insensitive and case-insensitive but otherwise verbatim.
+DEEP_THINK_TRIGGER = (
+    "TAKE YOUR TIME AND THINK DEEPLY. Before writing any code, carefully "
+    "plan your architecture, reason through edge cases, and think about "
+    "potential failure points. Quality and thoroughness over speed and "
+    "do this:"
+)
+
+
+def _matches_deep_think_trigger(text: str) -> bool:
+    """Whitespace-insensitive, case-insensitive substring check."""
+    if not text:
+        return False
+    norm_text    = re.sub(r"\s+", " ", text).strip().lower()
+    norm_trigger = re.sub(r"\s+", " ", DEEP_THINK_TRIGGER).strip().lower()
+    return norm_trigger in norm_text
 
 OPENROUTER_URL = os.getenv(
     "OPENROUTER_URL",
@@ -1572,6 +1593,10 @@ class LineageAgent:
         self._prompt_expanded   = False
         self._gorilla_proxy_url: str  = ""
         self._has_supabase:      bool = False
+        # Once a request contains the DEEP_THINK_TRIGGER phrase, every turn
+        # of this agent instance routes to DEEP_THINK_MODEL. Sticky so
+        # multi-turn tool loops don't drop back to the base model.
+        self._deep_think:        bool = False
 
     def _ensure_system_prompt(
         self,
@@ -1751,11 +1776,29 @@ class LineageAgent:
             else:
                 self.messages.append({"role": "user", "content": user_text})
 
+        # ─── DEEP-THINK OVERRIDE ─────────────────────────────────────
+        # Detect the trigger phrase in this turn's user_request OR in any
+        # earlier message of this agent (sticky). Once latched, every turn
+        # — including vision and post-image turns — routes to DEEP_THINK_MODEL.
+        if not self._deep_think and _matches_deep_think_trigger(user_request or ""):
+            self._deep_think = True
+            log_agent(
+                "agent",
+                f"DEEP-THINK trigger matched → routing to {DEEP_THINK_MODEL}",
+                self.project_id,
+            )
+
         first_turn_has_image = bool(
             (image_b64 or prompt_image_b64) and not previous_command_output
         )
 
-        if first_turn_has_image:
+        if self._deep_think:
+            # Override: use the deep-think model for every turn, including
+            # vision turns. The override takes precedence over the smart
+            # picker and the vision-model branch — the user asked for
+            # deliberate, deep reasoning, so we honour it everywhere.
+            model = DEEP_THINK_MODEL
+        elif first_turn_has_image:
             model = VISION_MODEL
         else:
             turn_index = max(0, len(self.messages) // 2 - 1)
