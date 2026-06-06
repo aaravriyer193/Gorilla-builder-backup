@@ -1030,7 +1030,7 @@ async def auth_github_callback(request: Request, code: str):
         )
         
         if res.status_code != 200:
-             raise HTTPException(400, "GitHub Login Failed")
+            raise HTTPException(400, "GitHub Login Failed")
         
         tokens = res.json()
         access_token = tokens.get("access_token")
@@ -1048,10 +1048,10 @@ async def auth_github_callback(request: Request, code: str):
             }
         )
         user_data = user_res.json()
-        email = user_data.get("email")
-        github_username = user_data.get("login", "unknown_github_user") # Grab their username just in case!
+        github_username = user_data.get("login", "unknown_github_user")
 
-        # 3. If primary email is private, hit the emails endpoint directly
+        # (email resolution logic unchanged — steps 3 & 4 from your original)
+        email = user_data.get("email")
         if not email:
             emails_res = await client.get(
                 "https://api.github.com/user/emails",
@@ -1063,45 +1063,44 @@ async def auth_github_callback(request: Request, code: str):
             if emails_res.status_code == 200:
                 emails_data = emails_res.json()
                 if isinstance(emails_data, list):
-                    # Attempt A: Find the Primary & Verified email
                     for em in emails_data:
                         if isinstance(em, dict) and em.get("primary") and em.get("verified"):
                             email = em.get("email")
                             break
-                    
-                    # Attempt B: Just find ANY Verified email
                     if not email:
                         for em in emails_data:
                             if isinstance(em, dict) and em.get("verified"):
                                 email = em.get("email")
                                 break
-                    
-                    # Attempt C: Just take the very first email they have listed
                     if not email and len(emails_data) > 0 and isinstance(emails_data[0], dict):
                         email = emails_data[0].get("email")
 
-        # 🚨 4. THE ULTIMATE FALLBACK 🚨
-        # If their privacy settings are on maximum lockdown, we build a proxy email
-        # so they can still create an account and build apps!
         if not email:
             email = f"{github_username}@noreply.github.com"
 
-        # 5. Sync User in Database
-        user_id = _stable_user_id_for_email(email)
-        ensure_public_user(user_id, email)
-        
-        # 🚨 AI PROXY: Ensure they have a Master Key
-        _ensure_gorilla_api_key(user_id)
-        
-        # 6. Store the GitHub access token so we can push code later
-        try:
-            supabase.table("users").update({"github_access_token": access_token}).eq("id", user_id).execute()
-        except Exception as e:
-            print(f"⚠️ Failed to save github_access_token for {email}: {e}")
+        # ── ACCOUNT LINKING ──────────────────────────────────────────────
+        # If the user is already logged in (e.g. via Google), attach the
+        # GitHub token to their existing account instead of making a new one.
+        existing_session = request.session.get("user")
+        if existing_session and existing_session.get("id"):
+            user_id = existing_session["id"]
+            # Don't overwrite their session email — keep the Google one.
+        else:
+            # Fresh login via GitHub: resolve by GitHub email as before.
+            user_id = _stable_user_id_for_email(email)
+            ensure_public_user(user_id, email)
+            _ensure_gorilla_api_key(user_id)
+            request.session["user"] = {"id": user_id, "email": email}
+        # ─────────────────────────────────────────────────────────────────
 
-        # 7. Finalize Login
-        request.session["user"] = {"id": user_id, "email": email}
-        
+        # 5. Save the GitHub access token under whichever user_id we resolved
+        try:
+            supabase.table("users").update(
+                {"github_access_token": access_token}
+            ).eq("id", user_id).execute()
+        except Exception as e:
+            print(f"⚠️ Failed to save github_access_token for user {user_id}: {e}")
+
         return RedirectResponse("/dashboard", status_code=303)
         
 # ==========================================================================
