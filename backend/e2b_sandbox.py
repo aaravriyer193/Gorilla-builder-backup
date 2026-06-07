@@ -1527,7 +1527,7 @@ class E2BSandboxManager:
 
                 last_raw_output = bash_obs
 
-           elif not (write_files or edit_files or read_calls):
+            elif not (write_files or edit_files or read_calls):
                 consecutive_no_action += 1
                 if consecutive_no_action >= CIRCUIT_BREAKER_LIMIT:
                     self._emit_narration(
