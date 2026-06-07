@@ -1677,57 +1677,46 @@ async function bootSandboxIfNeeded() {
 
 // ── SSE stream ────────────────────────────────────────────────────────────────
 
-// ── SSE message handler ───────────────────────────────────────────────────────
-
-async function handleSSEMessage(e) {
-  const m = JSON.parse(e.data);
-  if (m.type === "status") {
-    setProgress(m.text);
-    if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
-    if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) updateSandboxStatus("Live");
-    if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
-  }
-  else if (m.type === "progress") setProgress(m.text, m.pct);
-  else if (m.type === "sandbox_url") {
-    sandboxUrl = m.url; updateSandboxStatus("Live");
-    if (!window.isAgentWorking && $("tabPreview").classList.contains("active")) {
-      const iframe = $("preview");
-      iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
-      const checkPort = setInterval(async () => {
-        try {
-          const res = await fetch(sandboxUrl); const text = await res.text();
-          if (!text.includes("Closed Port Error") && !text.includes("no service running on port")) {
-            clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
-          }
-        } catch (err) {
-          clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
-        }
-      }, 2000);
-    }
-  }
-  else if (m.type === "narration") await addNarration(m.text, true);
-  else if (m.type === "activity_start") addActivityCard(m.id, m.verb, m.target, m.short);
-  else if (m.type === "activity_chunk") appendActivityChunk(m.id, m.stream, m.text);
-  else if (m.type === "activity_end") endActivity(m.id, m.ok);
-  else if (m.type === "log") { if ((m.role || "").toLowerCase() === "assistant") await addNarration(m.text, false); }
-  else if (m.type === "file_changed") { refreshFiles(); if (m.path === currentFile) loadFile(currentFile); }
-  else if (m.type === "file_deleted") { refreshFiles(); if (m.path === currentFile) currentFile = "README.md"; }
-  else if (m.type === "token_usage") updateTokens(m.used);
-}
-
-// ── SSE stream ────────────────────────────────────────────────────────────────
-
 function startStream() {
   if (es) es.close(); setConn("warn");
   es = new EventSource(`/api/project/${PROJECT_ID}/events`);
   es.onopen = () => setConn("ok");
-  es.onmessage = handleSSEMessage;
-  es.onerror = () => {
-    setConn("bad");
-    setTimeout(() => {
-      if (es && es.readyState === EventSource.CLOSED) startStream();
-    }, 3000);
+  es.onmessage = async (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === "status") {
+      setProgress(m.text);
+      if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
+      if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) updateSandboxStatus("Live");
+      if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
+    }
+    else if (m.type === "progress") setProgress(m.text, m.pct);
+    else if (m.type === "sandbox_url") {
+      sandboxUrl = m.url; updateSandboxStatus("Live");
+      if (!window.isAgentWorking && $("tabPreview").classList.contains("active")) {
+        const iframe = $("preview");
+        iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
+        const checkPort = setInterval(async () => {
+          try {
+            const res = await fetch(sandboxUrl); const text = await res.text();
+            if (!text.includes("Closed Port Error") && !text.includes("no service running on port")) {
+              clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
+            }
+          } catch (err) {
+            clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
+          }
+        }, 2000);
+      }
+    }
+    else if (m.type === "narration") await addNarration(m.text, true);
+    else if (m.type === "activity_start") addActivityCard(m.id, m.verb, m.target, m.short);
+    else if (m.type === "activity_chunk") appendActivityChunk(m.id, m.stream, m.text);
+    else if (m.type === "activity_end") endActivity(m.id, m.ok);
+    else if (m.type === "log") { if ((m.role || "").toLowerCase() === "assistant") await addNarration(m.text, false); }
+    else if (m.type === "file_changed") { refreshFiles(); if (m.path === currentFile) loadFile(currentFile); }
+    else if (m.type === "file_deleted") { refreshFiles(); if (m.path === currentFile) currentFile = "README.md"; }
+    else if (m.type === "token_usage") updateTokens(m.used);
   };
+  es.onerror = () => setConn("bad");
 }
 
 // ── agent ─────────────────────────────────────────────────────────────────────
@@ -1740,29 +1729,7 @@ async function triggerAgent(promptText) {
   const formData = new FormData();
   formData.append("agent_type", isDbReq ? "supabase" : "fast");
   if (isDbReq && !PROJECT_HAS_DB && !HAS_SUPABASE) {
-    resetGroup();
-    const el = document.createElement('div');
-    el.className = 'narration';
-    const p = document.createElement('p');
-    p.textContent = 'To use a database, connect your Supabase account first.';
-    const a = document.createElement('a');
-    a.href = '/auth/supabase/link';
-    a.innerHTML = '<i class="ph ph-plug"></i> Connect Supabase';
-    Object.assign(a.style, {
-      display: 'inline-flex', alignItems: 'center', gap: '6px',
-      marginTop: '10px', padding: '7px 14px', borderRadius: '6px',
-      fontSize: '12.5px', fontWeight: '500', letterSpacing: '-0.005em',
-      background: 'oklch(0.6 0.2 248 / 0.15)',
-      border: '1px solid oklch(0.6 0.2 248 / 0.35)',
-      color: 'var(--accent)', textDecoration: 'none',
-    });
-    a.onmouseenter = () => { a.style.background = 'oklch(0.6 0.2 248 / 0.25)'; };
-    a.onmouseleave = () => { a.style.background = 'oklch(0.6 0.2 248 / 0.15)'; };
-    el.appendChild(p);
-    el.appendChild(a);
-    chat.appendChild(el);
-    chat.scrollTop = chat.scrollHeight;
-    return;
+    await addNarration("To use a database, please link your Supabase account from Dashboard settings.", false); return;
   }
   if (isDbReq && !PROJECT_HAS_DB) formData.append("is_db_request", "true");
   setInputState(true);
@@ -1773,15 +1740,8 @@ async function triggerAgent(promptText) {
   if (imgPreview) { imgPreview.style.display = "none"; imgPreview.src = ""; }
   document.querySelector('label[for="editorImageInput"]').style.display = 'flex';
   if (imgInput) imgInput.value = "";
-  await new Promise((resolve) => {
-    if (es) es.close();
-    setConn("warn");
-    es = new EventSource(`/api/project/${PROJECT_ID}/events`);
-    es.onopen = () => { setConn("ok"); resolve(); };
-    es.onerror = () => { setConn("bad"); resolve(); };
-    es.onmessage = handleSSEMessage;
-    setTimeout(resolve, 2000);
-  });
+  startStream();
+  await new Promise(r => setTimeout(r, 5000));
   fetch(`/api/project/${PROJECT_ID}/agent/start`, { method: "POST", body: formData })
     .catch(err => { console.error("Agent start failed:", err); setInputState(false); });
 }
