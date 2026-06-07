@@ -4005,13 +4005,14 @@ async def agent_events(request: Request, project_id: str):
     async def _gen():
         q = progress_bus.subscribe(project_id)
         try:
-            yield f"data: {json.dumps({'type':'status', 'text':'Connected'})}\n\n"
+            yield ":" + " " * 2048 + "\n\n"   # prime the proxy, force first flush
+            yield f"data: {json.dumps({'type':'status','text':'Connected'})}\n\n"
             while True:
                 try:
-                    ev = await asyncio.wait_for(q.get(), timeout=15)
+                    ev = await asyncio.wait_for(q.get(), timeout=5)
                     yield f"data: {json.dumps(ev)}\n\n"
                 except asyncio.TimeoutError:
-                    yield f": keep-alive\n\n"
+                    yield ": keep-alive\n\n"
         finally:
             progress_bus.unsubscribe(project_id, q)
 

@@ -808,6 +808,8 @@ The mental model: every turn ends with a single <tool_call>...</tool_call> block
 
 Never ever go around in circles and circles just doing nothing and wasting tool calls, unless you are working on something, and making progress, mark it done.
 
+Unless you are building or iterating on an app, do not start the servers.
+
 Examples of well-formed turns:
 
 **Parallel exploration (one tool_call, many reads):**
