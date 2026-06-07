@@ -503,7 +503,7 @@ function ensureAudio(){
   }
   if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
 }
-function tone(freq, dur, type='square', vol=0.05){
+function tone(freq, dur, type='square', vol=0.00){
   if(!audioCtx) return;
   try {
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
@@ -524,18 +524,7 @@ const sfx = {
 // MUSIC
 let musicPlaying = false;
 let musicTimers = [];
-const MELODY = [
-  [523,1],[659,1],[784,1],[1047,1],[988,1],[784,1],[659,2],
-  [587,1],[698,1],[880,1],[1047,1],[988,1],[698,1],[587,2],
-  [523,1],[659,1],[784,1],[1047,1],[1175,2],[988,2],
-  [880,1],[784,1],[659,1],[587,1],[523,4]
-];
-const BASS = [
-  [131,2],[131,2],[165,2],[131,2],
-  [147,2],[147,2],[175,2],[147,2],
-  [131,2],[131,2],[196,2],[196,2],
-  [165,2],[147,2],[131,4]
-];
+
 function startMusic(){
   if(musicPlaying || !audioCtx) return;
   musicPlaying = true;

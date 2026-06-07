@@ -61,7 +61,7 @@ BILLING_TOKENS_PER_HOUR = 50_000
 BILLING_TICK_S   = 1
 APP_DIR          = "/home/user/app"
 MAX_COMMANDS_PER_TURN   = 1600
-MAX_TURNS_PER_REQUEST   = 80
+MAX_TURNS_PER_REQUEST   = 120
 SYNC_MARKER      = "/tmp/.gorilla_sync_marker"
 FILE_READ_SENTINEL    = "═══GORILLA_FILE_BOUNDARY_9f8c═══"
 FILE_CONTENT_SENTINEL = "═══GORILLA_CONTENT_START_9f8c═══"
@@ -1280,11 +1280,13 @@ class E2BSandboxManager:
 
         all_commands:   List[str] = []
         final_message             = ""
-        total_tokens              = 0       # cumulative tokens (µ$ weights)
+        total_tokens              = 0
         turn_count                = 0
         previous_output:  Optional[str] = None
         last_raw_output           = ""
-        agent_marked_done         = False   # v18.1: track for reviewer gate
+        agent_marked_done         = False
+        consecutive_no_action     = 0
+        CIRCUIT_BREAKER_LIMIT     = 4
 
         now = time.time()
         if (now - session._tree_cached_at) > 30 or not session._cached_tree:
@@ -1398,6 +1400,18 @@ class E2BSandboxManager:
             bash_obs = ""
 
             if result.get("done", False) and not commands:
+                fe_ok, api_ok, _ = await self._fast_verify_dev_server(project_id, session)
+                if not fe_ok and not api_ok:
+                    log_agent("agent", "mark_done blocked — both ports down, injecting observation", project_id)
+                    previous_output = (
+                        "OBSERVATION:\nmark_done blocked — both dev server ports (:8080 and :3000) "
+                        "are not responding. Fix the error causing the crash, restart the dev server "
+                        "with: cd /home/user/app && npm run dev > /tmp/dev.log 2>&1 </dev/null & disown, "
+                        "then verify both ports return 200 before calling mark_done."
+                    )
+                    if parsed_internal:
+                        agent.record_tool_results(parsed_internal, write_observation=write_obs, read_observation=read_obs, bash_observation=previous_output)
+                    continue
                 agent_marked_done = True
                 if parsed_internal:
                     agent.record_tool_results(
@@ -1513,7 +1527,18 @@ class E2BSandboxManager:
 
                 last_raw_output = bash_obs
 
-            elif not (write_files or edit_files or read_calls):
+           elif not (write_files or edit_files or read_calls):
+                consecutive_no_action += 1
+                if consecutive_no_action >= CIRCUIT_BREAKER_LIMIT:
+                    self._emit_narration(
+                        project_id,
+                        "I've been stuck for a few turns without making progress — this usually means "
+                        "the sandbox environment is degraded. Your files are safe and saved. "
+                        "Try refreshing the page, or send your message again to start fresh."
+                    )
+                    self._emit_status(project_id, "Fatal Error")
+                    log_agent("agent", f"Circuit breaker tripped after {consecutive_no_action} no-action turns", project_id)
+                    break
                 previous_output = (
                     "OBSERVATION:\n"
                     "No actions detected. Use read_files/grep_search to explore, "
@@ -1521,6 +1546,8 @@ class E2BSandboxManager:
                     "or mark_done if finished."
                 )
                 continue
+            else:
+                consecutive_no_action = 0
 
             if parsed_internal:
                 agent.record_tool_results(

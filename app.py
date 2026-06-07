@@ -328,6 +328,27 @@ def add_monthly_tokens(user_id: str, tokens_to_add: int) -> int:
         print(f"Token Update Error: {e}")
         return 0
 
+def _maybe_emit_token_warning(project_id: str, user_id: str) -> None:
+    """Emit a save-your-work nudge at 500k and 800k tokens used."""
+    try:
+        used, limit = get_token_usage_and_limit(user_id)
+        pct = used / limit if limit else 0
+        if 0.98 <= pct:
+            return
+        if 0.80 <= pct < 0.82:
+            emit_log(project_id, "assistant", (
+                "⚠️ **You've used 80% of your token budget.** Now is a good time to push your code to GitHub "
+                "using the **GitHub button** in the top-right of the editor, or hit **Deploy** to save your work "
+                "before you run out."
+            ))
+        elif 0.50 <= pct < 0.52:
+            emit_log(project_id, "assistant", (
+                "💡 **Halfway through your token budget.** Your project is saved automatically, but if you want "
+                "a permanent copy push it to GitHub now using the **GitHub** button top-right."
+            ))
+    except Exception as e:
+        print(f"⚠️ token warning check failed: {e}")
+
 def enforce_token_limit_or_raise(user_id: str) -> Tuple[int, int]:
     """Checks usage against the user's specific limit."""
     used, limit = get_token_usage_and_limit(user_id)
@@ -1969,14 +1990,19 @@ def track_event(project_id: str, event_type: str, **kwargs):
     """Non-blocking analytics write. Never raises — analytics must never break features."""
     try:
         supabase.table("app_analytics").insert({
-            "project_id": project_id,
-            "event_type": event_type,
+            "project_id":    project_id,
+            "event_type":    event_type,
             "user_email":    kwargs.get("user_email"),
             "user_provider": kwargs.get("user_provider"),
             "metadata":      kwargs.get("metadata") or {},
         }).execute()
     except Exception as e:
-        print(f"⚠️ analytics track_event failed ({event_type}): {e}")
+        err_str = str(e)
+        if "42501" in err_str or "row-level security" in err_str.lower():
+            print(f"⚠️ analytics RLS policy blocks insert for event '{event_type}'. "
+                  f"Fix: grant INSERT on app_analytics to the service role, or disable RLS for the service key.")
+        else:
+            print(f"⚠️ analytics track_event failed ({event_type}): {e}")
 
 # ==========================================================================
 # SANDBOX ROUTES AND HELPERS
@@ -2054,8 +2080,16 @@ async def start_sandbox(request: Request, project_id: str):
         enforce_token_limit_or_raise(user["id"])
     except HTTPException as e:
         if e.status_code == 402:
-            return JSONResponse({"detail": "Token limit reached"}, status_code=402)
+            emit_log(project_id, "assistant", (
+                "⚠️ **Your token limit has been reached.** The sandbox can't start until you upgrade or top up. "
+                "Visit [Pricing](/pricing) to continue building."
+            ))
+            return JSONResponse({
+                "detail": "Token limit reached. Please upgrade your plan or top up tokens to continue.",
+                "upgrade_url": "/pricing"
+            }, status_code=402)
         raise
+
  
     env_vars = _build_sandbox_env(project_id, user["id"])
     try:
@@ -2366,9 +2400,10 @@ async def run_agent_loop(
         total_tokens = result.get("tokens", 0)
         if total_tokens and user_id:
             add_monthly_tokens(user_id, total_tokens)
+            _maybe_emit_token_warning(project_id, user_id)
 
-        track_event(project_id, "agent_run", metadata={"tokens": total_tokens}) 
- 
+        track_event(project_id, "agent_run", metadata={"tokens": total_tokens})
+        
         if not result.get("ok"):
             emit_status(project_id, "Fatal Error")
             return
@@ -2859,13 +2894,22 @@ async def publish_to_github(request: Request, project_id: str):
     try:
         user = get_current_user(request)
         
-        proj_check = supabase.table("projects").select("owner_id").eq("id", project_id).single().execute()
-        if not proj_check.data or proj_check.data["owner_id"] != user["id"]:
+        proj_check = supabase.table("projects").select("owner_id").eq("id", project_id).maybe_single().execute()
+        if not proj_check or not proj_check.data:
+            return JSONResponse({"detail": "Project not found."}, status_code=404)
+        if proj_check.data["owner_id"] != user["id"]:
             return JSONResponse({"detail": "Unauthorized"}, status_code=403)
         
         user_data = db_select_one("users", {"id": user["id"]}, "github_access_token")
         if not user_data or not user_data.get("github_access_token"):
-            return JSONResponse({"detail": "GitHub account not connected."}, status_code=400)
+            return JSONResponse({
+                "detail": (
+                    "GitHub account not connected. Click the GitHub button in the top-right "
+                    "of the editor to connect your account — no token pasting required. "
+                    "Once connected, click the button again to push your code."
+                ),
+                "connect_url": "/auth/github/link"
+            }, status_code=400)
         
         token = user_data["github_access_token"]
         

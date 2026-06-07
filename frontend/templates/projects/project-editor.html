@@ -1082,13 +1082,27 @@ async function commitToGithub() {
   try {
     const res = await fetch(`/projects/{{ project_id }}/github/publish`, { method: 'POST' });
     const data = await res.json();
+    if (res.status === 400 && data.connect_url) {
+      btn.innerHTML = orig; btn.disabled = false; btn.style.opacity = "1";
+      _showGithubGuidance(); return;
+    }
     if (!res.ok) throw new Error(data.detail || "Failed");
-    btn.innerHTML = '<i class="ph ph-check"></i> Synced';
+    btn.innerHTML = '<i class="ph ph-check"></i> Synced!';
     setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
   } catch (err) {
-    btn.innerHTML = 'Error';
+    btn.innerHTML = '<i class="ph ph-warning"></i> Error';
     setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; btn.style.opacity = "1"; }, 3000);
   }
+}
+
+function _showGithubGuidance() {
+  const existing = $("ghGuidance"); if (existing) { existing.remove(); return; }
+  const el = document.createElement('div');
+  el.id = "ghGuidance";
+  el.style.cssText = "position:fixed;top:60px;right:16px;z-index:9999;background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--radius-lg);padding:16px 18px;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:fadeUp 0.2s var(--ease);";
+  el.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--fg);margin-bottom:8px;display:flex;align-items:center;gap:8px;"><i class="ph ph-git-branch" style="color:var(--accent);"></i> Connect GitHub first</div><p style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:12px;">Click <strong>Connect GitHub</strong> to link your account — no tokens or PATs needed. Then click the GitHub button again to push.</p><div style="display:flex;gap:8px;"><a href="/auth/github/link" style="flex:1;background:var(--accent);color:#fff;text-decoration:none;padding:7px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;text-align:center;display:block;">Connect GitHub</a><button onclick="document.getElementById('ghGuidance').remove()" style="background:var(--bg-3);border:1px solid var(--line-2);color:var(--muted);padding:7px 10px;border-radius:var(--radius-sm);font-size:12px;cursor:pointer;">✕</button></div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { const e = $("ghGuidance"); if (e) e.remove(); }, 14000);
 }
 </script>
 
@@ -1251,6 +1265,16 @@ function showPreviewAfterDone() {
 
 // ── input state ───────────────────────────────────────────────────────────────
 
+let _agentStart = null;
+let _agentTick = null;
+
+function _tickAgentTimer() {
+  if (!_agentStart) return;
+  const s = Math.floor((Date.now() - _agentStart) / 1000);
+  const el = $("agentElapsed");
+  if (el) el.textContent = s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+}
+
 function setInputState(locked) {
   window.isAgentWorking = locked;
   const p = $("prompt"), b = $("runAgent");
@@ -1259,13 +1283,31 @@ function setInputState(locked) {
   const ed = $("editor");
   if (ed) { ed.style.opacity = locked ? "0.4" : "1"; ed.style.pointerEvents = locked ? "none" : "auto"; }
   setStatusBarConnection(locked ? 'working' : 'ok');
+
+  let banner = $("agentBanner");
+
   if (locked) {
-    if (p) p.placeholder = "Gorilla is thinking…";
+    _agentStart = Date.now();
+    if (_agentTick) clearInterval(_agentTick);
+    _agentTick = setInterval(_tickAgentTimer, 1000);
+    if (p) p.placeholder = "Agent is working — send a message to add context";
     if (b) b.innerHTML = '<i class="ph ph-spinner" style="animation:spin 0.9s linear infinite;"></i>';
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = "agentBanner";
+      banner.style.cssText = "padding:6px 14px;background:oklch(0.38 0.12 252 / 0.95);border-bottom:1px solid oklch(0.6 0.2 248/0.25);display:flex;align-items:center;gap:10px;flex-shrink:0;";
+      banner.innerHTML = '<div class="wave active" style="opacity:1;"><span></span><span></span><span></span></div><span id="agentBannerText" style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.9);flex:1;letter-spacing:-0.005em;">Gorilla is working…</span><span id="agentElapsed" style="font-size:11px;font-family:\'DM Mono\',monospace;color:rgba(255,255,255,0.45);">0s</span>';
+      const chatEl = $("chat");
+      if (chatEl && chatEl.parentNode) chatEl.parentNode.insertBefore(banner, chatEl);
+    }
+    banner.style.display = "flex";
     showGameFrame();
   } else {
+    _agentStart = null;
+    if (_agentTick) { clearInterval(_agentTick); _agentTick = null; }
     if (p) p.placeholder = "What shall we build?";
     if (b) b.innerHTML = '<i class="ph-bold ph-arrow-up"></i>';
+    if (banner) banner.style.display = "none";
     showPreviewAfterDone();
   }
 }
@@ -1306,7 +1348,11 @@ function setConn(state) {
   setStatusBarConnection(state);
 }
 function setProgress(text, pct) {
-  if (text) $("progressText").textContent = text;
+  if (text) {
+    $("progressText").textContent = text;
+    const bt = $("agentBannerText");
+    if (bt && window.isAgentWorking) bt.textContent = text;
+  }
   if (pct !== undefined) $("progressBar").style.width = Math.max(0, Math.min(100, Number(pct))) + "%";
   const wave = $("loadingWave");
   if (wave) wave.classList.toggle("active", text && !/Idle|Done|Ready/i.test(text));
@@ -1316,11 +1362,29 @@ function updateSandboxStatus(status) {
   el.textContent = "Sandbox " + status.toLowerCase();
   el.className = "badge" + (status === "Live" ? " live" : "");
 }
-function updateTokens(val) { const el = $("tokenDisplay"); if (el) el.textContent = Number(val).toLocaleString(); }
+function updateTokens(val) {
+  const el = $("tokenDisplay"); if (el) el.textContent = Number(val).toLocaleString();
+  const limit = {{ user.tokens.limit if user and user.tokens else 0 }};
+  if (limit) _checkTokenWarning(Number(val), limit);
+}
 function setSaveStatus() {
   const el = $("saveStatus"); if (!el) return;
   el.textContent = dirty ? "Unsaved" : "Saved";
   el.style.color = dirty ? "var(--warn)" : "var(--muted)";
+}
+function _checkTokenWarning(used, limit) {
+  if (!used || !limit) return;
+  const pct = used / limit;
+  const existing = $("tokenWarningBanner");
+  if (pct < 0.5) { if (existing) existing.remove(); return; }
+  if (existing) return;
+  const banner = document.createElement('div');
+  banner.id = "tokenWarningBanner";
+  const is80 = pct >= 0.80;
+  banner.style.cssText = `padding:7px 14px;background:${is80 ? 'oklch(0.35 0.12 30 / 0.95)' : 'oklch(0.38 0.10 80 / 0.9)'};border-bottom:1px solid ${is80 ? 'rgba(224,85,85,0.3)' : 'oklch(0.78 0.13 80/0.3)'};display:flex;align-items:center;gap:10px;flex-shrink:0;`;
+  banner.innerHTML = `<i class="ph ph-lightning" style="color:${is80 ? 'var(--danger)' : 'var(--warn)'};font-size:13px;"></i><span style="font-size:12px;color:rgba(255,255,255,0.9);flex:1;font-weight:500;letter-spacing:-0.005em;">${is80 ? '⚠️ 80%+ tokens used — save your work now.' : '💡 50% tokens used.'} Push to <a href="/projects/{{ project_id }}/deploy" style="color:#fff;text-decoration:underline;">GitHub</a> or <a href="/projects/{{ project_id }}/deploy" style="color:#fff;text-decoration:underline;">Deploy</a> using the buttons top-right.</span><button onclick="this.parentNode.remove()" style="background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;padding:0 2px;">✕</button>`;
+  const strip = document.querySelector('.status-strip');
+  if (strip && strip.parentNode) strip.parentNode.insertBefore(banner, strip.nextSibling);
 }
 
 async function fetchJSON(url, opts) { try { return await (await fetch(url, opts)).json(); } catch(e) { return {}; } }
@@ -1397,7 +1461,23 @@ function renderTree(container, nodeObj, depth) {
   }
 }
 
-async function refreshFiles() {
+let _refreshTimer = null;
+let _lastRefresh = 0;
+
+async function refreshFiles(debounceMs = 0) {
+  if (_refreshTimer) clearTimeout(_refreshTimer);
+  const now = Date.now();
+  if (debounceMs > 0) {
+    return new Promise(resolve => {
+      _refreshTimer = setTimeout(async () => { await _doRefreshFiles(); resolve(); }, debounceMs);
+    });
+  }
+  if (now - _lastRefresh < 1200) return;
+  return _doRefreshFiles();
+}
+
+async function _doRefreshFiles() {
+  _lastRefresh = Date.now();
   const data = await fetchJSON(`/api/project/${PROJECT_ID}/files`);
   const paths = (data.files || []).map(x => x.path);
   if (paths.length > 0 && !paths.includes(currentFile))
@@ -1658,14 +1738,23 @@ $("tabAnalytics").onclick = async () => {
 
 // ── sandbox ───────────────────────────────────────────────────────────────────
 
+let _sandboxBooting = false;
+
 async function bootSandboxIfNeeded() {
   if (sandboxUrl && $("sandboxStatus").textContent.toLowerCase().includes("live")) {
     $("preview").src = sandboxUrl; return;
   }
+  if (_sandboxBooting) return;
+  _sandboxBooting = true;
   updateSandboxStatus("Booting");
   try {
     const res = await fetch(`/api/project/${PROJECT_ID}/sandbox/start`, { method: 'POST' });
     const data = await res.json();
+    if (res.status === 402) {
+      updateSandboxStatus("Upgrade needed");
+      addNarration("⚠️ **Token limit reached.** The sandbox can't start. [Upgrade your plan](/pricing) or top up to continue.", false);
+      return;
+    }
     if (data.url) {
       sandboxUrl = data.url; updateSandboxStatus("Live");
       if ($("tabPreview").classList.contains("active")) {
@@ -1673,11 +1762,12 @@ async function bootSandboxIfNeeded() {
       }
     } else updateSandboxStatus("Error");
   } catch (e) { updateSandboxStatus("Error"); }
+  finally { _sandboxBooting = false; }
 }
-
 // ── SSE stream ────────────────────────────────────────────────────────────────
 
 function startStream() {
+  if (es && es.readyState === EventSource.OPEN) return;
   if (es) es.close(); setConn("warn");
   es = new EventSource(`/api/project/${PROJECT_ID}/events`);
   es.onopen = () => setConn("ok");
@@ -1685,7 +1775,12 @@ function startStream() {
     const m = JSON.parse(e.data);
     if (m.type === "status") {
       setProgress(m.text);
-      if (/Done|Ready|Error/i.test(m.text)) { resetGroup(); setInputState(false); }
+      if (/Done|Ready/i.test(m.text)) { resetGroup(); setInputState(false); }
+      if (/Fatal Error/i.test(m.text)) {
+        resetGroup();
+        setInputState(false);
+        addNarration("❌ **Something went wrong.** The agent hit an environment issue and had to stop. Your files are safe — try sending your message again, or refresh if the sandbox seems stuck.", false);
+      }
       if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) updateSandboxStatus("Live");
       if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
     }
@@ -1712,8 +1807,8 @@ function startStream() {
     else if (m.type === "activity_chunk") appendActivityChunk(m.id, m.stream, m.text);
     else if (m.type === "activity_end") endActivity(m.id, m.ok);
     else if (m.type === "log") { if ((m.role || "").toLowerCase() === "assistant") await addNarration(m.text, false); }
-    else if (m.type === "file_changed") { refreshFiles(); if (m.path === currentFile) loadFile(currentFile); }
-    else if (m.type === "file_deleted") { refreshFiles(); if (m.path === currentFile) currentFile = "README.md"; }
+    else if (m.type === "file_changed") { refreshFiles(800); if (m.path === currentFile) setTimeout(() => loadFile(currentFile), 850); }
+    else if (m.type === "file_deleted") { refreshFiles(800); if (m.path === currentFile) currentFile = "README.md"; }
     else if (m.type === "token_usage") updateTokens(m.used);
   };
   es.onerror = () => setConn("bad");
@@ -1740,8 +1835,51 @@ async function triggerAgent(promptText) {
   if (imgPreview) { imgPreview.style.display = "none"; imgPreview.src = ""; }
   document.querySelector('label[for="editorImageInput"]').style.display = 'flex';
   if (imgInput) imgInput.value = "";
-  startStream();
-  await new Promise(r => setTimeout(r, 5000));
+  await new Promise((resolve) => {
+    if (es) es.close();
+    setConn("warn");
+    es = new EventSource(`/api/project/${PROJECT_ID}/events`);
+    es.onopen = () => { setConn("ok"); resolve(); };
+    es.onerror = () => { setConn("bad"); resolve(); };
+    es.onmessage = async (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === "status") {
+        setProgress(m.text);
+        if (/Done|Ready/i.test(m.text)) { resetGroup(); setInputState(false); }
+        if (/Fatal Error/i.test(m.text)) {
+          resetGroup(); setInputState(false);
+          addNarration("❌ **Something went wrong.** Try sending your message again, or refresh if the sandbox is stuck.", false);
+        }
+        if (/Sandbox Ready|Sandbox: Live/i.test(m.text)) updateSandboxStatus("Live");
+        if (/Sandbox Offline/i.test(m.text)) { sandboxUrl = null; updateSandboxStatus("Offline"); }
+      }
+      else if (m.type === "progress") setProgress(m.text, m.pct);
+      else if (m.type === "sandbox_url") {
+        sandboxUrl = m.url; updateSandboxStatus("Live");
+        if (!window.isAgentWorking && $("tabPreview").classList.contains("active")) {
+          const iframe = $("preview");
+          iframe.style.display = "none"; $("previewEmpty").style.display = "flex";
+          const checkPort = setInterval(async () => {
+            try {
+              const res = await fetch(sandboxUrl); const text = await res.text();
+              if (!text.includes("Closed Port Error") && !text.includes("no service running on port")) {
+                clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none";
+              }
+            } catch { clearInterval(checkPort); iframe.src = sandboxUrl; iframe.style.display = "block"; $("previewEmpty").style.display = "none"; }
+          }, 2000);
+        }
+      }
+      else if (m.type === "narration") await addNarration(m.text, true);
+      else if (m.type === "activity_start") addActivityCard(m.id, m.verb, m.target, m.short);
+      else if (m.type === "activity_chunk") appendActivityChunk(m.id, m.stream, m.text);
+      else if (m.type === "activity_end") endActivity(m.id, m.ok);
+      else if (m.type === "log") { if ((m.role || "").toLowerCase() === "assistant") await addNarration(m.text, false); }
+      else if (m.type === "file_changed") { refreshFiles(800); if (m.path === currentFile) setTimeout(() => loadFile(currentFile), 850); }
+      else if (m.type === "file_deleted") { refreshFiles(800); if (m.path === currentFile) currentFile = "README.md"; }
+      else if (m.type === "token_usage") updateTokens(m.used);
+    };
+    setTimeout(resolve, 2500);
+  });
   fetch(`/api/project/${PROJECT_ID}/agent/start`, { method: "POST", body: formData })
     .catch(err => { console.error("Agent start failed:", err); setInputState(false); });
 }
@@ -1970,7 +2108,7 @@ async function loadAnalytics() {
   await refreshFiles();
   try { await loadFile(currentFile); } catch(e) {}
   switchTab("code");
-  startStream();
+  if (!INITIAL_PROMPT) startStream();
   setProgress("Ready", 0);
   hideLoader();
   if (INITIAL_PROMPT) setTimeout(() => triggerAgent(INITIAL_PROMPT), 800);
