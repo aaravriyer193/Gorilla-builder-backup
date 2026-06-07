@@ -1114,7 +1114,7 @@ const PROJECT_ID    = "{{ project_id }}";
 const INITIAL_PROMPT = {{ initial_prompt | tojson }};
 const HAS_SUPABASE  = {{ 'true' if has_supabase else 'false' }};
 const PROJECT_HAS_DB = {{ 'true' if project_has_db else 'false' }};
-const GAME_URL      = `/projects/${PROJECT_ID}/game`;
+const GAME_URL      = `https://gorilla-games.vercel.app`;
 
 window.isAgentWorking = false;
 let editorView = null, currentFile = "index.html", currentContent = "", dirty = false;
