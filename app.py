@@ -1250,13 +1250,21 @@ async def auth_supabase_callback(request: Request, code: str, state: str):
 
 @app.get("/auth/supabase/link-popup")
 async def link_supabase_popup(request: Request):
-    """Same as /auth/supabase/link but redirects to a popup-close page on success."""
     user = get_current_user(request)
+    
+    # If already linked, close the popup immediately
+    user_data = db_select_one("users", {"id": user["id"]}, "supabase_access_token")
+    if user_data and user_data.get("supabase_access_token"):
+        return HTMLResponse("""<!DOCTYPE html><html><body><script>
+window.opener && window.opener.postMessage({type:'supabase_linked',ok:true},'*');
+window.close();
+</script><p>Already connected.</p></body></html>""")
+    
     if not SUPABASE_MGMT_CLIENT_ID or not SUPABASE_MGMT_REDIRECT_URI:
         raise HTTPException(500, "Supabase Management Auth config missing.")
     state = secrets.token_urlsafe(16)
     request.session["supabase_oauth_state"] = state
-    request.session["supabase_oauth_popup"] = True   # ← flag for callback
+    request.session["supabase_oauth_popup"] = True
     auth_url = (
         f"https://api.supabase.com/v1/oauth/authorize"
         f"?client_id={SUPABASE_MGMT_CLIENT_ID}"
@@ -1269,11 +1277,19 @@ async def link_supabase_popup(request: Request):
 
 @app.get("/auth/github/link-popup")
 async def link_github_popup(request: Request):
-    """Same as /auth/github/link but closes the popup on return."""
     user = get_current_user(request)
+    
+    # If already linked, close the popup immediately
+    user_data = db_select_one("users", {"id": user["id"]}, "github_access_token")
+    if user_data and user_data.get("github_access_token"):
+        return HTMLResponse("""<!DOCTYPE html><html><body><script>
+window.opener && window.opener.postMessage({type:'github_linked',ok:true},'*');
+window.close();
+</script><p>Already connected.</p></body></html>""")
+    
     if not GITHUB_CLIENT_ID or not GITHUB_REDIRECT_URI:
         raise HTTPException(500, "GitHub Auth config missing.")
-    request.session["github_oauth_popup"] = True    # ← flag for callback
+    request.session["github_oauth_popup"] = True
     scope = "user:email repo"
     auth_url = (
         f"https://github.com/login/oauth/authorize"
