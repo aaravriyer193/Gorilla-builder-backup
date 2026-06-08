@@ -130,6 +130,8 @@ PENDING_SIGNUPS = {}
 _BOOTING_PROJECTS: Set[str] = set()
 _LAST_ACCESS: Dict[str, float] = {}
 SHUTDOWN_TIMEOUT_SECONDS = 600
+_AGENT_PAUSE_EVENTS: Dict[str, asyncio.Event] = {}
+_AGENT_PAUSE_DATA:   Dict[str, Any]           = {}
 _sandbox_manager = None  # ← ADD THIS LINE
 
 # ==========================================================================
@@ -1122,8 +1124,15 @@ async def auth_github_callback(request: Request, code: str):
         except Exception as e:
             print(f"⚠️ Failed to save github_access_token for user {user_id}: {e}")
 
-        return RedirectResponse("/dashboard", status_code=303)
-        
+        is_popup = request.session.pop("github_oauth_popup", False)
+        if is_popup:
+            return HTMLResponse("""<!DOCTYPE html><html><head><title>Connected</title></head>
+        <body><script>
+        window.opener && window.opener.postMessage({type:'github_linked',ok:true},'*');
+        window.close();
+        </script><p>GitHub connected. You can close this window.</p></body></html>""")
+        return RedirectResponse("/dashboard", status_code=303)        
+
 # ==========================================================================
 # BILLING ROUTES (Mock Payment Processing)
 # ==========================================================================
@@ -1221,11 +1230,59 @@ async def auth_supabase_callback(request: Request, code: str, state: str):
                 }).eq("id", user["id"]).execute()
                 print(f"✅ Supabase tokens successfully saved for user {user['id']}")
                 
+        # Replace only the final return in auth_supabase_callback:
+        is_popup = request.session.pop("supabase_oauth_popup", False)
+        if is_popup:
+            return HTMLResponse("""<!DOCTYPE html><html><head><title>Connected</title></head>
+        <body><script>
+        window.opener && window.opener.postMessage({type:'supabase_linked',ok:true},'*');
+        window.close();
+        </script><p>Supabase connected. You can close this window.</p></body></html>""")
         return RedirectResponse("/dashboard?success=supabase_linked", status_code=303)
-        
+
     except Exception as e:
         print(f"⚠️ Supabase Auth Callback crashed: {e}")
         return RedirectResponse("/dashboard?error=supabase_auth_crash", status_code=303)
+
+# ==========================================================================
+# PopUp Oauth
+# ==========================================================================
+
+@app.get("/auth/supabase/link-popup")
+async def link_supabase_popup(request: Request):
+    """Same as /auth/supabase/link but redirects to a popup-close page on success."""
+    user = get_current_user(request)
+    if not SUPABASE_MGMT_CLIENT_ID or not SUPABASE_MGMT_REDIRECT_URI:
+        raise HTTPException(500, "Supabase Management Auth config missing.")
+    state = secrets.token_urlsafe(16)
+    request.session["supabase_oauth_state"] = state
+    request.session["supabase_oauth_popup"] = True   # ← flag for callback
+    auth_url = (
+        f"https://api.supabase.com/v1/oauth/authorize"
+        f"?client_id={SUPABASE_MGMT_CLIENT_ID}"
+        f"&response_type=code"
+        f"&redirect_uri={urllib.parse.quote(SUPABASE_MGMT_REDIRECT_URI)}"
+        f"&state={state}"
+    )
+    return RedirectResponse(auth_url)
+
+
+@app.get("/auth/github/link-popup")
+async def link_github_popup(request: Request):
+    """Same as /auth/github/link but closes the popup on return."""
+    user = get_current_user(request)
+    if not GITHUB_CLIENT_ID or not GITHUB_REDIRECT_URI:
+        raise HTTPException(500, "GitHub Auth config missing.")
+    request.session["github_oauth_popup"] = True    # ← flag for callback
+    scope = "user:email repo"
+    auth_url = (
+        f"https://github.com/login/oauth/authorize"
+        f"?client_id={GITHUB_CLIENT_ID}"
+        f"&redirect_uri={urllib.parse.quote(GITHUB_REDIRECT_URI)}"
+        f"&scope={scope}"
+        f"&state=link_{user['id']}"
+    )
+    return RedirectResponse(auth_url)
 
 # ==========================================================================
 # DASHBOARD & WORKSPACE
@@ -2201,11 +2258,14 @@ async def get_project_analytics(request: Request, project_id: str, days: int = 3
 # Minimal, clean UI experience
 #
 
-
+import asyncio
+import os
+import re
+import httpx
 
 # Global tracking for active AI fixes
 active_ai_fixes = set()
-_AGENT_TASKS: Set[asyncio.Task] = set()
+_AGENT_TASKS = set()
 
 
 async def run_agent_loop(
@@ -2219,7 +2279,7 @@ async def run_agent_loop(
 ):
     try:
         await asyncio.sleep(0.2)
- 
+
         # ---- Load project state ----
         proj = db_select_one(
             "projects", {"id": project_id},
@@ -2229,7 +2289,7 @@ async def run_agent_loop(
         project_ref = proj.get("supabase_project_ref")
         has_supabase = bool(project_ref)  # ← add this line here
         db_history = proj.get("chat_history") or []
- 
+
         # Append user message to chat history and persist
         if not skip_planner:
             if is_system_task:
@@ -2246,7 +2306,6 @@ async def run_agent_loop(
                 ).eq("id", project_id).execute()
             )
 
- 
         user_data = db_select_one(
             "users", {"id": user_id},
             "gorilla_api_key, supabase_access_token, agent_skills",
@@ -2293,7 +2352,7 @@ async def run_agent_loop(
                             {"supabase_project_ref": project_ref}
                         ).eq("id", project_id).execute()
                         has_supabase = True
- 
+
                         supa_anon_key = ""
                         for _ in range(45):
                             s = await client.get(
@@ -2319,7 +2378,7 @@ async def run_agent_loop(
                                         supa_anon_key = anon["api_key"]
                                         break
                             await asyncio.sleep(3)
- 
+
                         if supa_anon_key:
                             supa_url = f"https://{project_ref}.supabase.co"
                             env_content = (
@@ -2338,27 +2397,27 @@ async def run_agent_loop(
                         emit_log(project_id, "system", f"Provisioning failed: {proj_res.text[:200]}")
             except Exception as e:
                 emit_log(project_id, "system", f"DB provisioning error: {e}")
- 
+
         # ---- Build env + contextual prompt ----
         env_vars = _build_sandbox_env(project_id, user_id)
         gorilla_proxy = os.getenv("FILE_API_BASE_URL", "https://your-proxy.ngrok-free.dev")
- 
+
         contextual_prompt = prompt
         if len(db_history) > 1 and not skip_planner:
             past = db_history[-7:-1]
-            history_text = "\\n".join([
+            history_text = "\n".join([
                 f"{m.get('role', 'user').upper()}: {m.get('content', '')[:300]}"
                 for m in past
             ])
             contextual_prompt = (
-                f"--- PREVIOUS CONVERSATION ---\\n{history_text}\\n"
-                f"\\n--- CURRENT REQUEST ---\\n{prompt}"
+                f"--- PREVIOUS CONVERSATION ---\n{history_text}\n"
+                f"\n--- CURRENT REQUEST ---\n{prompt}"
             )
- 
+
         # Image attachment (first-turn only, read from Supabase files)
         file_tree = await _fetch_file_tree(project_id)
         image_b64 = file_tree.get(".gorilla/prompt_image.b64")
- 
+
         # ---- Callback to persist each assistant message as it arrives ----
         def on_assistant_message(msg: str):
             # Note: this runs inside the sandbox manager which may already
@@ -2374,13 +2433,12 @@ async def run_agent_loop(
             except Exception as e:
                 print(f"Persist assistant message failed: {e}")
 
-
         # ---- Hand off EVERYTHING to the sandbox manager ----
         # It handles: boot → multi-turn agent loop → single end-of-turn sync
         #             → delete detection → dev server restart → URL emit
         emit_status(project_id, "Preparing Sandbox...")
         emit_progress(project_id, "Preparing Environment...", 5)
- 
+
         result = await _sandbox_manager.run_agent_turn(
             project_id=project_id,
             user_request=contextual_prompt,
@@ -2396,21 +2454,92 @@ async def run_agent_loop(
             agent_skills=agent_skills,  # ← add this line
         )
 
-        # Charge tokens
+        # Charge tokens immediately after the turn completes
         total_tokens = result.get("tokens", 0)
         if total_tokens and user_id:
             add_monthly_tokens(user_id, total_tokens)
             _maybe_emit_token_warning(project_id, user_id)
 
         track_event(project_id, "agent_run", metadata={"tokens": total_tokens})
-        
+
+        # Process user action (pause/resume flow)
+        user_action = result.get("user_action")
+        if user_action:
+            action_type = user_action["type"]
+
+            if action_type == "connect_supabase":
+                # Emit SSE event — frontend renders the button
+                progress_bus.emit(project_id, {
+                    "type":   "user_input_required",
+                    "action": "connect_supabase",
+                    "reason": user_action.get("reason", ""),
+                })
+
+            elif action_type == "set_env_vars":
+                progress_bus.emit(project_id, {
+                    "type":   "user_input_required",
+                    "action": "set_env_vars",
+                    "vars":   user_action.get("vars", []),
+                    "reason": user_action.get("reason", ""),
+                })
+
+            # Create a pause event and block until /agent/resume is called
+            ev = asyncio.Event()
+            _AGENT_PAUSE_EVENTS[project_id] = ev
+            emit_status(project_id, "Waiting for your input…")
+
+            try:
+                await asyncio.wait_for(ev.wait(), timeout=300)  # 5 min timeout
+            except asyncio.TimeoutError:
+                emit_status(project_id, "Timed out waiting for input.")
+                _AGENT_PAUSE_EVENTS.pop(project_id, None)
+                _AGENT_PAUSE_DATA.pop(project_id, None)
+                return
+
+            resume_data = _AGENT_PAUSE_DATA.pop(project_id, {})
+            _AGENT_PAUSE_EVENTS.pop(project_id, None)
+
+            # Re-fetch updated state and continue the loop with an observation
+            emit_status(project_id, "Resuming…")
+            
+            if action_type == "connect_supabase":
+                # Reload supabase status and continue
+                user_data_fresh = db_select_one("users", {"id": user_id}, "supabase_access_token") or {}
+                has_supabase_now = bool(user_data_fresh.get("supabase_access_token"))
+                continuation_prompt = (
+                    "The user has now connected their Supabase account. "
+                    f"has_supabase is now {'true' if has_supabase_now else 'still false — they may have cancelled'}. "
+                    "Continue with the original task."
+                )
+            elif action_type == "set_env_vars":
+                submitted = resume_data.get("data", {}).get("vars", {})
+                var_list  = ", ".join(submitted.keys()) if submitted else "none"
+                continuation_prompt = (
+                    f"The user has provided the requested environment variables: {var_list}. "
+                    "They have been written to .env. Continue with the original task."
+                )
+            else:
+                continuation_prompt = "The user has completed the requested action. Continue."
+
+            # Re-run the loop from this project's current state as a follow-up turn
+            asyncio.create_task(run_agent_loop(
+                project_id=project_id,
+                prompt=continuation_prompt,
+                user_id=user_id,
+                agent_type=agent_type,
+                skip_planner=True,
+                is_system_task=True,
+            ))
+            return   # current invocation ends; the task above carries on
+
+        # Check for fatal errors if no user action triggered
         if not result.get("ok"):
             emit_status(project_id, "Fatal Error")
             return
- 
+
         emit_status(project_id, "Done")
         emit_progress(project_id, "Ready", 100)
- 
+
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -2420,9 +2549,10 @@ async def run_agent_loop(
         # Actually surface the error message AND traceback to the chat UI
         # so you can see what broke without digging through terminal logs.
         emit_log(project_id, "system", f"❌ {type(e).__name__}: {e}")
-        # Split traceback into last few lines so the UI doesn\'t choke
-        tb_short = "\\n".join(tb.strip().split("\\n")[-8:])
-        emit_log(project_id, "system", f"Traceback:\\n{tb_short}")
+        # Split traceback into last few lines so the UI doesn't choke
+        tb_short = "\n".join(tb.strip().split("\n")[-8:])
+        emit_log(project_id, "system", f"Traceback:\n{tb_short}")
+
 # ==========================================================================
 # AUTO-FIXING LOG ENDPOINT
 # ==========================================================================
@@ -3995,6 +4125,60 @@ async def agent_start(request: Request, project_id: str):
     task.add_done_callback(_log_task_exception)
  
     return {"started": True}
+
+@app.post("/api/project/{project_id}/agent/resume")
+async def agent_resume(request: Request, project_id: str):
+    """
+    Called by the frontend after the user completes a user_action
+    (connected Supabase or submitted env vars). Unblocks the paused agent loop.
+    """
+    user = get_current_user(request)
+    _require_project_owner(user, project_id)
+
+    payload = await request.json()
+    action_type = payload.get("type")       # "connect_supabase" | "set_env_vars"
+    data        = payload.get("data", {})   # {"vars": {"KEY": "val", ...}} for env
+
+    # If env vars were submitted, persist them into .env before resuming
+    if action_type == "set_env_vars" and data.get("vars"):
+        env_vars = data["vars"]
+        try:
+            existing = db_select_one("files", {"project_id": project_id, "path": ".env"})
+            current_content = (existing or {}).get("content", "") or ""
+            # Append new vars, overwriting any existing keys with same name
+            existing_lines = {
+                line.split("=", 1)[0]: line
+                for line in current_content.splitlines()
+                if "=" in line
+            }
+            for k, v in env_vars.items():
+                existing_lines[k.strip()] = f"{k.strip()}={v.strip()}"
+            new_content = "\n".join(existing_lines.values())
+            db_upsert(
+                "files",
+                {"project_id": project_id, "path": ".env", "content": new_content},
+                on_conflict="project_id,path",
+            )
+            # Mirror to live sandbox if running
+            if _sandbox_manager and _sandbox_manager.is_running(project_id):
+                await _sandbox_manager.write_file(project_id, ".env", new_content)
+        except Exception as e:
+            print(f"⚠️ env var injection failed: {e}")
+
+    # If Supabase was connected, update project has_supabase flag for the agent
+    if action_type == "connect_supabase":
+        # The user's supabase_access_token is now set (OAuth callback already ran).
+        # The agent loop will re-read it on its next turn.
+        pass
+
+    # Unblock the waiting agent loop
+    ev = _AGENT_PAUSE_EVENTS.get(project_id)
+    if ev:
+        _AGENT_PAUSE_DATA[project_id] = {"type": action_type, "data": data}
+        ev.set()
+        return JSONResponse({"status": "resumed"})
+
+    return JSONResponse({"status": "no_paused_agent"}, status_code=404)
 
 @app.get("/api/project/{project_id}/events")
 async def agent_events(request: Request, project_id: str):

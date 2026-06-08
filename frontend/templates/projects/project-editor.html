@@ -991,7 +991,7 @@
       <a class="pill-btn blue" href="/pricing">Upgrade →</a>
       {% endif %}
       {% if not has_github %}
-      <a class="pill-btn gh" href="/auth/github/link" title="Connect GitHub">
+      <a class="pill-btn gh" href="javascript:void(0)" onclick="_showGithubGuidance()" title="Connect GitHub">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
         GitHub
       </a>
@@ -1044,7 +1044,6 @@
     </div>
   </div>
 
-  <!-- VS Code style status bar -->
   <div class="status-bar" id="statusBar">
     <span class="status-bar-item clickable" title="Branch">
       <i class="ph ph-git-branch"></i>
@@ -1096,13 +1095,16 @@ async function commitToGithub() {
 }
 
 function _showGithubGuidance() {
-  const existing = $("ghGuidance"); if (existing) { existing.remove(); return; }
-  const el = document.createElement('div');
-  el.id = "ghGuidance";
-  el.style.cssText = "position:fixed;top:60px;right:16px;z-index:9999;background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--radius-lg);padding:16px 18px;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:fadeUp 0.2s var(--ease);";
-  el.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--fg);margin-bottom:8px;display:flex;align-items:center;gap:8px;"><i class="ph ph-git-branch" style="color:var(--accent);"></i> Connect GitHub first</div><p style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:12px;">Click <strong>Connect GitHub</strong> to link your account — no tokens or PATs needed. Then click the GitHub button again to push.</p><div style="display:flex;gap:8px;"><a href="/auth/github/link" style="flex:1;background:var(--accent);color:#fff;text-decoration:none;padding:7px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;text-align:center;display:block;">Connect GitHub</a><button onclick="document.getElementById('ghGuidance').remove()" style="background:var(--bg-3);border:1px solid var(--line-2);color:var(--muted);padding:7px 10px;border-radius:var(--radius-sm);font-size:12px;cursor:pointer;">✕</button></div>`;
-  document.body.appendChild(el);
-  setTimeout(() => { const e = $("ghGuidance"); if (e) e.remove(); }, 14000);
+  if (window.openOAuthPopup) {
+    window.openOAuthPopup(
+      "/auth/github/link-popup",
+      "github_linked",
+      () => {
+        // Reload the page so the button state updates (has_github becomes true)
+        window.location.reload();
+      }
+    );
+  }
 }
 </script>
 
@@ -1126,6 +1128,146 @@ let analyticsChart1 = null, analyticsChart2 = null;
 const $ = id => document.getElementById(id);
 const chat = $("chat");
 const gameFrame = $("gameFrame");
+
+// ── USER ACTION CARDS ─────────────────────────────────────────────────────
+
+function handleUserInputRequired(m) {
+  resetGroup();
+  setInputState(false);   // unlock input so user can interact
+
+  if (m.action === "connect_supabase") {
+    renderConnectSupabaseCard(m.reason);
+  } else if (m.action === "set_env_vars") {
+    renderEnvVarsCard(m.vars || [], m.reason);
+  }
+}
+
+function renderConnectSupabaseCard(reason) {
+  const el = document.createElement("div");
+  el.className = "narration";
+  el.innerHTML = `
+    <p style="margin-bottom:10px;">🗄️ <strong>Supabase required</strong> — ${reason || "A database is needed for this feature."}</p>
+    <button id="btnConnectSupabase" class="pill-btn blue" style="font-size:12px;">
+      <i class="ph ph-database"></i> Connect Supabase
+    </button>
+    <span id="supabaseConnectStatus" style="margin-left:10px;font-size:12px;color:var(--muted);"></span>`;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+
+  document.getElementById("btnConnectSupabase").onclick = () => {
+    openOAuthPopup(
+      "/auth/supabase/link-popup",
+      "supabase_linked",
+      async () => {
+        document.getElementById("supabaseConnectStatus").textContent = "Connected! Resuming…";
+        document.getElementById("btnConnectSupabase").disabled = true;
+        await resumeAgent("connect_supabase", {});
+      }
+    );
+  };
+}
+
+function renderEnvVarsCard(varNames, reason) {
+  const fields = varNames.map(name => `
+    <div style="margin-bottom:8px;">
+      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px;font-family:'DM Mono',monospace;">${name}</label>
+      <input
+        type="text"
+        data-varname="${name}"
+        placeholder="Enter value…"
+        autocomplete="off"
+        spellcheck="false"
+        style="width:100%;background:var(--bg);border:1px solid var(--line-2);color:var(--fg);
+               padding:7px 10px;font-size:12px;font-family:'DM Mono',monospace;
+               border-radius:var(--radius-sm);outline:none;"
+        onfocus="this.style.borderColor='oklch(0.6 0.2 248 / 0.5)'"
+        onblur="this.style.borderColor='var(--line-2)'"
+      />
+    </div>`).join("");
+
+  const el = document.createElement("div");
+  el.className = "narration";
+  el.innerHTML = `
+    <p style="margin-bottom:10px;">🔑 <strong>Environment variables needed</strong> — ${reason || "Please provide the following keys:"}</p>
+    <div id="envVarsForm" style="margin-bottom:12px;">${fields}</div>
+    <button id="btnSubmitEnvVars" class="pill-btn blue" style="font-size:12px;">
+      <i class="ph ph-check"></i> Save & Continue
+    </button>
+    <span id="envVarsStatus" style="margin-left:10px;font-size:12px;color:var(--muted);"></span>`;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+
+  document.getElementById("btnSubmitEnvVars").onclick = async () => {
+    const inputs = document.querySelectorAll("#envVarsForm input[data-varname]");
+    const vars = {};
+    let empty = false;
+    inputs.forEach(inp => {
+      const val = inp.value.trim();
+      if (!val) empty = true;
+      vars[inp.dataset.varname] = val;
+    });
+    if (empty) {
+      document.getElementById("envVarsStatus").textContent = "Please fill all fields.";
+      return;
+    }
+    document.getElementById("btnSubmitEnvVars").disabled = true;
+    document.getElementById("envVarsStatus").textContent = "Saving…";
+    await resumeAgent("set_env_vars", { vars });
+    document.getElementById("envVarsStatus").textContent = "Saved! Resuming agent…";
+    setInputState(true);  // re-lock while agent continues
+  };
+}
+
+async function resumeAgent(type, data) {
+  try {
+    await fetch(`/api/project/${PROJECT_ID}/agent/resume`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, data }),
+    });
+  } catch (e) {
+    console.error("resume failed", e);
+  }
+}
+
+// ── OAUTH POPUP HELPER ────────────────────────────────────────────────────
+
+function openOAuthPopup(url, expectedMessageType, onSuccess) {
+  const w = 600, h = 700;
+  const left = Math.max(0, (screen.width  - w) / 2);
+  const top  = Math.max(0, (screen.height - h) / 2);
+  const popup = window.open(
+    url,
+    "oauth_popup",
+    `width=${w},height=${h},left=${left},top=${top},toolbar=0,menubar=0,location=0`
+  );
+
+  if (!popup) {
+    // Blocked — fall back to redirect
+    window.location.href = url.replace("-popup", "");
+    return;
+  }
+
+  function onMessage(evt) {
+    if (evt.data && evt.data.type === expectedMessageType && evt.data.ok) {
+      window.removeEventListener("message", onMessage);
+      if (!popup.closed) popup.close();
+      onSuccess();
+    }
+  }
+  window.addEventListener("message", onMessage);
+
+  // Fallback: poll for popup closed without postMessage (user closed manually)
+  const poll = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(poll);
+      window.removeEventListener("message", onMessage);
+    }
+  }, 800);
+}
+
+// Expose globally for the old <script> tags
+window.openOAuthPopup = openOAuthPopup;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1810,6 +1952,9 @@ function startStream() {
     else if (m.type === "file_changed") { refreshFiles(800); if (m.path === currentFile) setTimeout(() => loadFile(currentFile), 850); }
     else if (m.type === "file_deleted") { refreshFiles(800); if (m.path === currentFile) currentFile = "README.md"; }
     else if (m.type === "token_usage") updateTokens(m.used);
+    else if (m.type === "user_input_required") {
+      handleUserInputRequired(m);
+    }
   };
   es.onerror = () => setConn("bad");
 }
@@ -1819,7 +1964,7 @@ function startStream() {
 async function triggerAgent(promptText) {
   if (!promptText && !currentAttachedImage) return;
   resetGroup();
-  const dbKeywords = /\b(db|database|supabase|postgres|sql)\b/i;
+  const dbKeywords = /\b(78218887-5ba2-4e61-9392-6a7667cfaa88)\b/i;
   const isDbReq = dbKeywords.test(promptText);
   const formData = new FormData();
   formData.append("agent_type", isDbReq ? "supabase" : "fast");
@@ -1877,6 +2022,9 @@ async function triggerAgent(promptText) {
       else if (m.type === "file_changed") { refreshFiles(800); if (m.path === currentFile) setTimeout(() => loadFile(currentFile), 850); }
       else if (m.type === "file_deleted") { refreshFiles(800); if (m.path === currentFile) currentFile = "README.md"; }
       else if (m.type === "token_usage") updateTokens(m.used);
+      else if (m.type === "user_input_required") {
+        handleUserInputRequired(m);
+      }
     };
     setTimeout(resolve, 2500);
   });
@@ -2107,7 +2255,7 @@ async function loadAnalytics() {
   loadChatHistory();
   await refreshFiles();
   try { await loadFile(currentFile); } catch(e) {}
-  switchTab("code");
+  switchTab("preview");
   if (!INITIAL_PROMPT) startStream();
   setProgress("Ready", 0);
   hideLoader();

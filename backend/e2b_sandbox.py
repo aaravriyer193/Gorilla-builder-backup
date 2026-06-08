@@ -1238,14 +1238,14 @@ class E2BSandboxManager:
 
         return fe_ok, api_ok, log_tail
 
-    # -----------------------------------------------------------
+# -----------------------------------------------------------
     # Agent turn — v18 tool-call native loop
     # -----------------------------------------------------------
     async def run_agent_turn(
         self, project_id, user_request, user_id, env_vars,
         chat_history=None, gorilla_proxy_url="", has_supabase=False,
         is_debug=False, error_context="", image_b64=None,
-        on_assistant_message=None, agent_skills=None,
+        on_assistant_message=None, agent_skills=None
     ) -> Dict[str, Any]:
         self._turn_locks.setdefault(project_id, asyncio.Lock())
         async with self._turn_locks[project_id]:
@@ -1253,7 +1253,7 @@ class E2BSandboxManager:
                 project_id, user_request, user_id, env_vars,
                 chat_history, gorilla_proxy_url, has_supabase,
                 is_debug, error_context, image_b64, on_assistant_message,
-                agent_skills,
+                agent_skills
             )
 
     async def _do_run_agent_turn(
@@ -1319,6 +1319,21 @@ class E2BSandboxManager:
                     self._emit(project_id, {"type": "token_usage", "tokens": turn_delta})
                 except Exception:
                     pass
+
+            # ─── CRITICAL FIX: INTERCEPT USER ACTIONS IMMEDIATELY ─────────────
+            if result.get("user_action"):
+                log_agent("agent", f"Pausing loop for user action: {result['user_action']['type']}", project_id)
+                self._emit_status(project_id, "Waiting for your input…")
+                # Sync whatever files might have been touched before returning
+                synced, deleted = await self._sync_once(project_id)
+                return {
+                    "ok": True, "commands": all_commands,
+                    "tokens": total_tokens,
+                    "final_message": result.get("message", "Waiting for input..."),
+                    "turns": turn_count, "synced_files": synced,
+                    "deleted_files": deleted, "preview_url": session.url if session else None,
+                    "user_action": result["user_action"], # <-- THIS EXITS THE LOOP TO APP.PY
+                }
 
             # Save plan as .gorilla/todo.md on first turn
             if turn == 0 and getattr(agent, "_plan_injected", False):
@@ -1424,14 +1439,7 @@ class E2BSandboxManager:
 
             if commands:
                 # ─── RESTART-LOOP FIX (v18.1): block restart even if flag stale ───
-                # The agent's "kill+restart dance" hangs E2B's stream waiting for
-                # pipes to drain. We sanitize:
-                #   (a) if dev process is alive (live pgrep, not just flag),
-                #       replace with a verify-only echo
-                #   (b) strip any pkill against our own dev processes
-                #   (c) force-detach any npm run dev (nohup + disown)
                 fixed: List[str] = []
-                # Cache the alive-check result for this turn (avoid repeat pgrep)
                 _dev_alive_cached: Optional[bool] = None
 
                 for cmd in commands:
@@ -1444,13 +1452,11 @@ class E2BSandboxManager:
                     )
 
                     if is_dev_restart:
-                        # Live check: is the dev process actually alive?
                         if _dev_alive_cached is None:
                             _dev_alive_cached = (
                                 session._dev_server_up
                                 or await self._is_dev_process_alive(session)
                             )
-                            # Sync the flag if we found it live
                             if _dev_alive_cached:
                                 session._dev_server_up = True
 
@@ -1466,7 +1472,6 @@ class E2BSandboxManager:
                             fixed.append(cmd)
                             continue
 
-                    # Otherwise: strip pkills against our dev processes
                     if re.search(r"pkill\s+-f\s+['\"]?(vite|npm run dev|node server)", stripped):
                         cmd = re.sub(
                             r"pkill\s+-f\s+['\"]?(?:vite|npm run dev|node server)[^;&|]*"
@@ -1476,7 +1481,6 @@ class E2BSandboxManager:
                         )
                         log_agent("agent", "Stripped pkill from agent bash", project_id)
 
-                    # Force-detach any npm run dev so commands.run can return
                     if re.search(r"\bnpm run dev\b", cmd) and "disown" not in cmd:
                         if re.search(r"npm run dev\s*$", cmd.strip()):
                             cmd = cmd.rstrip() + " > /tmp/dev.log 2>&1 </dev/null & disown"
@@ -1578,12 +1582,6 @@ class E2BSandboxManager:
         # -----------------------------------------------------------
         request_lower  = (user_request or "").lower()
         is_edit_request = any(kw in request_lower for kw in _EDIT_KEYWORDS)
-        # ─── REVIEWER FIX: don't second-guess a clean mark_done ───
-        # When the agent explicitly called mark_done, both ports were verified
-        # 200 and the build matched spec. Running a fix-pass here:
-        #   1. Burns more tokens (often on pro model)
-        #   2. May rewrite files post-sync, corrupting the saved state
-        #   3. Was the root cause of "no saving" in the v18 trace
         should_review = (
             not is_debug
             and turn_count > 3
@@ -1610,7 +1608,6 @@ class E2BSandboxManager:
                         is_debug=True,
                         error_context=review_fixes,
                     )
-                    # ─── BILLING FIX: bill the reviewer turn correctly ───
                     fix_delta, total_tokens = self._extract_turn_tokens(fix_result, total_tokens)
                     if fix_delta > 0:
                         try:
@@ -1676,6 +1673,7 @@ class E2BSandboxManager:
             "final_message": final_message or "Done.",
             "turns": turn_count, "synced_files": synced,
             "deleted_files": deleted, "preview_url": url,
+            "user_action": None, # <-- Safely default back to None
         }
 
     # -----------------------------------------------------------
