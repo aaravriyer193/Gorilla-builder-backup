@@ -4139,7 +4139,7 @@ async def agent_start(request: Request, project_id: str):
             print(f"⚠️ agent task crashed: {exc}")
             traceback.print_exception(type(exc), exc, exc.__traceback__)
     task.add_done_callback(_log_task_exception)
- 
+    progress_bus.emit(project_id, {"type": "agent_queued"})  # ADD THIS LINE
     return {"started": True}
 
 @app.post("/api/project/{project_id}/agent/resume")
@@ -4205,11 +4205,11 @@ async def agent_events(request: Request, project_id: str):
     async def _gen():
         q = progress_bus.subscribe(project_id)
         try:
-            yield ":" + " " * 2048 + "\n\n"   # prime the proxy, force first flush
+            yield ":" + " " * 4096 + "\n\n"   # prime the proxy, force first flush
             yield f"data: {json.dumps({'type':'status','text':'Connected'})}\n\n"
             while True:
                 try:
-                    ev = await asyncio.wait_for(q.get(), timeout=5)
+                    ev = await asyncio.wait_for(q.get(), timeout=15)
                     yield f"data: {json.dumps(ev)}\n\n"
                 except asyncio.TimeoutError:
                     yield ": keep-alive\n\n"
